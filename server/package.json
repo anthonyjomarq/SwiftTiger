@@ -1,0 +1,40 @@
+{
+  "name": "swifttiger-backend",
+  "version": "1.0.0",
+  "description": "SwiftTiger Field Service Management Backend API",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "verify-db": "node verify-db.js",
+    "migrate": "psql -d $DB_NAME -f migrations/001-initial-setup.sql",
+    "migrate-fix": "psql -d $DB_NAME -f migrations/002-fix-columns.sql",
+    "reset-db": "psql -d $DB_NAME -f migrations/002-fix-columns.sql"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "sequelize": "^6.35.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "dotenv": "^16.3.1",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "sequelize-cli": "^6.6.2"
+  },
+  "keywords": [
+    "field-service",
+    "management",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
