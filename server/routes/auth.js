@@ -2,19 +2,37 @@ import express from "express";
 
 const router = express.Router();
 
-// Login endpoint
+// Login endpoint with better debugging
 router.post("/login", (req, res) => {
   try {
+    // Debug logging
+    console.log("🔍 Raw request body:", req.body);
+    console.log("🔍 Request headers:", req.headers);
+    console.log("🔍 Content-Type:", req.get("Content-Type"));
+
     const { email, password } = req.body;
 
-    console.log("🔐 Login attempt for:", email);
+    console.log("🔍 Extracted email:", email);
+    console.log("🔍 Extracted password:", password ? "[HIDDEN]" : "undefined");
+    console.log("🔍 Email type:", typeof email);
+    console.log("🔍 Password type:", typeof password);
 
     if (!email || !password) {
+      console.log("❌ Missing email or password");
+      console.log("❌ Email exists:", !!email);
+      console.log("❌ Password exists:", !!password);
       return res.status(400).json({
         success: false,
         message: "Email and password are required",
+        debug: {
+          emailReceived: !!email,
+          passwordReceived: !!password,
+          requestBody: req.body,
+        },
       });
     }
+
+    console.log("🔐 Login attempt for:", email);
 
     // Check admin credentials
     if (email === "admin@swifttiger.com" && password === "admin123") {
@@ -57,10 +75,11 @@ router.post("/login", (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("💥 Login error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
+      error: error.message,
     });
   }
 });

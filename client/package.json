@@ -1,0 +1,42 @@
+{
+  "name": "swifttiger-frontend",
+  "version": "1.0.0",
+  "description": "SwiftTiger Field Service Management Frontend",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "axios": "^1.3.4",
+    "react-hook-form": "^7.43.5",
+    "@hookform/resolvers": "^2.9.11",
+    "yup": "^1.0.2",
+    "react-query": "^3.39.3",
+    "react-hot-toast": "^2.4.0",
+    "lucide-react": "^0.323.0",
+    "js-cookie": "^3.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^3.1.0",
+    "vite": "^4.1.0",
+    "@types/js-cookie": "^3.0.3"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
