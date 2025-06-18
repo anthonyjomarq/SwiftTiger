@@ -1,96 +1,75 @@
-import { verifyToken, getTokenFromHeader } from "../utils/jwt.js";
-import { User } from "../models/index.js";
+import { verifyToken } from "../utils/jwt.js";
+import User from "../models/User.js";
+import { logAction } from "../services/actionLogger.js";
 
-const authenticate = async (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    const token = getTokenFromHeader(authHeader);
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
         message: "Access denied. No token provided.",
       });
     }
 
-    const decoded = verifyToken(token);
+    const token = authHeader.substring(7);
 
-    // Check if user still exists
-    const user = await User.findByPk(decoded.userId);
-    if (!user) {
+    try {
+      const decoded = verifyToken(token);
+      const user = await User.findByPk(decoded.userId);
+
+      if (!user || !user.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found or inactive",
+        });
+      }
+
+      req.user = user;
+      req.token = token;
+      next();
+    } catch (tokenError) {
       return res.status(401).json({
         success: false,
-        message: "User no longer exists.",
+        message: "Invalid or expired token",
       });
     }
-
-    // Check if user is active
-    if (!user.is_active) {
-      // Use database column name
-      return res.status(401).json({
-        success: false,
-        message: "User account is deactivated.",
-      });
-    }
-
-    // Check if password was changed after token was issued
-    if (user.isPasswordChangedAfter(decoded.iat)) {
-      return res.status(401).json({
-        success: false,
-        message: "Password was changed. Please log in again.",
-      });
-    }
-
-    // Add user to request object
-    req.user = user;
-    next();
   } catch (error) {
-    return res.status(401).json({
+    console.error("Authentication error:", error);
+    res.status(500).json({
       success: false,
-      message: "Invalid token.",
+      message: "Authentication error",
     });
   }
 };
 
-const authorize = (...roles) => {
+export const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role;
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+
+    if (!allowedRoles.includes(userRole)) {
+      // Log unauthorized access attempt
+      logAction(req, "UNAUTHORIZED_ACCESS_ATTEMPT", "SYSTEM", null, {
+        requiredRoles: allowedRoles,
+        userRole: userRole,
+        endpoint: req.originalUrl,
+      });
+
       return res.status(403).json({
         success: false,
-        message: "Insufficient permissions.",
+        message: "Access denied. Insufficient permissions.",
       });
     }
 
     next();
   };
 };
-
-const optionalAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const token = getTokenFromHeader(authHeader);
-
-    if (token) {
-      const decoded = verifyToken(token);
-      const user = await User.findByPk(decoded.userId);
-
-      if (user && user.isActive && !user.isPasswordChangedAfter(decoded.iat)) {
-        req.user = user;
-      }
-    }
-
-    next();
-  } catch (error) {
-    // Continue without authentication
-    next();
-  }
-};
-
-export { authenticate, authorize, optionalAuth };

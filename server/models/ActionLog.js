@@ -1,17 +1,5 @@
-// models/ActionLog.js
 import { DataTypes } from "sequelize";
-
-// Try multiple import patterns to handle different export styles
-let sequelize;
-try {
-  // Try named export first
-  const db = await import("../config/database.js");
-  sequelize = db.sequelize || db.default;
-} catch (error) {
-  // Fallback to default export
-  const db = await import("../config/database.js");
-  sequelize = db.default;
-}
+import sequelize from "../config/database.js";
 
 const ActionLog = sequelize.define(
   "ActionLog",
@@ -24,67 +12,45 @@ const ActionLog = sequelize.define(
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
-      field: "user_id", // Explicitly map to snake_case column
-      references: {
-        model: "users",
-        key: "id",
-      },
+      field: "user_id",
     },
     action: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: false,
     },
     resource: {
-      type: DataTypes.STRING,
-      allowNull: true,
+      type: DataTypes.STRING(100),
+      allowNull: false,
     },
     resourceId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      field: "resource_id", // Explicitly map to snake_case column
+      type: DataTypes.STRING(255),
+      field: "resource_id",
     },
     details: {
       type: DataTypes.JSONB,
-      allowNull: true,
     },
     ipAddress: {
       type: DataTypes.INET,
-      allowNull: true,
-      field: "ip_address", // Explicitly map to snake_case column
+      field: "ip_address",
     },
     userAgent: {
       type: DataTypes.TEXT,
-      allowNull: true,
-      field: "user_agent", // Explicitly map to snake_case column
+      field: "user_agent",
     },
     timestamp: {
       type: DataTypes.DATE,
-      allowNull: false,
       defaultValue: DataTypes.NOW,
     },
   },
   {
     tableName: "action_logs",
-    underscored: true, // This ensures Sequelize uses snake_case
-    indexes: [
-      {
-        name: "action_logs_user_id_timestamp",
-        fields: ["user_id", "timestamp"], // Use the actual database column names
-      },
-      {
-        name: "action_logs_action",
-        fields: ["action"],
-      },
-      {
-        name: "action_logs_resource",
-        fields: ["resource", "resource_id"],
-      },
-      {
-        name: "action_logs_timestamp",
-        fields: ["timestamp"],
-      },
-    ],
+    underscored: true,
+    timestamps: false,
   }
 );
+
+// Set up associations
+ActionLog.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(ActionLog, { foreignKey: "userId" });
 
 export default ActionLog;

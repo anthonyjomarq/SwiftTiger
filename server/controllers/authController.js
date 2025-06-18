@@ -1,137 +1,122 @@
-import { User, ActionLog } from "../models/index.js";
-import {
-  generateToken,
-  generateRefreshToken,
-  verifyRefreshToken,
-} from "../utils/jwt.js";
-import { asyncHandler } from "../middleware/errorHandler.js";
+import User from "../models/User.js";
+import { generateTokens, verifyRefreshToken } from "../utils/jwt.js";
+import { logAction } from "../services/actionLogger.js";
 
-const register = asyncHandler(async (req, res) => {
-  const { email, password, firstName, lastName, role, phone } = req.body;
+export const register = async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, role, phone } = req.body;
 
-  // Check if user already exists
-  const existingUser = await User.findByEmail(email);
-  if (existingUser) {
-    return res.status(400).json({
-      success: false,
-      message: "User with this email already exists",
+    // Check if user exists
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    // Create user
+    const user = await User.create({
+      email,
+      password,
+      firstName,
+      lastName,
+      role: role || "technician",
+      phone,
     });
-  }
 
-  // Create new user
-  const user = await User.create({
-    email: email.toLowerCase(),
-    password,
-    first_name: firstName, // Use database column name
-    last_name: lastName, // Use database column name
-    role: role || "technician",
-    phone,
-  });
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-  // Log action
-  await ActionLog.logAction(
-    user.id,
-    "CREATE",
-    "USER",
-    user.id,
-    {
+    // Log registration
+    await logAction(req, "USER_REGISTERED", "USER", user.id, {
       email: user.email,
       role: user.role,
-    },
-    req
-  );
+    });
 
-  // Generate tokens
-  const token = generateToken({ userId: user.id, role: user.role });
-  const refreshToken = generateRefreshToken({ userId: user.id });
-
-  res.status(201).json({
-    success: true,
-    message: "User registered successfully",
-    data: {
-      user: user.toSafeObject(),
-      token,
-      refreshToken,
-    },
-  });
-});
-
-const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-
-  // Find user by email
-  const user = await User.findByEmail(email);
-  if (!user) {
-    return res.status(401).json({
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      data: {
+        token: accessToken,
+        refreshToken,
+        user: user.toJSON(),
+      },
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({
       success: false,
-      message: "Invalid email or password",
+      message: "Failed to register user",
     });
   }
+};
 
-  // Check if user is active
-  if (!user.is_active) {
-    // Use database column name
-    return res.status(401).json({
-      success: false,
-      message: "Account is deactivated",
-    });
-  }
-
-  // Validate password
-  const isPasswordValid = await user.validatePassword(password);
-  if (!isPasswordValid) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid email or password",
-    });
-  }
-
-  // Update last login
-  await user.update({ last_login: new Date() }); // Use database column name
-
-  // Log action
-  await ActionLog.logAction(
-    user.id,
-    "LOGIN",
-    "USER",
-    user.id,
-    {
-      email: user.email,
-      loginTime: new Date(),
-    },
-    req
-  );
-
-  // Generate tokens
-  const token = generateToken({ userId: user.id, role: user.role });
-  const refreshToken = generateRefreshToken({ userId: user.id });
-
-  res.json({
-    success: true,
-    message: "Login successful",
-    data: {
-      user: user.toSafeObject(),
-      token,
-      refreshToken,
-    },
-  });
-});
-
-const refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
-
-  if (!refreshToken) {
-    return res.status(400).json({
-      success: false,
-      message: "Refresh token is required",
-    });
-  }
-
+export const login = async (req, res) => {
   try {
-    const decoded = verifyRefreshToken(refreshToken);
+    const { email, password } = req.body;
 
     // Find user
+    const user = await User.findOne({ where: { email } });
+
+    if (!user || !(await user.comparePassword(password))) {
+      await logAction(req, "LOGIN_FAILED", "AUTH", null, { email });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Account is deactivated",
+      });
+    }
+
+    // Update last login
+    await user.update({ lastLogin: new Date() });
+
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
+
+    // Log successful login
+    await logAction(req, "USER_LOGIN", "AUTH", user.id, {
+      email: user.email,
+    });
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      data: {
+        token: accessToken,
+        refreshToken,
+        user: user.toJSON(),
+      },
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
+    });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Refresh token required",
+      });
+    }
+
+    const decoded = verifyRefreshToken(refreshToken);
     const user = await User.findByPk(decoded.userId);
+
     if (!user || !user.isActive) {
       return res.status(401).json({
         success: false,
@@ -139,93 +124,55 @@ const refreshToken = asyncHandler(async (req, res) => {
       });
     }
 
-    // Generate new tokens
-    const newToken = generateToken({ userId: user.id, role: user.role });
-    const newRefreshToken = generateRefreshToken({ userId: user.id });
-
-    // Log action
-    await ActionLog.logAction(
-      user.id,
-      "REFRESH_TOKEN",
-      "USER",
-      user.id,
-      null,
-      req
-    );
+    const tokens = generateTokens(user.id, user.role);
 
     res.json({
       success: true,
-      message: "Token refreshed successfully",
-      data: {
-        token: newToken,
-        refreshToken: newRefreshToken,
-      },
+      data: tokens,
     });
   } catch (error) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       message: "Invalid refresh token",
     });
   }
-});
+};
 
-const getProfile = asyncHandler(async (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      user: req.user.toSafeObject(),
-    },
-  });
-});
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = req.user;
 
-const logout = asyncHandler(async (req, res) => {
-  // Log action
-  await ActionLog.logAction(
-    req.user.id,
-    "LOGOUT",
-    "USER",
-    req.user.id,
-    null,
-    req
-  );
+    // Verify current password
+    if (!(await user.comparePassword(currentPassword))) {
+      await logAction(req, "PASSWORD_CHANGE_FAILED", "USER", user.id, {
+        reason: "Invalid current password",
+      });
+      return res.status(401).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
 
-  res.json({
-    success: true,
-    message: "Logout successful",
-  });
-});
+    // Update password
+    await user.update({ password: newPassword });
 
-const changePassword = asyncHandler(async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
+    // Generate new tokens
+    const tokens = generateTokens(user.id, user.role);
 
-  // Validate current password
-  const isCurrentPasswordValid = await req.user.validatePassword(
-    currentPassword
-  );
-  if (!isCurrentPasswordValid) {
-    return res.status(400).json({
+    // Log password change
+    await logAction(req, "PASSWORD_CHANGED", "USER", user.id);
+
+    res.json({
+      success: true,
+      message: "Password changed successfully",
+      data: tokens,
+    });
+  } catch (error) {
+    console.error("Password change error:", error);
+    res.status(500).json({
       success: false,
-      message: "Current password is incorrect",
+      message: "Failed to change password",
     });
   }
-
-  // Update password
-  await req.user.update({ password: newPassword });
-
-  // Log action
-  await ActionLog.logAction(
-    req.user.id,
-    "CHANGE_PASSWORD",
-    "USER",
-    req.user.id,
-    null,
-    req
-  );
-
-  res.json({
-    success: true,
-    message: "Password changed successfully",
-  });
-});
-
-export { register, login, refreshToken, getProfile, logout, changePassword };
+};

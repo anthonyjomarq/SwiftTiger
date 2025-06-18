@@ -1,6 +1,6 @@
 import { body, validationResult } from "express-validator";
 
-const handleValidationErrors = (req, res, next) => {
+export const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -12,122 +12,46 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-const registerValidation = [
-  body("email")
-    .isEmail()
-    .normalizeEmail()
-    .withMessage("Please provide a valid email address"),
+export const userValidationRules = {
+  register: [
+    body("email").isEmail().normalizeEmail(),
+    body("password")
+      .isLength({ min: 8 })
+      .matches(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
+      )
+      .withMessage(
+        "Password must contain uppercase, lowercase, number and special character"
+      ),
+    body("firstName").trim().notEmpty().isLength({ min: 2, max: 50 }),
+    body("lastName").trim().notEmpty().isLength({ min: 2, max: 50 }),
+    body("role").optional().isIn(["admin", "dispatcher", "technician"]),
+    body("phone").optional().isMobilePhone(),
+  ],
 
-  body("password")
-    .isLength({ min: 6 })
-    .withMessage("Password must be at least 6 characters long")
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage(
-      "Password must contain at least one lowercase letter, one uppercase letter, and one number"
-    ),
+  update: [
+    body("email").optional().isEmail().normalizeEmail(),
+    body("firstName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .isLength({ min: 2, max: 50 }),
+    body("lastName").optional().trim().notEmpty().isLength({ min: 2, max: 50 }),
+    body("phone").optional().isMobilePhone(),
+    body("role").optional().isIn(["admin", "dispatcher", "technician"]),
+  ],
 
-  body("firstName")
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("First name must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\s'-]+$/)
-    .withMessage(
-      "First name can only contain letters, spaces, apostrophes, and hyphens"
-    ),
-
-  body("lastName")
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("Last name must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\s'-]+$/)
-    .withMessage(
-      "Last name can only contain letters, spaces, apostrophes, and hyphens"
-    ),
-
-  body("role")
-    .optional()
-    .isIn(["admin", "dispatcher", "technician"])
-    .withMessage("Role must be admin, dispatcher, or technician"),
-
-  body("phone")
-    .optional()
-    .isMobilePhone()
-    .withMessage("Please provide a valid phone number"),
-
-  handleValidationErrors,
-];
-
-const loginValidation = [
-  body("email")
-    .isEmail()
-    .normalizeEmail()
-    .withMessage("Please provide a valid email address"),
-
-  body("password").notEmpty().withMessage("Password is required"),
-
-  handleValidationErrors,
-];
-
-const updateUserValidation = [
-  body("email")
-    .optional()
-    .isEmail()
-    .normalizeEmail()
-    .withMessage("Please provide a valid email address"),
-
-  body("firstName")
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("First name must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\s'-]+$/)
-    .withMessage(
-      "First name can only contain letters, spaces, apostrophes, and hyphens"
-    ),
-
-  body("lastName")
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 50 })
-    .withMessage("Last name must be between 1 and 50 characters")
-    .matches(/^[a-zA-Z\s'-]+$/)
-    .withMessage(
-      "Last name can only contain letters, spaces, apostrophes, and hyphens"
-    ),
-
-  body("role")
-    .optional()
-    .isIn(["admin", "dispatcher", "technician"])
-    .withMessage("Role must be admin, dispatcher, or technician"),
-
-  body("phone")
-    .optional()
-    .isMobilePhone()
-    .withMessage("Please provide a valid phone number"),
-
-  handleValidationErrors,
-];
-
-const changePasswordValidation = [
-  body("currentPassword")
-    .notEmpty()
-    .withMessage("Current password is required"),
-
-  body("newPassword")
-    .isLength({ min: 6 })
-    .withMessage("New password must be at least 6 characters long")
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage(
-      "New password must contain at least one lowercase letter, one uppercase letter, and one number"
-    ),
-
-  handleValidationErrors,
-];
-
-export {
-  registerValidation,
-  loginValidation,
-  updateUserValidation,
-  changePasswordValidation,
-  handleValidationErrors,
+  changePassword: [
+    body("currentPassword").notEmpty(),
+    body("newPassword")
+      .isLength({ min: 8 })
+      .matches(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
+      )
+      .withMessage(
+        "Password must contain uppercase, lowercase, number and special character"
+      )
+      .custom((value, { req }) => value !== req.body.currentPassword)
+      .withMessage("New password must be different from current password"),
+  ],
 };

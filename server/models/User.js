@@ -1,6 +1,6 @@
 import { DataTypes } from "sequelize";
 import bcrypt from "bcrypt";
-import { sequelize } from "../config/database.js";
+import sequelize from "../config/database.js";
 
 const User = sequelize.define(
   "User",
@@ -13,105 +13,62 @@ const User = sequelize.define(
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: {
-        name: "unique_email",
-        msg: "Email address already exists",
-      },
+      unique: true,
       validate: {
-        isEmail: {
-          msg: "Please provide a valid email address",
-        },
-        len: {
-          args: [3, 255],
-          msg: "Email must be between 3 and 255 characters",
-        },
+        isEmail: true,
       },
     },
     password: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        len: {
-          args: [6, 255],
-          msg: "Password must be at least 6 characters long",
-        },
-      },
     },
-    first_name: {
+    firstName: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        len: {
-          args: [1, 50],
-          msg: "First name must be between 1 and 50 characters",
-        },
-        notEmpty: {
-          msg: "First name is required",
-        },
-      },
+      field: "first_name",
     },
-    last_name: {
+    lastName: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        len: {
-          args: [1, 50],
-          msg: "Last name must be between 1 and 50 characters",
-        },
-        notEmpty: {
-          msg: "Last name is required",
-        },
-      },
+      field: "last_name",
     },
     role: {
       type: DataTypes.ENUM("admin", "dispatcher", "technician"),
       allowNull: false,
       defaultValue: "technician",
-      validate: {
-        isIn: {
-          args: [["admin", "dispatcher", "technician"]],
-          msg: "Role must be admin, dispatcher, or technician",
-        },
-      },
     },
     phone: {
       type: DataTypes.STRING,
       allowNull: true,
-      validate: {
-        is: {
-          args: /^[\+]?[1-9][\d]{0,15}$/,
-          msg: "Please provide a valid phone number",
-        },
-      },
     },
-    is_active: {
+    isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+      field: "is_active",
     },
-    last_login: {
+    lastLogin: {
       type: DataTypes.DATE,
-      allowNull: true,
+      field: "last_login",
     },
-    password_changed_at: {
+    passwordChangedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
+      field: "password_changed_at",
     },
   },
   {
     tableName: "users",
-    indexes: [], // Disable automatic index creation
+    underscored: true,
     hooks: {
       beforeCreate: async (user) => {
         if (user.password) {
-          const salt = await bcrypt.genSalt(12);
-          user.password = await bcrypt.hash(user.password, salt);
+          user.password = await bcrypt.hash(user.password, 12);
         }
       },
       beforeUpdate: async (user) => {
         if (user.changed("password")) {
-          const salt = await bcrypt.genSalt(12);
-          user.password = await bcrypt.hash(user.password, salt);
-          user.password_changed_at = new Date();
+          user.password = await bcrypt.hash(user.password, 12);
+          user.passwordChangedAt = new Date();
         }
       },
     },
@@ -119,37 +76,14 @@ const User = sequelize.define(
 );
 
 // Instance methods
-User.prototype.validatePassword = async function (password) {
-  return await bcrypt.compare(password, this.password);
+User.prototype.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
-User.prototype.toSafeObject = function () {
-  const { password, ...safeUser } = this.toJSON();
-  return safeUser;
-};
-
-User.prototype.isPasswordChangedAfter = function (JWTTimestamp) {
-  if (this.password_changed_at) {
-    const changedTimestamp = parseInt(
-      this.password_changed_at.getTime() / 1000,
-      10
-    );
-    return JWTTimestamp < changedTimestamp;
-  }
-  return false;
-};
-
-// Class methods
-User.findByEmail = function (email) {
-  return this.findOne({ where: { email: email.toLowerCase() } });
-};
-
-User.findActiveUsers = function () {
-  return this.findAll({ where: { is_active: true } });
-};
-
-User.findByRole = function (role) {
-  return this.findAll({ where: { role, is_active: true } });
+User.prototype.toJSON = function () {
+  const values = { ...this.get() };
+  delete values.password;
+  return values;
 };
 
 export default User;

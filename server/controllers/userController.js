@@ -1,278 +1,253 @@
-import { User, ActionLog } from "../models/index.js";
-import { asyncHandler } from "../middleware/errorHandler.js";
 import { Op } from "sequelize";
+import User from "../models/User.js";
+import { logAction } from "../services/actionLogger.js";
 
-const getAllUsers = asyncHandler(async (req, res) => {
-  const {
-    page = 1,
-    limit = 10,
-    role,
-    search,
-    isActive,
-    sortBy = "createdAt",
-    sortOrder = "DESC",
-  } = req.query;
+export const getAllUsers = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      role,
+      search,
+      isActive,
+      sortBy = "createdAt",
+      sortOrder = "DESC",
+    } = req.query;
 
-  const offset = (parseInt(page) - 1) * parseInt(limit);
-  const whereClause = {};
+    // Build where clause
+    const where = {};
 
-  // Filter by role
-  if (role) {
-    whereClause.role = role;
-  }
+    if (role) where.role = role;
+    if (isActive !== undefined) where.isActive = isActive === "true";
 
-  // Filter by active status
-  if (isActive !== undefined) {
-    whereClause.is_active = isActive === "true"; // Use database column name
-  }
+    if (search) {
+      where[Op.or] = [
+        { email: { [Op.iLike]: `%${search}%` } },
+        { firstName: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
 
-  // Search by name or email
-  if (search) {
-    whereClause[Op.or] = [
-      { first_name: { [Op.iLike]: `%${search}%` } }, // Use database column name
-      { last_name: { [Op.iLike]: `%${search}%` } }, // Use database column name
-      { email: { [Op.iLike]: `%${search}%` } },
-    ];
-  }
+    // Calculate pagination
+    const offset = (page - 1) * limit;
 
-  const { count, rows: users } = await User.findAndCountAll({
-    where: whereClause,
-    order: [[sortBy, sortOrder.toUpperCase()]],
-    limit: parseInt(limit),
-    offset,
-    attributes: { exclude: ["password"] },
-  });
+    // Get users
+    const { rows: users, count } = await User.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: { exclude: ["password"] },
+    });
 
-  // Log action
-  await ActionLog.logAction(
-    req.user.id,
-    "READ",
-    "USER",
-    null,
-    {
-      filters: whereClause,
-      pagination: { page, limit },
-    },
-    req
-  );
+    // Log action
+    await logAction(req, "VIEW_USERS", "USER", null, {
+      filters: { role, search, isActive },
+      page,
+      limit,
+    });
 
-  res.json({
-    success: true,
-    data: {
-      users,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(count / parseInt(limit)),
-        totalUsers: count,
-        hasNextPage: offset + parseInt(limit) < count,
-        hasPrevPage: parseInt(page) > 1,
+    res.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit),
+        },
       },
-    },
-  });
-});
+    });
+  } catch (error) {
+    console.error("Get users error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+    });
+  }
+};
 
-const getUserById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+export const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  const user = await User.findByPk(id, {
-    attributes: { exclude: ["password"] },
-    include: [
-      {
-        model: ActionLog,
-        as: "actionLogs",
-        limit: 10,
-        order: [["timestamp", "DESC"]],
+    const user = await User.findByPk(id, {
+      attributes: { exclude: ["password"] },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await logAction(req, "VIEW_USER", "USER", id);
+
+    res.json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user",
+    });
+  }
+};
+
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Prevent non-admins from changing roles
+    if (req.user.role !== "admin" && updates.role) {
+      delete updates.role;
+    }
+
+    // Update user
+    await user.update(updates);
+
+    // Log action
+    await logAction(req, "UPDATE_USER", "USER", id, {
+      updates: Object.keys(updates),
+    });
+
+    res.json({
+      success: true,
+      message: "User updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update user",
+    });
+  }
+};
+
+export const deactivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot deactivate your own account",
+      });
+    }
+
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await user.update({ isActive: false });
+
+    await logAction(req, "DEACTIVATE_USER", "USER", id);
+
+    res.json({
+      success: true,
+      message: "User deactivated successfully",
+    });
+  } catch (error) {
+    console.error("Deactivate user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to deactivate user",
+    });
+  }
+};
+
+export const activateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await user.update({ isActive: true });
+
+    await logAction(req, "ACTIVATE_USER", "USER", id);
+
+    res.json({
+      success: true,
+      message: "User activated successfully",
+    });
+  } catch (error) {
+    console.error("Activate user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to activate user",
+    });
+  }
+};
+
+export const getUserStats = async (req, res) => {
+  try {
+    const totalUsers = await User.count();
+    const activeUsers = await User.count({ where: { isActive: true } });
+    const inactiveUsers = totalUsers - activeUsers;
+
+    const roleStats = await User.findAll({
+      attributes: [
+        "role",
+        [sequelize.fn("COUNT", sequelize.col("id")), "count"],
+      ],
+      group: ["role"],
+    });
+
+    const newUsersThisMonth = await User.count({
+      where: {
+        createdAt: {
+          [Op.gte]: new Date(new Date().setDate(1)),
+        },
       },
-    ],
-  });
+    });
 
-  if (!user) {
-    return res.status(404).json({
+    await logAction(req, "VIEW_USER_STATS", "USER");
+
+    res.json({
+      success: true,
+      data: {
+        totalUsers,
+        activeUsers,
+        inactiveUsers,
+        roleStats: roleStats.map((stat) => ({
+          role: stat.role,
+          count: parseInt(stat.get("count")),
+        })),
+        newUsersThisMonth,
+      },
+    });
+  } catch (error) {
+    console.error("Get user stats error:", error);
+    res.status(500).json({
       success: false,
-      message: "User not found",
+      message: "Failed to fetch user statistics",
     });
   }
-
-  // Log action
-  await ActionLog.logAction(req.user.id, "READ", "USER", id, null, req);
-
-  res.json({
-    success: true,
-    data: { user },
-  });
-});
-
-const updateUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const updateData = req.body;
-
-  // Remove sensitive fields that shouldn't be updated this way
-  delete updateData.password;
-  delete updateData.id;
-
-  const user = await User.findByPk(id);
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found",
-    });
-  }
-
-  // Only admins can update other users' roles
-  if (updateData.role && req.user.role !== "admin" && req.user.id !== id) {
-    return res.status(403).json({
-      success: false,
-      message: "Only admins can update user roles",
-    });
-  }
-
-  // Users can only update their own profile (except admins)
-  if (req.user.role !== "admin" && req.user.id !== id) {
-    return res.status(403).json({
-      success: false,
-      message: "You can only update your own profile",
-    });
-  }
-
-  const oldData = user.toJSON();
-  await user.update(updateData);
-
-  // Log action
-  await ActionLog.logAction(
-    req.user.id,
-    "UPDATE",
-    "USER",
-    id,
-    {
-      oldData: { ...oldData, password: undefined },
-      newData: { ...user.toJSON(), password: undefined },
-    },
-    req
-  );
-
-  res.json({
-    success: true,
-    message: "User updated successfully",
-    data: { user: user.toSafeObject() },
-  });
-});
-
-const deleteUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const user = await User.findByPk(id);
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found",
-    });
-  }
-
-  // Prevent self-deletion
-  if (req.user.id === id) {
-    return res.status(400).json({
-      success: false,
-      message: "You cannot delete your own account",
-    });
-  }
-
-  // Soft delete by deactivating the user
-  await user.update({ is_active: false }); // Use database column name
-
-  // Log action
-  await ActionLog.logAction(
-    req.user.id,
-    "DELETE",
-    "USER",
-    id,
-    {
-      deletedUser: { ...user.toJSON(), password: undefined },
-    },
-    req
-  );
-
-  res.json({
-    success: true,
-    message: "User deactivated successfully",
-  });
-});
-
-const activateUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const user = await User.findByPk(id);
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found",
-    });
-  }
-
-  await user.update({ is_active: true }); // Use database column name
-
-  // Log action
-  await ActionLog.logAction(req.user.id, "ACTIVATE", "USER", id, null, req);
-
-  res.json({
-    success: true,
-    message: "User activated successfully",
-    data: { user: user.toSafeObject() },
-  });
-});
-
-const getUsersByRole = asyncHandler(async (req, res) => {
-  const { role } = req.params;
-
-  if (!["admin", "dispatcher", "technician"].includes(role)) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid role specified",
-    });
-  }
-
-  const users = await User.findByRole(role);
-
-  // Log action
-  await ActionLog.logAction(req.user.id, "READ", "USER", null, { role }, req);
-
-  res.json({
-    success: true,
-    data: { users: users.map((user) => user.toSafeObject()) },
-  });
-});
-
-const getUserStats = asyncHandler(async (req, res) => {
-  const stats = await User.findAll({
-    attributes: [
-      "role",
-      [User.sequelize.fn("COUNT", User.sequelize.col("id")), "count"],
-    ],
-    where: { isActive: true },
-    group: "role",
-  });
-
-  const totalUsers = await User.count({ where: { is_active: true } }); // Use database column name
-  const inactiveUsers = await User.count({ where: { is_active: false } }); // Use database column name
-
-  // Log action
-  await ActionLog.logAction(req.user.id, "READ", "USER_STATS", null, null, req);
-
-  res.json({
-    success: true,
-    data: {
-      roleStats: stats,
-      totalUsers,
-      inactiveUsers,
-    },
-  });
-});
-
-export {
-  getAllUsers,
-  getUserById,
-  updateUser,
-  deleteUser,
-  activateUser,
-  getUsersByRole,
-  getUserStats,
 };

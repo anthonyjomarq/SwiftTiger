@@ -1,196 +1,36 @@
 import express from "express";
+import {
+  register,
+  login,
+  refreshToken,
+  changePassword,
+} from "../controllers/authController.js";
+import { authenticate } from "../middleware/auth.js";
+import {
+  userValidationRules,
+  validateRequest,
+} from "../middleware/validation.js";
 
 const router = express.Router();
 
-// Login endpoint with better debugging
-router.post("/login", (req, res) => {
-  try {
-    // Debug logging
-    console.log("🔍 Raw request body:", req.body);
-    console.log("🔍 Request headers:", req.headers);
-    console.log("🔍 Content-Type:", req.get("Content-Type"));
+// Public routes
+router.post(
+  "/register",
+  userValidationRules.register,
+  validateRequest,
+  register
+);
 
-    const { email, password } = req.body;
+router.post("/login", login);
+router.post("/refresh", refreshToken);
 
-    console.log("🔍 Extracted email:", email);
-    console.log("🔍 Extracted password:", password ? "[HIDDEN]" : "undefined");
-    console.log("🔍 Email type:", typeof email);
-    console.log("🔍 Password type:", typeof password);
-
-    if (!email || !password) {
-      console.log("❌ Missing email or password");
-      console.log("❌ Email exists:", !!email);
-      console.log("❌ Password exists:", !!password);
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required",
-        debug: {
-          emailReceived: !!email,
-          passwordReceived: !!password,
-          requestBody: req.body,
-        },
-      });
-    }
-
-    console.log("🔐 Login attempt for:", email);
-
-    // Check admin credentials
-    if (email === "admin@swifttiger.com" && password === "admin123") {
-      // Create simple tokens with NEW format
-      const token = `simple-jwt-admin-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(7)}`;
-      const refreshToken = `simple-refresh-admin-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(7)}`;
-
-      console.log(
-        "✅ Login successful, NEW token:",
-        token.substring(0, 30) + "..."
-      );
-
-      res.json({
-        success: true,
-        message: "Login successful",
-        data: {
-          token: token,
-          refreshToken: refreshToken,
-          user: {
-            id: 1,
-            email: "admin@swifttiger.com",
-            role: "admin",
-            firstName: "Admin",
-            lastName: "User",
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            lastLoginAt: new Date().toISOString(),
-          },
-        },
-      });
-    } else {
-      console.log("❌ Invalid credentials for:", email);
-      res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-  } catch (error) {
-    console.error("💥 Login error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-});
-
-// Simple auth middleware for protected routes
-const authenticate = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  console.log(
-    "🔍 Auth check, header:",
-    authHeader ? authHeader.substring(0, 30) + "..." : "None"
-  );
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({
-      success: false,
-      message: "Access denied. No token provided.",
-    });
-  }
-
-  const token = authHeader.substring(7);
-  console.log("🔍 Token check:", token.substring(0, 30) + "...");
-
-  // Check for NEW token format
-  if (token && token.startsWith("simple-jwt-")) {
-    console.log("✅ Token validated!");
-    req.user = {
-      id: 1,
-      email: "admin@swifttiger.com",
-      role: "admin",
-      firstName: "Admin",
-      lastName: "User",
-      isActive: true,
-    };
-    next();
-  } else {
-    console.log("❌ Invalid token format");
-    return res.status(401).json({
-      success: false,
-      message: "Invalid token format",
-    });
-  }
-};
-
-// Profile endpoint (protected)
-router.get("/profile", authenticate, (req, res) => {
-  console.log("✅ Profile request successful");
-  res.json({
-    success: true,
-    data: {
-      user: req.user,
-    },
-  });
-});
-
-// Register endpoint
-router.post("/register", (req, res) => {
-  const {
-    email,
-    password,
-    firstName,
-    lastName,
-    role = "technician",
-  } = req.body;
-
-  const token = `simple-jwt-${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(7)}`;
-  const refreshToken = `simple-refresh-${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(7)}`;
-
-  res.status(201).json({
-    success: true,
-    message: "User registered successfully",
-    data: {
-      token: token,
-      refreshToken: refreshToken,
-      user: {
-        id: Date.now(),
-        email: email,
-        role: role,
-        firstName: firstName || "New",
-        lastName: lastName || "User",
-        isActive: true,
-      },
-    },
-  });
-});
-
-// Other endpoints
-router.post("/refresh", (req, res) => {
-  const newToken = `simple-jwt-refreshed-${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(7)}`;
-  const newRefreshToken = `simple-refresh-refreshed-${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(7)}`;
-
-  res.json({
-    success: true,
-    data: { token: newToken, refreshToken: newRefreshToken },
-  });
-});
-
-router.post("/logout", authenticate, (req, res) => {
-  res.json({ success: true, message: "Logout successful" });
-});
-
-router.patch("/change-password", authenticate, (req, res) => {
-  res.json({ success: true, message: "Password changed successfully" });
-});
+// Protected routes
+router.post(
+  "/change-password",
+  authenticate,
+  userValidationRules.changePassword,
+  validateRequest,
+  changePassword
+);
 
 export default router;
