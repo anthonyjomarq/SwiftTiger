@@ -1,4 +1,5 @@
-import ActionLog from "../models/ActionLog.js";
+import { Op } from "sequelize";
+import { ActionLog, User } from "../models/index.js";
 
 export const logAction = async (
   req,
@@ -8,8 +9,11 @@ export const logAction = async (
   details = {}
 ) => {
   try {
+    // Handle the userId - if no user, set to null instead of 'system'
+    const userId = req.user?.id || null;
+
     const logEntry = {
-      userId: req.user?.id || "system",
+      userId: userId, // This will be null for unauthenticated actions
       action,
       resource,
       resourceId,
@@ -19,7 +23,7 @@ export const logAction = async (
         path: req.originalUrl,
         timestamp: new Date().toISOString(),
       },
-      ipAddress: req.ip || req.connection.remoteAddress,
+      ipAddress: req.ip || req.connection?.remoteAddress,
       userAgent: req.get("user-agent"),
     };
 

@@ -1,6 +1,24 @@
-import User from "../models/User.js";
-import { generateTokens, verifyRefreshToken } from "../utils/jwt.js";
+import { User } from "../models/index.js";
+import jwt from "jsonwebtoken";
 import { logAction } from "../services/actionLogger.js";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+
+const generateTokens = (userId, role) => {
+  const payload = { userId, role };
+
+  const accessToken = jwt.sign(payload, JWT_SECRET, {
+    expiresIn: "7d",
+  });
+
+  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
+    expiresIn: "30d",
+  });
+
+  return { accessToken, refreshToken };
+};
 
 export const register = async (req, res) => {
   try {
@@ -29,6 +47,7 @@ export const register = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
     // Log registration
+    req.user = user; // Add user to req for logging
     await logAction(req, "USER_REGISTERED", "USER", user.id, {
       email: user.email,
       role: user.role,
@@ -56,10 +75,25 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log("🔐 Login attempt for:", email);
+
     // Find user
     const user = await User.findOne({ where: { email } });
 
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
+      console.log("❌ User not found:", email);
+      await logAction(req, "LOGIN_FAILED", "AUTH", null, { email });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Compare password
+    const isValidPassword = await user.comparePassword(password);
+    console.log("🔑 Password valid:", isValidPassword);
+
+    if (!isValidPassword) {
       await logAction(req, "LOGIN_FAILED", "AUTH", null, { email });
       return res.status(401).json({
         success: false,
@@ -81,9 +115,12 @@ export const login = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
     // Log successful login
+    req.user = user; // Add user to req for logging
     await logAction(req, "USER_LOGIN", "AUTH", user.id, {
       email: user.email,
     });
+
+    console.log("✅ Login successful for:", email);
 
     res.json({
       success: true,
@@ -114,7 +151,7 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    const decoded = verifyRefreshToken(refreshToken);
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     const user = await User.findByPk(decoded.userId);
 
     if (!user || !user.isActive) {

@@ -11,7 +11,7 @@ const ActionLog = sequelize.define(
     },
     userId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true, // Changed to allow null for system actions
       field: "user_id",
     },
     action: {
@@ -48,9 +48,5 @@ const ActionLog = sequelize.define(
     timestamps: false,
   }
 );
-
-// Set up associations
-ActionLog.belongsTo(User, { foreignKey: "userId" });
-User.hasMany(ActionLog, { foreignKey: "userId" });
 
 export default ActionLog;

@@ -1,5 +1,5 @@
-// client/src/context/AuthContext.jsx
 import React, { createContext, useContext, useReducer, useEffect } from "react";
+import { tokenManager } from "../utils/tokenManager";
 
 // Initial state
 const initialState = {
@@ -104,8 +104,8 @@ export const AuthProvider = ({ children }) => {
   // Check for existing token on app load
   useEffect(() => {
     const checkAuthState = async () => {
-      const token = localStorage.getItem("token");
-      const refreshToken = localStorage.getItem("refreshToken");
+      const token = tokenManager.getToken();
+      const refreshToken = tokenManager.getRefreshToken();
 
       console.log("🔍 Checking auth state - token exists:", !!token);
 
@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }) => {
             dispatch({
               type: ActionTypes.LOGIN_SUCCESS,
               payload: {
-                user: data.data.user, // Note: backend sends data.data.user
+                user: data.data.user,
                 token,
                 refreshToken,
               },
@@ -136,14 +136,12 @@ export const AuthProvider = ({ children }) => {
           } else {
             console.log("❌ Profile check failed, clearing tokens");
             // Token invalid, clear storage
-            localStorage.removeItem("token");
-            localStorage.removeItem("refreshToken");
+            tokenManager.removeTokens();
             dispatch({ type: ActionTypes.SET_LOADING, payload: false });
           }
         } catch (error) {
           console.error("❌ Auth check error:", error);
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
+          tokenManager.removeTokens();
           dispatch({ type: ActionTypes.SET_LOADING, payload: false });
         }
       } else {
@@ -175,16 +173,14 @@ export const AuthProvider = ({ children }) => {
       console.log("🔍 Login response data:", data);
 
       if (response.ok && data.success) {
-        // Handle both old and new response formats
+        // Handle response format
         let token, refreshToken, user;
 
         if (data.data) {
-          // New format: { success: true, data: { token, refreshToken, user } }
           token = data.data.token;
           refreshToken = data.data.refreshToken;
           user = data.data.user;
         } else {
-          // Old format: { success: true, token, refreshToken, user }
           token = data.token;
           refreshToken = data.refreshToken;
           user = data.user;
@@ -193,9 +189,8 @@ export const AuthProvider = ({ children }) => {
         console.log("✅ Login successful, storing tokens");
         console.log("🎫 Token:", token?.substring(0, 30) + "...");
 
-        // Store tokens in localStorage
-        localStorage.setItem("token", token);
-        localStorage.setItem("refreshToken", refreshToken);
+        // Store tokens using tokenManager
+        tokenManager.setTokens(token, refreshToken);
 
         dispatch({
           type: ActionTypes.LOGIN_SUCCESS,
@@ -254,8 +249,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         // Auto-login after successful registration
-        localStorage.setItem("token", token);
-        localStorage.setItem("refreshToken", refreshToken);
+        tokenManager.setTokens(token, refreshToken);
 
         dispatch({
           type: ActionTypes.LOGIN_SUCCESS,
@@ -286,7 +280,7 @@ export const AuthProvider = ({ children }) => {
     console.log("👋 Logging out user");
     try {
       // Call logout endpoint if token exists
-      const token = localStorage.getItem("token");
+      const token = tokenManager.getToken();
       if (token) {
         await fetch(`${API_URL}/auth/logout`, {
           method: "POST",
@@ -299,9 +293,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Clear local storage
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshToken");
+      // Clear tokens
+      tokenManager.removeTokens();
 
       // Reset state
       dispatch({ type: ActionTypes.LOGOUT });
@@ -315,7 +308,7 @@ export const AuthProvider = ({ children }) => {
 
   // API request with auth
   const authenticatedRequest = async (url, options = {}) => {
-    const token = localStorage.getItem("token");
+    const token = tokenManager.getToken();
 
     const config = {
       ...options,
