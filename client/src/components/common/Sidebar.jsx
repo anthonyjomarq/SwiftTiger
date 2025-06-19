@@ -15,6 +15,7 @@ const Sidebar = () => {
       items.push(
         { name: "Dashboard", path: "/admin/dashboard", icon: "📊" },
         { name: "User Management", path: "/users", icon: "👥" },
+        { name: "Activity Logs", path: "/logs", icon: "📋" }, // Add this line
         { name: "System Settings", path: "/settings", icon: "⚙️" }
       );
     }

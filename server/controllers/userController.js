@@ -7,44 +7,45 @@ export const getAllUsers = async (req, res) => {
     const {
       page = 1,
       limit = 10,
-      role,
-      search,
-      isActive,
-      sortBy = "createdAt",
-      sortOrder = "DESC",
+      search = "",
+      role = "",
+      isActive = "",
     } = req.query;
 
-    // Build where clause
+    const offset = (page - 1) * limit;
     const where = {};
 
-    if (role) where.role = role;
-    if (isActive !== undefined) where.isActive = isActive === "true";
+    // Only add isActive filter if it's explicitly set to true or false
+    if (isActive === "true") {
+      where.isActive = true;
+    } else if (isActive === "false") {
+      where.isActive = false;
+    }
+    // If isActive is empty string, don't filter by it
+
+    if (role) {
+      where.role = role;
+    }
 
     if (search) {
       where[Op.or] = [
-        { email: { [Op.iLike]: `%${search}%` } },
         { firstName: { [Op.iLike]: `%${search}%` } },
         { lastName: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    // Calculate pagination
-    const offset = (page - 1) * limit;
-
-    // Get users
-    const { rows: users, count } = await User.findAndCountAll({
+    const { count, rows: users } = await User.findAndCountAll({
       where,
-      order: [[sortBy, sortOrder]],
       limit: parseInt(limit),
       offset: parseInt(offset),
       attributes: { exclude: ["password"] },
+      order: [["createdAt", "DESC"]],
     });
 
-    // Log action
     await logAction(req, "VIEW_USERS", "USER", null, {
-      filters: { role, search, isActive },
-      page,
-      limit,
+      filters: { search, role, isActive },
+      count,
     });
 
     res.json({
@@ -209,39 +210,35 @@ export const activateUser = async (req, res) => {
 export const getUserStats = async (req, res) => {
   try {
     const totalUsers = await User.count();
-    const activeUsers = await User.count({ where: { isActive: true } });
-    const inactiveUsers = totalUsers - activeUsers;
-
-    const roleStats = await User.findAll({
-      attributes: [
-        "role",
-        [sequelize.fn("COUNT", sequelize.col("id")), "count"],
-      ],
-      group: ["role"],
+    const activeUsers = await User.count({
+      where: { isActive: true },
     });
 
-    const newUsersThisMonth = await User.count({
-      where: {
-        createdAt: {
-          [Op.gte]: new Date(new Date().setDate(1)),
-        },
+    const adminCount = await User.count({
+      where: { role: "admin" },
+    });
+
+    const dispatcherCount = await User.count({
+      where: { role: "dispatcher" },
+    });
+
+    const technicianCount = await User.count({
+      where: { role: "technician" },
+    });
+
+    const stats = {
+      totalUsers,
+      activeUsers,
+      byRole: {
+        admin: adminCount,
+        dispatcher: dispatcherCount,
+        technician: technicianCount,
       },
-    });
-
-    await logAction(req, "VIEW_USER_STATS", "USER");
+    };
 
     res.json({
       success: true,
-      data: {
-        totalUsers,
-        activeUsers,
-        inactiveUsers,
-        roleStats: roleStats.map((stat) => ({
-          role: stat.role,
-          count: parseInt(stat.get("count")),
-        })),
-        newUsersThisMonth,
-      },
+      data: stats,
     });
   } catch (error) {
     console.error("Get user stats error:", error);

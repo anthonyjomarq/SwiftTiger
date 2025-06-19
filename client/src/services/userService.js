@@ -11,6 +11,11 @@ export const userService = {
     return response.data.data;
   },
 
+  async createUser(data) {
+    const response = await api.post("/auth/register", data);
+    return response.data;
+  },
+
   async updateUser(id, data) {
     const response = await api.patch(`/users/${id}`, data);
     return response.data.data;

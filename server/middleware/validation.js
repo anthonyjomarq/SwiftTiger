@@ -17,12 +17,15 @@ export const userValidationRules = {
     body("email").isEmail().normalizeEmail(),
     body("password")
       .isLength({ min: 8 })
-      .matches(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
-      )
-      .withMessage(
-        "Password must contain uppercase, lowercase, number and special character"
-      ),
+      .withMessage("Password must be at least 8 characters long")
+      .matches(/^(?=.*[a-z])/)
+      .withMessage("Password must contain at least one lowercase letter")
+      .matches(/^(?=.*[A-Z])/)
+      .withMessage("Password must contain at least one uppercase letter")
+      .matches(/^(?=.*\d)/)
+      .withMessage("Password must contain at least one number")
+      .matches(/^(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/)
+      .withMessage("Password must contain at least one special character"),
     body("firstName").trim().notEmpty().isLength({ min: 2, max: 50 }),
     body("lastName").trim().notEmpty().isLength({ min: 2, max: 50 }),
     body("role").optional().isIn(["admin", "dispatcher", "technician"]),
@@ -45,12 +48,15 @@ export const userValidationRules = {
     body("currentPassword").notEmpty(),
     body("newPassword")
       .isLength({ min: 8 })
-      .matches(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
-      )
-      .withMessage(
-        "Password must contain uppercase, lowercase, number and special character"
-      )
+      .withMessage("Password must be at least 8 characters long")
+      .matches(/^(?=.*[a-z])/)
+      .withMessage("Password must contain at least one lowercase letter")
+      .matches(/^(?=.*[A-Z])/)
+      .withMessage("Password must contain at least one uppercase letter")
+      .matches(/^(?=.*\d)/)
+      .withMessage("Password must contain at least one number")
+      .matches(/^(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/)
+      .withMessage("Password must contain at least one special character")
       .custom((value, { req }) => value !== req.body.currentPassword)
       .withMessage("New password must be different from current password"),
   ],

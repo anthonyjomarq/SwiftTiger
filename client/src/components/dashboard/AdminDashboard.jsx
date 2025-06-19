@@ -1,21 +1,25 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   Briefcase,
   MapPin,
+  Activity,
   TrendingUp,
   Calendar,
-  Clock,
+  AlertCircle,
   CheckCircle,
-  AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 const AdminDashboard = () => {
-  // Mock data for demonstration
+  const navigate = useNavigate();
+
+  // Mock data - This would come from API
   const stats = [
     {
       name: "Total Users",
-      value: "24",
+      value: "48",
       change: "+12%",
       changeType: "increase",
       icon: Users,
@@ -23,26 +27,26 @@ const AdminDashboard = () => {
     },
     {
       name: "Active Jobs",
-      value: "47",
-      change: "+8%",
+      value: "124",
+      change: "+23%",
       changeType: "increase",
       icon: Briefcase,
       color: "green",
     },
     {
-      name: "Completed Today",
-      value: "12",
-      change: "+15%",
-      changeType: "increase",
-      icon: CheckCircle,
+      name: "Routes Today",
+      value: "18",
+      change: "-5%",
+      changeType: "decrease",
+      icon: MapPin,
       color: "purple",
     },
     {
-      name: "Pending Jobs",
-      value: "8",
-      change: "-3%",
-      changeType: "decrease",
-      icon: Clock,
+      name: "System Uptime",
+      value: "99.9%",
+      change: "0%",
+      changeType: "neutral",
+      icon: Activity,
       color: "orange",
     },
   ];
@@ -50,66 +54,66 @@ const AdminDashboard = () => {
   const recentActivity = [
     {
       id: 1,
+      type: "user",
       action: "New user registered",
       user: "John Doe",
       time: "5 minutes ago",
-      type: "user",
     },
     {
       id: 2,
-      action: "Job completed",
+      type: "job",
+      action: "Job #1234 completed",
       user: "Jane Smith",
       time: "15 minutes ago",
-      type: "job",
     },
     {
       id: 3,
+      type: "route",
       action: "Route optimized",
       user: "System",
       time: "1 hour ago",
-      type: "route",
     },
     {
       id: 4,
-      action: "Customer added",
-      user: "Mike Johnson",
-      time: "2 hours ago",
       type: "customer",
+      action: "New customer added",
+      user: "Bob Wilson",
+      time: "2 hours ago",
     },
   ];
 
   const systemHealth = [
-    { name: "API Response Time", value: "245ms", status: "good" },
-    { name: "Database Connections", value: "12/50", status: "good" },
-    { name: "Active Sessions", value: "18", status: "good" },
-    { name: "Error Rate", value: "0.02%", status: "warning" },
+    { name: "API Response Time", value: "125ms", status: "healthy" },
+    { name: "Database Connection", value: "Active", status: "healthy" },
+    { name: "Error Rate", value: "0.02%", status: "healthy" },
+    { name: "Active Sessions", value: "234", status: "warning" },
   ];
 
   const getStatIconClass = (color) => {
-    const colors = {
+    const classes = {
       blue: "stat-icon-blue",
       green: "stat-icon-green",
       purple: "stat-icon-purple",
       orange: "stat-icon-orange",
     };
-    return colors[color] || colors.blue;
+    return classes[color] || "stat-icon-blue";
   };
 
   const getStatusClass = (status) => {
-    const colors = {
-      good: "status-good",
+    const classes = {
+      healthy: "status-healthy",
       warning: "status-warning",
-      error: "status-error",
+      critical: "status-critical",
     };
-    return colors[status] || colors.good;
+    return classes[status] || "status-healthy";
   };
 
   return (
-    <div className="dashboard">
+    <div className="admin-dashboard">
       {/* Header */}
       <div className="dashboard-header">
-        <div className="dashboard-title-section">
-          <h2 className="dashboard-title">Admin Dashboard</h2>
+        <div>
+          <h1 className="dashboard-title">Admin Dashboard</h1>
           <p className="dashboard-subtitle">
             Monitor system performance and manage your SwiftTiger operations
           </p>
@@ -243,19 +247,31 @@ const AdminDashboard = () => {
         </div>
         <div className="card-content">
           <div className="quick-actions-grid">
-            <button className="btn btn-outline btn-md quick-action-btn">
+            <button
+              className="btn btn-outline btn-md quick-action-btn"
+              onClick={() => navigate("/users")}
+            >
               <Users className="icon-sm mr-2" />
               Manage Users
             </button>
-            <button className="btn btn-outline btn-md quick-action-btn">
+            <button
+              className="btn btn-outline btn-md quick-action-btn"
+              onClick={() => navigate("/jobs")}
+            >
               <Briefcase className="icon-sm mr-2" />
               Create Job
             </button>
-            <button className="btn btn-outline btn-md quick-action-btn">
+            <button
+              className="btn btn-outline btn-md quick-action-btn"
+              onClick={() => navigate("/routes")}
+            >
               <Calendar className="icon-sm mr-2" />
               Schedule Route
             </button>
-            <button className="btn btn-outline btn-md quick-action-btn">
+            <button
+              className="btn btn-outline btn-md quick-action-btn"
+              onClick={() => navigate("/logs")}
+            >
               <TrendingUp className="icon-sm mr-2" />
               View Reports
             </button>

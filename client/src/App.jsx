@@ -7,34 +7,108 @@ import {
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { Toaster } from "react-hot-toast";
+
+// Auth
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import Layout from "./components/common/Layout";
+
+// Auth Components
 import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
+
+// Layout
+import Layout from "./components/common/Layout";
+
+// Dashboards
 import AdminDashboard from "./components/dashboard/AdminDashboard";
 import DispatcherDashboard from "./components/dashboard/DispatcherDashboard";
 import TechnicianDashboard from "./components/dashboard/TechnicianDashboard";
-import UnauthorizedPage from "./components/common/UnauthorizedPage";
-import NotFoundPage from "./components/common/NotFoundPage";
 
-// Create a client for React Query
+// Admin Components
+import UserManagement from "./components/admin/UserManagement";
+import ActivityLogs from "./components/admin/ActivityLogs";
+
+// Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
     },
   },
 });
+
+// Placeholder components for missing pages
+const UnauthorizedPage = () => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      textAlign: "center",
+    }}
+  >
+    <h1 style={{ fontSize: "3rem", marginBottom: "1rem" }}>401</h1>
+    <h2>Unauthorized Access</h2>
+    <p style={{ color: "#666", marginBottom: "2rem" }}>
+      You don't have permission to access this page.
+    </p>
+    <button
+      onClick={() => window.history.back()}
+      style={{
+        padding: "0.5rem 1rem",
+        backgroundColor: "#007bff",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+      }}
+    >
+      Go Back
+    </button>
+  </div>
+);
+
+const NotFoundPage = () => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      textAlign: "center",
+    }}
+  >
+    <h1 style={{ fontSize: "3rem", marginBottom: "1rem" }}>404</h1>
+    <h2>Page Not Found</h2>
+    <p style={{ color: "#666", marginBottom: "2rem" }}>
+      The page you're looking for doesn't exist.
+    </p>
+    <a
+      href="/"
+      style={{
+        padding: "0.5rem 1rem",
+        backgroundColor: "#007bff",
+        color: "white",
+        textDecoration: "none",
+        borderRadius: "4px",
+        display: "inline-block",
+      }}
+    >
+      Go Home
+    </a>
+  </div>
+);
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
-          <div className="App">
+          <div className="app">
             <Routes>
               {/* Public routes */}
               <Route
@@ -54,7 +128,7 @@ function App() {
                 }
               />
 
-              {/* Protected routes with layout */}
+              {/* Protected routes */}
               <Route
                 path="/"
                 element={
@@ -97,26 +171,64 @@ function App() {
                   }
                 />
 
-                {/* Future routes for other features */}
+                {/* Admin Routes */}
                 <Route
-                  path="users/*"
-                  element={<div>User Management (Coming Soon)</div>}
+                  path="users"
+                  element={
+                    <ProtectedRoute roles={["admin"]}>
+                      <UserManagement />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
+                  path="logs"
+                  element={
+                    <ProtectedRoute roles={["admin"]}>
+                      <ActivityLogs />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Future routes for other features */}
+                <Route
                   path="jobs/*"
-                  element={<div>Job Management (Coming Soon)</div>}
+                  element={
+                    <div style={{ padding: "2rem" }}>
+                      Job Management (Coming Soon)
+                    </div>
+                  }
                 />
                 <Route
                   path="customers/*"
-                  element={<div>Customer Management (Coming Soon)</div>}
+                  element={
+                    <div style={{ padding: "2rem" }}>
+                      Customer Management (Coming Soon)
+                    </div>
+                  }
                 />
                 <Route
                   path="routes/*"
-                  element={<div>Route Planning (Coming Soon)</div>}
+                  element={
+                    <div style={{ padding: "2rem" }}>
+                      Route Planning (Coming Soon)
+                    </div>
+                  }
                 />
                 <Route
                   path="profile"
-                  element={<div>Profile Settings (Coming Soon)</div>}
+                  element={
+                    <div style={{ padding: "2rem" }}>
+                      Profile Settings (Coming Soon)
+                    </div>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <div style={{ padding: "2rem" }}>
+                      System Settings (Coming Soon)
+                    </div>
+                  }
                 />
               </Route>
 
