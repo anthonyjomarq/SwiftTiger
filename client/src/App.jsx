@@ -8,18 +8,16 @@ import {
 import { QueryClient, QueryClientProvider } from "react-query";
 import { Toaster } from "react-hot-toast";
 
-// Auth
+// Context
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import ProtectedRoute from "./components/auth/ProtectedRoute";
 
-// Auth Components
+// Components
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
-
-// Layout
 import Layout from "./components/common/Layout";
 
-// Dashboards
+// Dashboard Components
 import AdminDashboard from "./components/dashboard/AdminDashboard";
 import DispatcherDashboard from "./components/dashboard/DispatcherDashboard";
 import TechnicianDashboard from "./components/dashboard/TechnicianDashboard";
@@ -28,49 +26,23 @@ import TechnicianDashboard from "./components/dashboard/TechnicianDashboard";
 import UserManagement from "./components/admin/UserManagement";
 import ActivityLogs from "./components/admin/ActivityLogs";
 
-// Create a client
+// Profile Component
+import UserProfile from "./components/profile/UserProfile";
+
+// CSS
+import "./index.css";
+
+// Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
       retry: 1,
+      refetchOnWindowFocus: false,
     },
   },
 });
 
-// Placeholder components for missing pages
-const UnauthorizedPage = () => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      textAlign: "center",
-    }}
-  >
-    <h1 style={{ fontSize: "3rem", marginBottom: "1rem" }}>401</h1>
-    <h2>Unauthorized Access</h2>
-    <p style={{ color: "#666", marginBottom: "2rem" }}>
-      You don't have permission to access this page.
-    </p>
-    <button
-      onClick={() => window.history.back()}
-      style={{
-        padding: "0.5rem 1rem",
-        backgroundColor: "#007bff",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer",
-      }}
-    >
-      Go Back
-    </button>
-  </div>
-);
-
+// Error Pages
 const NotFoundPage = () => (
   <div
     style={{
@@ -80,12 +52,46 @@ const NotFoundPage = () => (
       justifyContent: "center",
       height: "100vh",
       textAlign: "center",
+      gap: "1rem",
     }}
   >
-    <h1 style={{ fontSize: "3rem", marginBottom: "1rem" }}>404</h1>
-    <h2>Page Not Found</h2>
-    <p style={{ color: "#666", marginBottom: "2rem" }}>
+    <h1 style={{ fontSize: "3rem", margin: 0 }}>404</h1>
+    <h2 style={{ margin: 0 }}>Page Not Found</h2>
+    <p style={{ color: "#666", margin: 0 }}>
       The page you're looking for doesn't exist.
+    </p>
+    <a
+      href="/"
+      style={{
+        padding: "0.5rem 1rem",
+        backgroundColor: "#007bff",
+        color: "white",
+        textDecoration: "none",
+        borderRadius: "4px",
+        display: "inline-block",
+      }}
+    >
+      Go Home
+    </a>
+  </div>
+);
+
+const UnauthorizedPage = () => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      textAlign: "center",
+      gap: "1rem",
+    }}
+  >
+    <h1 style={{ fontSize: "3rem", margin: 0 }}>403</h1>
+    <h2 style={{ margin: 0 }}>Access Forbidden</h2>
+    <p style={{ color: "#666", margin: 0 }}>
+      You don't have permission to access this resource.
     </p>
     <a
       href="/"
@@ -189,6 +195,16 @@ function App() {
                   }
                 />
 
+                {/* User Profile Route - Available to all authenticated users */}
+                <Route
+                  path="profile"
+                  element={
+                    <ProtectedRoute>
+                      <UserProfile />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* Future routes for other features */}
                 <Route
                   path="jobs/*"
@@ -211,14 +227,6 @@ function App() {
                   element={
                     <div style={{ padding: "2rem" }}>
                       Route Planning (Coming Soon)
-                    </div>
-                  }
-                />
-                <Route
-                  path="profile"
-                  element={
-                    <div style={{ padding: "2rem" }}>
-                      Profile Settings (Coming Soon)
                     </div>
                   }
                 />

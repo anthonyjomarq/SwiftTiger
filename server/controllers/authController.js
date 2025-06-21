@@ -1,6 +1,7 @@
 import { User } from "../models/index.js";
 import jwt from "jsonwebtoken";
 import { logAction } from "../services/actionLogger.js";
+import { logAction } from "../utils/logger.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const JWT_REFRESH_SECRET =
@@ -210,6 +211,139 @@ export const changePassword = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to change password",
+    });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      firstName,
+      lastName,
+      phone,
+      bio,
+      department,
+      location,
+      email, // Only allow email updates for now, may want to add verification later
+    } = req.body;
+
+    console.log("🔄 Updating profile for user:", userId);
+
+    // Find the user
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check if email is being changed and if it's already taken
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({
+        where: { email },
+      });
+
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({
+          success: false,
+          message: "Email address is already in use",
+        });
+      }
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (firstName) updateData.firstName = firstName.trim();
+    if (lastName) updateData.lastName = lastName.trim();
+    if (phone !== undefined) updateData.phone = phone?.trim() || null;
+    if (bio !== undefined) updateData.bio = bio?.trim() || null;
+    if (department !== undefined)
+      updateData.department = department?.trim() || null;
+    if (location !== undefined) updateData.location = location?.trim() || null;
+    if (email && email !== user.email)
+      updateData.email = email.trim().toLowerCase();
+
+    // Update user
+    await user.update(updateData);
+
+    // Log the action
+    await logAction(req, "UPDATE_PROFILE", "USER", userId, {
+      updatedFields: Object.keys(updateData),
+    });
+
+    // Return updated user data (excluding password)
+    const updatedUser = await User.findByPk(userId, {
+      attributes: { exclude: ["password"] },
+    });
+
+    res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: {
+        user: updatedUser.toJSON(),
+      },
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update profile",
+    });
+  }
+};
+
+export const getExtendedProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log("👤 Fetching extended profile for user:", userId);
+
+    // If using the simple/mock user (not from database)
+    if (req.user && !req.user.get) {
+      return res.json({
+        success: true,
+        data: {
+          user: {
+            ...req.user,
+            bio: null,
+            department: null,
+            location: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    // For real users from database
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ["password"] },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Log the action
+    await logAction(req, "VIEW_PROFILE", "USER", userId);
+
+    res.json({
+      success: true,
+      data: {
+        user: user.toJSON(),
+      },
+    });
+  } catch (error) {
+    console.error("Get extended profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch profile",
     });
   }
 };

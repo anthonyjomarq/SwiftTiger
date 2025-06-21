@@ -60,4 +60,66 @@ export const userValidationRules = {
       .custom((value, { req }) => value !== req.body.currentPassword)
       .withMessage("New password must be different from current password"),
   ],
+  updateProfile: [
+    body("firstName")
+      .optional()
+      .trim()
+      .isLength({ min: 2, max: 50 })
+      .withMessage("First name must be between 2 and 50 characters")
+      .matches(/^[a-zA-Z\s'-]+$/)
+      .withMessage(
+        "First name can only contain letters, spaces, hyphens, and apostrophes"
+      ),
+
+    body("lastName")
+      .optional()
+      .trim()
+      .isLength({ min: 2, max: 50 })
+      .withMessage("Last name must be between 2 and 50 characters")
+      .matches(/^[a-zA-Z\s'-]+$/)
+      .withMessage(
+        "Last name can only contain letters, spaces, hyphens, and apostrophes"
+      ),
+
+    body("email")
+      .optional()
+      .trim()
+      .isEmail()
+      .normalizeEmail()
+      .withMessage("Please provide a valid email address"),
+
+    body("phone")
+      .optional()
+      .trim()
+      .custom((value) => {
+        if (value && value !== "") {
+          // Allow various phone number formats
+          const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+          if (!phoneRegex.test(value.replace(/[\s\-\(\)]/g, ""))) {
+            throw new Error("Please provide a valid phone number");
+          }
+        }
+        return true;
+      }),
+
+    body("bio")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("Bio cannot exceed 500 characters"),
+
+    body("department")
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage("Department cannot exceed 100 characters")
+      .matches(/^[a-zA-Z0-9\s\-&.,()]+$/)
+      .withMessage("Department contains invalid characters"),
+
+    body("location")
+      .optional()
+      .trim()
+      .isLength({ max: 255 })
+      .withMessage("Location cannot exceed 255 characters"),
+  ],
 };

@@ -55,6 +55,49 @@ const User = sequelize.define(
       defaultValue: DataTypes.NOW,
       field: "password_changed_at",
     },
+    bio: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      validate: {
+        len: {
+          args: [0, 500],
+          msg: "Bio cannot exceed 500 characters",
+        },
+      },
+    },
+
+    department: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      validate: {
+        len: {
+          args: [0, 100],
+          msg: "Department cannot exceed 100 characters",
+        },
+      },
+    },
+
+    location: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      validate: {
+        len: {
+          args: [0, 255],
+          msg: "Location cannot exceed 255 characters",
+        },
+      },
+    },
+
+    profilePictureUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      field: "profile_picture_url",
+      validate: {
+        isUrl: {
+          msg: "Profile picture must be a valid URL",
+        },
+      },
+    },
   },
   {
     tableName: "users",
@@ -84,6 +127,23 @@ User.prototype.toJSON = function () {
   const values = { ...this.get() };
   delete values.password;
   return values;
+};
+
+User.prototype.getPublicProfile = function () {
+  const values = this.get();
+  delete values.password;
+  return values;
+};
+
+User.prototype.getBasicInfo = function () {
+  return {
+    id: this.id,
+    firstName: this.firstName,
+    lastName: this.lastName,
+    email: this.email,
+    role: this.role,
+    isActive: this.isActive,
+  };
 };
 
 export default User;
