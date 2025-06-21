@@ -9,7 +9,7 @@ User.hasMany(ActionLog, {
 
 ActionLog.belongsTo(User, {
   foreignKey: "user_id", // Use database column name
-  as: "user",
+  as: "User",
 });
 
 export { User, ActionLog };

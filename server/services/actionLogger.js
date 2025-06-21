@@ -9,7 +9,6 @@ export const logAction = async (
   details = {}
 ) => {
   try {
-    // Handle the userId - if no user, set to null instead of 'system'
     const userId = req.user?.id || null;
 
     const logEntry = {
@@ -34,42 +33,49 @@ export const logAction = async (
 };
 
 export const getActionLogs = async (filters = {}) => {
-  const {
-    userId,
-    action,
-    resource,
-    startDate,
-    endDate,
-    limit = 100,
-    offset = 0,
-  } = filters;
+  try {
+    const {
+      userId,
+      action,
+      resource,
+      startDate,
+      endDate,
+      limit = 100,
+      offset = 0,
+    } = filters;
 
-  const where = {};
+    const where = {};
 
-  if (userId) where.userId = userId;
-  if (action) where.action = action;
-  if (resource) where.resource = resource;
+    if (userId) where.userId = userId;
+    if (action) where.action = action;
+    if (resource) where.resource = resource;
 
-  if (startDate || endDate) {
-    where.timestamp = {};
-    if (startDate) where.timestamp[Op.gte] = startDate;
-    if (endDate) where.timestamp[Op.lte] = endDate;
+    if (startDate || endDate) {
+      where.timestamp = {};
+      if (startDate) where.timestamp[Op.gte] = startDate;
+      if (endDate) where.timestamp[Op.lte] = endDate;
+    }
+
+    const logs = await ActionLog.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "User", // Changed from 'user' to 'User' to match model name
+          attributes: ["id", "email", "firstName", "lastName", "role"],
+          required: false, // Left join so logs without users still appear
+        },
+      ],
+      order: [["timestamp", "DESC"]],
+      limit,
+      offset,
+    });
+
+    const count = await ActionLog.count({ where });
+
+    return { logs, count };
+  } catch (error) {
+    console.error("Error fetching action logs:", error);
+    throw error;
   }
-
-  const logs = await ActionLog.findAll({
-    where,
-    include: [
-      {
-        model: User,
-        attributes: ["id", "email", "firstName", "lastName", "role"],
-      },
-    ],
-    order: [["timestamp", "DESC"]],
-    limit,
-    offset,
-  });
-
-  const count = await ActionLog.count({ where });
-
-  return { logs, count };
 };

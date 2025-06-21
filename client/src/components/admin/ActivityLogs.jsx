@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { logsService } from "../../services/logsService";
 import { formatDate, getRelativeTime } from "../../utils/dateUtils";
 import { Download, Filter, RefreshCw } from "lucide-react";
+import { toast } from "react-hot-toast";
 import "./ActivityLogs.css";
 
 const ActivityLogs = () => {
@@ -34,6 +35,8 @@ const ActivityLogs = () => {
         ...filters,
       });
 
+      console.log("Logs API Response:", response); // Debug log
+
       setLogs(response.logs || []);
       setPagination(
         response.pagination || {
@@ -45,6 +48,7 @@ const ActivityLogs = () => {
       );
     } catch (error) {
       console.error("Failed to fetch logs:", error);
+      toast.error("Failed to load logs");
     } finally {
       setLoading(false);
     }
@@ -230,9 +234,13 @@ const ActivityLogs = () => {
                   </td>
                   <td>
                     {log.User ? (
-                      <a href={`/users/${log.userId}`} className="user-link">
+                      <span className="user-link">
                         {log.User.firstName} {log.User.lastName}
-                      </a>
+                      </span>
+                    ) : log.userId ? (
+                      <span style={{ color: "#6b7280", fontSize: "0.875rem" }}>
+                        User ID: {log.userId.substring(0, 8)}...
+                      </span>
                     ) : (
                       <span style={{ color: "#9ca3af" }}>System</span>
                     )}
