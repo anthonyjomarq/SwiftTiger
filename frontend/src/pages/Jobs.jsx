@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
+import JobDetail from "../components/JobDetail";
 
 const Jobs = () => {
   const [jobs, setJobs] = useState([]);
@@ -10,6 +11,7 @@ const Jobs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -151,6 +153,10 @@ const Jobs = () => {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const handleJobClick = (job) => {
+    setSelectedJob(job);
   };
 
   if (loading) {
@@ -299,20 +305,32 @@ const Jobs = () => {
             </li>
           ) : (
             jobs.map((job) => (
-              <li key={job.id} className="px-6 py-4">
+              <li
+                key={job.id}
+                className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+                onClick={() => handleJobClick(job)}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-medium text-gray-900">
                         {job.title}
                       </h3>
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                          job.status
-                        )}`}
-                      >
-                        {job.status.replace("_", " ")}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        {job.update_count > 0 && (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                            {job.update_count} update
+                            {job.update_count !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                            job.status
+                          )}`}
+                        >
+                          {job.status.replace("_", " ")}
+                        </span>
+                      </div>
                     </div>
                     {job.description && (
                       <p className="mt-1 text-sm text-gray-500">
@@ -328,7 +346,10 @@ const Jobs = () => {
                       Created: {new Date(job.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="ml-4 flex items-center space-x-2">
+                  <div
+                    className="ml-4 flex items-center space-x-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {hasPermission("jobs.update_status") && (
                       <select
                         value={job.status}
@@ -372,6 +393,14 @@ const Jobs = () => {
           )}
         </ul>
       </div>
+
+      {selectedJob && (
+        <JobDetail
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onJobUpdate={fetchJobs}
+        />
+      )}
     </div>
   );
 };

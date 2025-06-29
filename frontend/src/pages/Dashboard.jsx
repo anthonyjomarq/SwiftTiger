@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import ActivityFeed from "../components/ActivityFeed";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -147,6 +148,10 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <ActivityFeed />
       </div>
     </div>
   );

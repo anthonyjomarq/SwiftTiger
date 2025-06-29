@@ -337,19 +337,31 @@ app.get("/api/jobs", authenticateToken, async (req, res) => {
     // Technicians only see their assigned jobs
     if (userRole === "technician") {
       query = `
-        SELECT j.*, c.name as customer_name 
+        SELECT 
+          j.*, 
+          c.name as customer_name,
+          COUNT(ju.id) as update_count,
+          MAX(ju.created_at) as last_update
         FROM jobs j 
         LEFT JOIN customers c ON j.customer_id = c.id 
+        LEFT JOIN job_updates ju ON j.id = ju.job_id
         WHERE j.assigned_to = $1
-        ORDER BY j.created_at DESC
+        GROUP BY j.id, c.name
+        ORDER BY j.last_activity DESC
       `;
       params = [req.user.id];
     } else {
       query = `
-        SELECT j.*, c.name as customer_name 
+        SELECT 
+          j.*, 
+          c.name as customer_name,
+          COUNT(ju.id) as update_count,
+          MAX(ju.created_at) as last_update
         FROM jobs j 
         LEFT JOIN customers c ON j.customer_id = c.id 
-        ORDER BY j.created_at DESC
+        LEFT JOIN job_updates ju ON j.id = ju.job_id
+        GROUP BY j.id, c.name
+        ORDER BY j.last_activity DESC
       `;
     }
 
@@ -386,31 +398,100 @@ app.post(
   }
 );
 
-app.put(
-  "/api/jobs/:id",
-  authenticateToken,
-  requirePermission("jobs.edit"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { title, description, customer_id, status, assigned_to } = req.body;
+app.put("/api/jobs/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, customer_id, status, assigned_to } = req.body;
 
-      const result = await pool.query(
-        "UPDATE jobs SET title = $1, description = $2, customer_id = $3, status = $4, assigned_to = $5 WHERE id = $6 RETURNING *",
-        [title, description, customer_id, status, assigned_to, id]
+    // Get current job state
+    const currentJob = await pool.query("SELECT * FROM jobs WHERE id = $1", [
+      id,
+    ]);
+    if (currentJob.rows.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const oldJob = currentJob.rows[0];
+
+    // Get user's current role from database
+    const userResult = await pool.query(
+      "SELECT role FROM users WHERE id = $1",
+      [req.user.id]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userResult.rows[0].role;
+
+    // Check permissions: Technicians can only edit their assigned jobs
+    if (userRole === "technician") {
+      if (oldJob.assigned_to !== req.user.id) {
+        return res
+          .status(403)
+          .json({ error: "You can only edit jobs assigned to you" });
+      }
+      // Technicians can only update status and add updates, not change assignment or other fields
+      if (assigned_to !== oldJob.assigned_to) {
+        return res
+          .status(403)
+          .json({ error: "Technicians cannot change job assignment" });
+      }
+    } else {
+      // Other roles need jobs.edit permission
+      const { hasPermission } = require("./middleware/permissions");
+      if (!hasPermission(userRole, "jobs.edit")) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+    }
+
+    // Update the job
+    const result = await pool.query(
+      "UPDATE jobs SET title = $1, description = $2, customer_id = $3, status = $4, assigned_to = $5, last_activity = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *",
+      [title, description, customer_id, status, assigned_to, id]
+    );
+
+    // Create automatic updates for changes
+    if (oldJob.status !== status) {
+      await pool.query(
+        "INSERT INTO job_updates (job_id, user_id, content, update_type) VALUES ($1, $2, $3, $4)",
+        [
+          id,
+          req.user.id,
+          `Status changed from ${oldJob.status} to ${status}`,
+          "status_change",
+        ]
       );
+    }
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: "Job not found" });
+    if (oldJob.assigned_to !== assigned_to) {
+      let content;
+      if (!oldJob.assigned_to && assigned_to) {
+        const tech = await pool.query("SELECT name FROM users WHERE id = $1", [
+          assigned_to,
+        ]);
+        content = `Job assigned to ${tech.rows[0]?.name || "technician"}`;
+      } else if (oldJob.assigned_to && !assigned_to) {
+        content = "Job unassigned";
+      } else {
+        const tech = await pool.query("SELECT name FROM users WHERE id = $1", [
+          assigned_to,
+        ]);
+        content = `Job reassigned to ${tech.rows[0]?.name || "technician"}`;
       }
 
-      res.json(result.rows[0]);
-    } catch (error) {
-      console.error("Update job error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      await pool.query(
+        "INSERT INTO job_updates (job_id, user_id, content, update_type) VALUES ($1, $2, $3, $4)",
+        [id, req.user.id, content, "assignment"]
+      );
     }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Update job error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-);
+});
 
 app.delete(
   "/api/jobs/:id",
@@ -436,6 +517,157 @@ app.delete(
     }
   }
 );
+
+// Job Updates API Routes
+
+// Get updates for a specific job
+app.get("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user has permission to view this job
+    const jobCheck = await pool.query("SELECT * FROM jobs WHERE id = $1", [id]);
+
+    if (jobCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const job = jobCheck.rows[0];
+
+    // Technicians can only see updates for their assigned jobs
+    if (req.user.role === "technician" && job.assigned_to !== req.user.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const updates = await pool.query(
+      `
+      SELECT 
+        ju.*,
+        u.name as user_name,
+        u.role as user_role
+      FROM job_updates ju
+      JOIN users u ON ju.user_id = u.id
+      WHERE ju.job_id = $1
+      ORDER BY ju.created_at DESC
+    `,
+      [id]
+    );
+
+    res.json({ updates: updates.rows });
+  } catch (error) {
+    console.error("Get job updates error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create a new job update
+app.post("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, update_type = "comment" } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: "Update content is required" });
+    }
+
+    // Check if user has permission to update this job
+    const jobCheck = await pool.query("SELECT * FROM jobs WHERE id = $1", [id]);
+
+    if (jobCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    const job = jobCheck.rows[0];
+
+    // Technicians can only update their assigned jobs
+    if (req.user.role === "technician" && job.assigned_to !== req.user.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Create the update
+    const newUpdate = await pool.query(
+      `
+      INSERT INTO job_updates (job_id, user_id, content, update_type)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `,
+      [id, req.user.id, content, update_type]
+    );
+
+    // Update job's last_activity timestamp
+    await pool.query(
+      "UPDATE jobs SET last_activity = CURRENT_TIMESTAMP WHERE id = $1",
+      [id]
+    );
+
+    // Get user info for the response
+    const userInfo = await pool.query(
+      "SELECT name, role FROM users WHERE id = $1",
+      [req.user.id]
+    );
+
+    const updateWithUser = {
+      ...newUpdate.rows[0],
+      user_name: userInfo.rows[0].name,
+      user_role: userInfo.rows[0].role,
+    };
+
+    res.json(updateWithUser);
+  } catch (error) {
+    console.error("Create job update error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get recent activity feed for dashboard
+app.get("/api/activity-feed", authenticateToken, async (req, res) => {
+  try {
+    let query;
+    let params = [];
+
+    if (req.user.role === "technician") {
+      // Technicians only see updates for their assigned jobs
+      query = `
+        SELECT 
+          ju.*,
+          u.name as user_name,
+          u.role as user_role,
+          j.title as job_title,
+          c.name as customer_name
+        FROM job_updates ju
+        JOIN users u ON ju.user_id = u.id
+        JOIN jobs j ON ju.job_id = j.id
+        LEFT JOIN customers c ON j.customer_id = c.id
+        WHERE j.assigned_to = $1
+        ORDER BY ju.created_at DESC
+        LIMIT 20
+      `;
+      params = [req.user.id];
+    } else {
+      // Admin and Dispatcher see all updates
+      query = `
+        SELECT 
+          ju.*,
+          u.name as user_name,
+          u.role as user_role,
+          j.title as job_title,
+          c.name as customer_name
+        FROM job_updates ju
+        JOIN users u ON ju.user_id = u.id
+        JOIN jobs j ON ju.job_id = j.id
+        LEFT JOIN customers c ON j.customer_id = c.id
+        ORDER BY ju.created_at DESC
+        LIMIT 20
+      `;
+    }
+
+    const updates = await pool.query(query, params);
+    res.json({ updates: updates.rows });
+  } catch (error) {
+    console.error("Get activity feed error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // Dashboard stats
 app.get("/api/dashboard", authenticateToken, async (req, res) => {
