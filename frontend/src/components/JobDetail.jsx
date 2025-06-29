@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
+import JobEditForm from "./JobEditForm";
 
 const JobDetail = ({ job, onClose, onJobUpdate }) => {
   const [updates, setUpdates] = useState([]);
   const [newUpdate, setNewUpdate] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { user } = useAuth();
+  const [showEditForm, setShowEditForm] = useState(false);
+  const { user, hasPermission } = useAuth();
 
   useEffect(() => {
     fetchUpdates();
@@ -75,12 +77,22 @@ const JobDetail = ({ job, onClose, onJobUpdate }) => {
               <span className="font-medium">{job.status}</span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-500"
-          >
-            <span className="text-2xl">&times;</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            {hasPermission("jobs.edit") && (
+              <button
+                onClick={() => setShowEditForm(true)}
+                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              >
+                Edit
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-500"
+            >
+              <span className="text-2xl">&times;</span>
+            </button>
+          </div>
         </div>
 
         {job.description && (
@@ -151,6 +163,19 @@ const JobDetail = ({ job, onClose, onJobUpdate }) => {
           </div>
         </div>
       </div>
+
+      {showEditForm && (
+        <JobEditForm
+          job={job}
+          onClose={() => setShowEditForm(false)}
+          onJobUpdate={() => {
+            if (onJobUpdate) {
+              onJobUpdate();
+            }
+            setShowEditForm(false);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -15,6 +15,12 @@ const Layout = ({ children }) => {
       permission: "customers.view",
     },
     { name: "Jobs", href: "/jobs", icon: "🔧", permission: null }, // Will be handled in component
+    {
+      name: "Route Planning",
+      href: "/routes",
+      icon: "🗺️",
+      permission: "jobs.view",
+    },
   ];
 
   const isActive = (path) => location.pathname === path;

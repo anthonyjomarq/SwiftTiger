@@ -42,6 +42,9 @@ const initializeDatabase = async () => {
         email VARCHAR(255),
         phone VARCHAR(50),
         address TEXT,
+        latitude DECIMAL(10, 8),
+        longitude DECIMAL(11, 8),
+        geocoded_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -55,6 +58,10 @@ const initializeDatabase = async () => {
         customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
         assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
         status VARCHAR(50) DEFAULT 'pending',
+        scheduled_date DATE,
+        scheduled_time TIME,
+        estimated_duration INTEGER DEFAULT 60,
+        route_order INTEGER,
         last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -70,6 +77,18 @@ const initializeDatabase = async () => {
         update_type VARCHAR(50) DEFAULT 'comment',
         attachments JSONB DEFAULT '[]',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Technician locations table for tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS technician_locations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        latitude DECIMAL(10, 8),
+        longitude DECIMAL(11, 8),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
       )
     `);
 

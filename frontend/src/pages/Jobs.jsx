@@ -18,6 +18,9 @@ const Jobs = () => {
     customer_id: "",
     status: "pending",
     assigned_to: "",
+    scheduled_date: new Date().toISOString().split("T")[0],
+    scheduled_time: "",
+    estimated_duration: "60",
   });
   const { hasPermission, user } = useAuth();
   const location = useLocation();
@@ -77,6 +80,9 @@ const Jobs = () => {
         customer_id: "",
         status: "pending",
         assigned_to: "",
+        scheduled_date: new Date().toISOString().split("T")[0],
+        scheduled_time: "",
+        estimated_duration: "60",
       });
       setShowAddForm(false);
       fetchJobs();
@@ -272,6 +278,46 @@ const Jobs = () => {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter job description"
               />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Scheduled Date
+                </label>
+                <input
+                  type="date"
+                  name="scheduled_date"
+                  value={formData.scheduled_date}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Scheduled Time
+                </label>
+                <input
+                  type="time"
+                  name="scheduled_time"
+                  value={formData.scheduled_time}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Estimated Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  name="estimated_duration"
+                  value={formData.estimated_duration}
+                  onChange={handleChange}
+                  min="15"
+                  step="15"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
             <div className="flex justify-end space-x-3">
               <button

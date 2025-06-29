@@ -5,6 +5,10 @@ const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const { pool, initializeDatabase } = require("./database");
 const { requirePermission } = require("./middleware/permissions");
+const {
+  geocodeAddress,
+  updateCustomerCoordinates,
+} = require("./services/geocoding");
 require("dotenv").config();
 
 const app = express();
@@ -238,12 +242,20 @@ app.post(
         return res.status(400).json({ error: "Customer name is required" });
       }
 
+      // Create customer first
       const result = await pool.query(
         "INSERT INTO customers (name, email, phone, address) VALUES ($1, $2, $3, $4) RETURNING *",
         [name, email, phone, address]
       );
 
-      res.json(result.rows[0]);
+      const customer = result.rows[0];
+
+      // Geocode address in background if provided
+      if (address) {
+        updateCustomerCoordinates(customer.id, address).catch(console.error);
+      }
+
+      res.json(customer);
     } catch (error) {
       console.error("Create customer error:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -379,15 +391,33 @@ app.post(
   requirePermission("jobs.create"),
   async (req, res) => {
     try {
-      const { title, description, customer_id, status, assigned_to } = req.body;
+      const {
+        title,
+        description,
+        customer_id,
+        status,
+        assigned_to,
+        scheduled_date,
+        scheduled_time,
+        estimated_duration,
+      } = req.body;
 
       if (!title) {
         return res.status(400).json({ error: "Job title is required" });
       }
 
       const result = await pool.query(
-        "INSERT INTO jobs (title, description, customer_id, status, assigned_to) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        [title, description, customer_id, status || "pending", assigned_to]
+        "INSERT INTO jobs (title, description, customer_id, status, assigned_to, scheduled_date, scheduled_time, estimated_duration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+        [
+          title,
+          description,
+          customer_id,
+          status || "pending",
+          assigned_to,
+          scheduled_date,
+          scheduled_time,
+          estimated_duration || 60,
+        ]
       );
 
       res.json(result.rows[0]);
@@ -669,6 +699,206 @@ app.get("/api/activity-feed", authenticateToken, async (req, res) => {
   }
 });
 
+// Get jobs with location data for mapping
+app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
+  try {
+    const { date, technician_id } = req.query;
+
+    let query = `
+      SELECT 
+        j.*,
+        c.name as customer_name,
+        c.address as customer_address,
+        c.latitude,
+        c.longitude,
+        u.name as technician_name
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN users u ON j.assigned_to = u.id
+      WHERE j.status IN ('pending', 'in_progress')
+      AND c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+    `;
+
+    const params = [];
+
+    if (date) {
+      query += " AND j.scheduled_date = $" + (params.length + 1);
+      params.push(date);
+    }
+
+    if (technician_id) {
+      query += " AND j.assigned_to = $" + (params.length + 1);
+      params.push(technician_id);
+    }
+
+    // For technicians, only show their jobs
+    if (req.user.role === "technician") {
+      query += " AND j.assigned_to = $" + (params.length + 1);
+      params.push(req.user.id);
+    }
+
+    query += " ORDER BY j.route_order NULLS LAST, j.scheduled_time";
+
+    const result = await pool.query(query, params);
+    res.json({ jobs: result.rows });
+  } catch (error) {
+    console.error("Get map data error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Route optimization endpoint
+app.post(
+  "/api/jobs/optimize-route",
+  authenticateToken,
+  requirePermission("jobs.assign"),
+  async (req, res) => {
+    try {
+      const { job_ids, start_location, end_location } = req.body;
+
+      if (!job_ids || job_ids.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "No jobs selected for optimization" });
+      }
+
+      // Get job locations
+      const jobsResult = await pool.query(
+        `
+      SELECT j.id, c.latitude, c.longitude, c.address
+      FROM jobs j
+      JOIN customers c ON j.customer_id = c.id
+      WHERE j.id = ANY($1::int[])
+      AND c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+    `,
+        [job_ids]
+      );
+
+      const jobs = jobsResult.rows;
+
+      if (jobs.length < 2) {
+        return res.json({ optimized_order: job_ids });
+      }
+
+      // Enhanced nearest neighbor algorithm with start/end points
+      const optimizedOrder = [];
+      const unvisited = [...jobs];
+
+      // Use provided start location or default to first job
+      let currentLocation = start_location || {
+        latitude: jobs[0].latitude,
+        longitude: jobs[0].longitude,
+      };
+
+      // Find optimal route through all jobs
+      while (unvisited.length > 0) {
+        let nearestIndex = 0;
+        let nearestDistance = Infinity;
+
+        unvisited.forEach((job, index) => {
+          const distance = calculateDistance(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            job.latitude,
+            job.longitude
+          );
+
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        });
+
+        const nearest = unvisited.splice(nearestIndex, 1)[0];
+        optimizedOrder.push(nearest.id);
+        currentLocation = {
+          latitude: nearest.latitude,
+          longitude: nearest.longitude,
+        };
+      }
+
+      // Calculate total distance including return to end location
+      let totalDistance = 0;
+      let routeLocation = start_location || {
+        latitude: jobs[0].latitude,
+        longitude: jobs[0].longitude,
+      };
+
+      // Add distance from start to first job
+      if (start_location && optimizedOrder.length > 0) {
+        const firstJob = jobs.find((j) => j.id === optimizedOrder[0]);
+        totalDistance += calculateDistance(
+          start_location.latitude,
+          start_location.longitude,
+          firstJob.latitude,
+          firstJob.longitude
+        );
+      }
+
+      // Add distances between jobs
+      for (let i = 0; i < optimizedOrder.length - 1; i++) {
+        const currentJob = jobs.find((j) => j.id === optimizedOrder[i]);
+        const nextJob = jobs.find((j) => j.id === optimizedOrder[i + 1]);
+        totalDistance += calculateDistance(
+          currentJob.latitude,
+          currentJob.longitude,
+          nextJob.latitude,
+          nextJob.longitude
+        );
+      }
+
+      // Add distance from last job to end location
+      if (end_location && optimizedOrder.length > 0) {
+        const lastJob = jobs.find(
+          (j) => j.id === optimizedOrder[optimizedOrder.length - 1]
+        );
+        totalDistance += calculateDistance(
+          lastJob.latitude,
+          lastJob.longitude,
+          end_location.latitude,
+          end_location.longitude
+        );
+      }
+
+      // Update route_order in database
+      for (let i = 0; i < optimizedOrder.length; i++) {
+        await pool.query("UPDATE jobs SET route_order = $1 WHERE id = $2", [
+          i + 1,
+          optimizedOrder[i],
+        ]);
+      }
+
+      res.json({
+        optimized_order: optimizedOrder,
+        total_jobs: optimizedOrder.length,
+        total_distance_km: Math.round(totalDistance * 100) / 100,
+        start_location: start_location,
+        end_location: end_location,
+      });
+    } catch (error) {
+      console.error("Route optimization error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// Helper function for distance calculation
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Dashboard stats
 app.get("/api/dashboard", authenticateToken, async (req, res) => {
   try {
@@ -691,6 +921,33 @@ app.get("/api/dashboard", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Dashboard error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Geocoding endpoint
+app.post("/api/geocode", authenticateToken, async (req, res) => {
+  try {
+    const { address } = req.body;
+
+    if (!address) {
+      return res.status(400).json({ error: "Address is required" });
+    }
+
+    const { geocodeAddress } = require("./services/geocoding");
+    const result = await geocodeAddress(address);
+
+    if (result) {
+      res.json({
+        latitude: result.lat,
+        longitude: result.lng,
+        formatted_address: result.formatted_address,
+      });
+    } else {
+      res.status(404).json({ error: "Address not found" });
+    }
+  } catch (error) {
+    console.error("Geocoding endpoint error:", error);
+    res.status(500).json({ error: "Geocoding failed" });
   }
 });
 
