@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const { pool, initializeDatabase } = require("./database");
+const { requirePermission } = require("./middleware/permissions");
 require("dotenv").config();
 
 const app = express();
@@ -36,21 +37,6 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Admin authorization middleware
-const requireAdmin = async (req, res, next) => {
-  try {
-    const result = await pool.query("SELECT role FROM users WHERE id = $1", [
-      req.user.id,
-    ]);
-    if (result.rows.length === 0 || result.rows[0].role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" });
-    }
-    next();
-  } catch (error) {
-    res.status(500).json({ error: "Authorization error" });
-  }
-};
-
 // Validation middleware
 const validateRegistration = [
   body("email").isEmail().normalizeEmail(),
@@ -73,7 +59,7 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, name } = req.body;
+    const { email, password, name, role = "technician" } = req.body;
 
     // Check if user already exists
     const existingUser = await pool.query(
@@ -87,13 +73,13 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
     // Check if this is the first user (make them admin)
     const userCount = await pool.query("SELECT COUNT(*) as count FROM users");
     const isFirstUser = parseInt(userCount.rows[0].count) === 0;
-    const role = isFirstUser ? "admin" : "user";
+    const finalRole = isFirstUser ? "admin" : role;
 
     // Hash password and create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await pool.query(
       "INSERT INTO users (email, password, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role",
-      [email, hashedPassword, name, role]
+      [email, hashedPassword, name, finalRole]
     );
 
     const user = newUser.rows[0];
@@ -183,44 +169,92 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
   }
 });
 
-// Customer routes
-app.get("/api/customers", authenticateToken, async (req, res) => {
+// Get user permissions
+app.get("/api/auth/permissions", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM customers ORDER BY created_at DESC"
+      `
+      SELECT p.name, p.resource, p.action
+      FROM users u
+      JOIN role_permissions rp ON rp.role = u.role
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE u.id = $1
+    `,
+      [req.user.id]
     );
-    res.json({ customers: result.rows });
+
+    res.json({ permissions: result.rows });
   } catch (error) {
-    console.error("Get customers error:", error);
+    console.error("Get permissions error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post("/api/customers", authenticateToken, async (req, res) => {
-  try {
-    const { name, email, phone, address } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: "Customer name is required" });
+// Get all users (for technician assignment)
+app.get(
+  "/api/users",
+  authenticateToken,
+  requirePermission("users.view"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT id, name, email, role FROM users ORDER BY name"
+      );
+      res.json({ users: result.rows });
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    const result = await pool.query(
-      "INSERT INTO customers (name, email, phone, address) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name, email, phone, address]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Create customer error:", error);
-    res.status(500).json({ error: "Internal server error" });
   }
-});
+);
 
-// Admin-only customer routes
+// Customer routes
+app.get(
+  "/api/customers",
+  authenticateToken,
+  requirePermission("customers.view"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT * FROM customers ORDER BY created_at DESC"
+      );
+      res.json({ customers: result.rows });
+    } catch (error) {
+      console.error("Get customers error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+app.post(
+  "/api/customers",
+  authenticateToken,
+  requirePermission("customers.create"),
+  async (req, res) => {
+    try {
+      const { name, email, phone, address } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Customer name is required" });
+      }
+
+      const result = await pool.query(
+        "INSERT INTO customers (name, email, phone, address) VALUES ($1, $2, $3, $4) RETURNING *",
+        [name, email, phone, address]
+      );
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Create customer error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 app.put(
   "/api/customers/:id",
   authenticateToken,
-  requireAdmin,
+  requirePermission("customers.edit"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -246,7 +280,7 @@ app.put(
 app.delete(
   "/api/customers/:id",
   authenticateToken,
-  requireAdmin,
+  requirePermission("customers.delete"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -271,12 +305,55 @@ app.delete(
 // Job routes
 app.get("/api/jobs", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT j.*, c.name as customer_name 
-      FROM jobs j 
-      LEFT JOIN customers c ON j.customer_id = c.id 
-      ORDER BY j.created_at DESC
-    `);
+    // Get user's current role from database
+    const userResult = await pool.query(
+      "SELECT role FROM users WHERE id = $1",
+      [req.user.id]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userResult.rows[0].role;
+
+    // Check permissions based on role
+    if (userRole === "technician") {
+      // Technicians need jobs.view_assigned permission
+      const { hasPermission } = require("./middleware/permissions");
+      if (!hasPermission(userRole, "jobs.view_assigned")) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+    } else {
+      // Other roles need jobs.view permission
+      const { hasPermission } = require("./middleware/permissions");
+      if (!hasPermission(userRole, "jobs.view")) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+    }
+
+    let query;
+    let params = [];
+
+    // Technicians only see their assigned jobs
+    if (userRole === "technician") {
+      query = `
+        SELECT j.*, c.name as customer_name 
+        FROM jobs j 
+        LEFT JOIN customers c ON j.customer_id = c.id 
+        WHERE j.assigned_to = $1
+        ORDER BY j.created_at DESC
+      `;
+      params = [req.user.id];
+    } else {
+      query = `
+        SELECT j.*, c.name as customer_name 
+        FROM jobs j 
+        LEFT JOIN customers c ON j.customer_id = c.id 
+        ORDER BY j.created_at DESC
+      `;
+    }
+
+    const result = await pool.query(query, params);
     res.json({ jobs: result.rows });
   } catch (error) {
     console.error("Get jobs error:", error);
@@ -284,52 +361,61 @@ app.get("/api/jobs", authenticateToken, async (req, res) => {
   }
 });
 
-app.post("/api/jobs", authenticateToken, async (req, res) => {
-  try {
-    const { title, description, customer_id, status } = req.body;
+app.post(
+  "/api/jobs",
+  authenticateToken,
+  requirePermission("jobs.create"),
+  async (req, res) => {
+    try {
+      const { title, description, customer_id, status, assigned_to } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ error: "Job title is required" });
+      if (!title) {
+        return res.status(400).json({ error: "Job title is required" });
+      }
+
+      const result = await pool.query(
+        "INSERT INTO jobs (title, description, customer_id, status, assigned_to) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        [title, description, customer_id, status || "pending", assigned_to]
+      );
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Create job error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    const result = await pool.query(
-      "INSERT INTO jobs (title, description, customer_id, status) VALUES ($1, $2, $3, $4) RETURNING *",
-      [title, description, customer_id, status || "pending"]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Create job error:", error);
-    res.status(500).json({ error: "Internal server error" });
   }
-});
+);
 
-app.put("/api/jobs/:id", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, description, customer_id, status } = req.body;
+app.put(
+  "/api/jobs/:id",
+  authenticateToken,
+  requirePermission("jobs.edit"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, customer_id, status, assigned_to } = req.body;
 
-    const result = await pool.query(
-      "UPDATE jobs SET title = $1, description = $2, customer_id = $3, status = $4 WHERE id = $5 RETURNING *",
-      [title, description, customer_id, status, id]
-    );
+      const result = await pool.query(
+        "UPDATE jobs SET title = $1, description = $2, customer_id = $3, status = $4, assigned_to = $5 WHERE id = $6 RETURNING *",
+        [title, description, customer_id, status, assigned_to, id]
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Job not found" });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Update job error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Update job error:", error);
-    res.status(500).json({ error: "Internal server error" });
   }
-});
+);
 
-// Admin-only job delete route
 app.delete(
   "/api/jobs/:id",
   authenticateToken,
-  requireAdmin,
+  requirePermission("jobs.delete"),
   async (req, res) => {
     try {
       const { id } = req.params;

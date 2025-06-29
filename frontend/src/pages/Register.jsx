@@ -8,6 +8,7 @@ const Register = () => {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "technician",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,8 @@ const Register = () => {
     const result = await register(
       formData.name,
       formData.email,
-      formData.password
+      formData.password,
+      formData.role
     );
 
     if (result.success) {
@@ -102,6 +104,28 @@ const Register = () => {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter your email"
               />
+            </div>
+            <div>
+              <label
+                htmlFor="role"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="technician">Technician</option>
+                <option value="dispatcher">Dispatcher</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Technicians can view assigned jobs and update status.
+                Dispatchers can create jobs and assign them to technicians.
+              </p>
             </div>
             <div>
               <label

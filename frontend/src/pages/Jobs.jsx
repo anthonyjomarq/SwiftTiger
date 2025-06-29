@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 const Jobs = () => {
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -14,14 +15,16 @@ const Jobs = () => {
     description: "",
     customer_id: "",
     status: "pending",
+    assigned_to: "",
   });
-  const { isAdmin } = useAuth();
+  const { hasPermission, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchJobs();
     fetchCustomers();
+    fetchTechnicians();
     // Check if we should show the add form (coming from dashboard)
     if (location.state?.showAddForm) {
       setShowAddForm(true);
@@ -49,6 +52,17 @@ const Jobs = () => {
     }
   };
 
+  const fetchTechnicians = async () => {
+    try {
+      const response = await axios.get("/api/users");
+      setTechnicians(
+        response.data.users.filter((u) => u.role === "technician")
+      );
+    } catch (error) {
+      console.error("Technicians error:", error);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -60,6 +74,7 @@ const Jobs = () => {
         description: "",
         customer_id: "",
         status: "pending",
+        assigned_to: "",
       });
       setShowAddForm(false);
       fetchJobs();
@@ -92,6 +107,20 @@ const Jobs = () => {
     } catch (error) {
       setError("Failed to update job status");
       console.error("Update job error:", error);
+    }
+  };
+
+  const assignJob = async (jobId, technicianId) => {
+    try {
+      const job = jobs.find((j) => j.id === jobId);
+      await axios.put(`/api/jobs/${jobId}`, {
+        ...job,
+        assigned_to: technicianId,
+      });
+      fetchJobs();
+    } catch (error) {
+      setError("Failed to assign job");
+      console.error("Assign job error:", error);
     }
   };
 
@@ -139,12 +168,14 @@ const Jobs = () => {
           <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
           <p className="text-gray-600">Manage your job assignments</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-        >
-          Create Job
-        </button>
+        {hasPermission("jobs.create") && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Create Job
+          </button>
+        )}
       </div>
 
       {error && (
@@ -202,6 +233,26 @@ const Jobs = () => {
                   ))}
                 </select>
               </div>
+              {hasPermission("jobs.assign") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Assign to Technician
+                  </label>
+                  <select
+                    name="assigned_to"
+                    value={formData.assigned_to}
+                    onChange={handleChange}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Unassigned</option>
+                    {technicians.map((technician) => (
+                      <option key={technician.id} value={technician.id}>
+                        {technician.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">
@@ -278,17 +329,35 @@ const Jobs = () => {
                     </p>
                   </div>
                   <div className="ml-4 flex items-center space-x-2">
-                    <select
-                      value={job.status}
-                      onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                      className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                    {isAdmin() && (
+                    {hasPermission("jobs.update_status") && (
+                      <select
+                        value={job.status}
+                        onChange={(e) =>
+                          updateJobStatus(job.id, e.target.value)
+                        }
+                        className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    )}
+                    {hasPermission("jobs.assign") && (
+                      <select
+                        value={job.assigned_to || ""}
+                        onChange={(e) => assignJob(job.id, e.target.value)}
+                        className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Unassigned</option>
+                        {technicians.map((technician) => (
+                          <option key={technician.id} value={technician.id}>
+                            {technician.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {hasPermission("jobs.delete") && (
                       <button
                         onClick={() => handleDelete(job.id)}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"

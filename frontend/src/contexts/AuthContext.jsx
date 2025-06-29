@@ -13,6 +13,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,8 +28,13 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get("/api/auth/me");
-      setUser(response.data.user);
+      const [userResponse, permissionsResponse] = await Promise.all([
+        axios.get("/api/auth/me"),
+        axios.get("/api/auth/permissions"),
+      ]);
+
+      setUser(userResponse.data.user);
+      setPermissions(permissionsResponse.data.permissions);
     } catch (error) {
       localStorage.removeItem("token");
       delete axios.defaults.headers.common["Authorization"];
@@ -45,6 +51,11 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("token", token);
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       setUser(user);
+
+      // Fetch permissions after login
+      const permissionsResponse = await axios.get("/api/auth/permissions");
+      setPermissions(permissionsResponse.data.permissions);
+
       return { success: true };
     } catch (error) {
       return {
@@ -54,18 +65,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password) => {
+  const register = async (name, email, password, role = "technician") => {
     try {
       const response = await axios.post("/api/auth/register", {
         name,
         email,
         password,
+        role,
       });
       const { token, user } = response.data;
 
       localStorage.setItem("token", token);
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       setUser(user);
+
+      // Fetch permissions after registration
+      const permissionsResponse = await axios.get("/api/auth/permissions");
+      setPermissions(permissionsResponse.data.permissions);
+
       return { success: true };
     } catch (error) {
       return {
@@ -79,19 +96,41 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("token");
     delete axios.defaults.headers.common["Authorization"];
     setUser(null);
+    setPermissions([]);
   };
 
-  const isAdmin = () => {
-    return user?.role === "admin";
+  const hasPermission = (permission) => {
+    if (user?.role === "admin") return true;
+    return permissions.some((p) => p.name === permission);
   };
+
+  const hasAnyPermission = (...permissionList) => {
+    if (user?.role === "admin") return true;
+    return permissionList.some((permission) => hasPermission(permission));
+  };
+
+  const hasAllPermissions = (...permissionList) => {
+    if (user?.role === "admin") return true;
+    return permissionList.every((permission) => hasPermission(permission));
+  };
+
+  const isAdmin = () => user?.role === "admin";
+  const isDispatcher = () => user?.role === "dispatcher";
+  const isTechnician = () => user?.role === "technician";
 
   const value = {
     user,
+    permissions,
     login,
     register,
     logout,
     loading,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
     isAdmin,
+    isDispatcher,
+    isTechnician,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

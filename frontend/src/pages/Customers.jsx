@@ -15,7 +15,7 @@ const Customers = () => {
     phone: "",
     address: "",
   });
-  const { isAdmin } = useAuth();
+  const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -123,12 +123,14 @@ const Customers = () => {
           <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
           <p className="text-gray-600">Manage your customer database</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-        >
-          Add Customer
-        </button>
+        {hasPermission("customers.create") && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Add Customer
+          </button>
+        )}
       </div>
 
       {error && (
@@ -251,22 +253,24 @@ const Customers = () => {
                       {new Date(customer.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  {isAdmin() && (
-                    <div className="flex space-x-2">
+                  <div className="flex space-x-2">
+                    {hasPermission("customers.edit") && (
                       <button
                         onClick={() => handleEdit(customer)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
                       >
                         Edit
                       </button>
+                    )}
+                    {hasPermission("customers.delete") && (
                       <button
                         onClick={() => handleDelete(customer.id)}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                       >
                         Delete
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </li>
             ))
