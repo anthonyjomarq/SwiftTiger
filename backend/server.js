@@ -280,57 +280,8 @@ app.post("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
 
 // Get recent activity feed for dashboard
 app.get("/api/activity-feed", authenticateToken, async (req, res) => {
-  try {
-    let query;
-    let params = [];
-
-    if (req.user.role === "technician") {
-      // Technicians only see updates for their assigned jobs
-      query = `
-        SELECT 
-          ju.*,
-          u.name as user_name,
-          u.role as user_role,
-          j.title as job_title,
-          c.name as customer_name
-        FROM job_updates ju
-        JOIN users u ON ju.user_id = u.id
-        JOIN jobs j ON ju.job_id = j.id
-        LEFT JOIN customers c ON j.customer_id = c.id
-        WHERE j.assigned_to = $1
-        ORDER BY ju.created_at DESC
-        LIMIT 20
-      `;
-      params = [req.user.id];
-    } else {
-      // Admin and Dispatcher see all updates
-      query = `
-        SELECT 
-          ju.*,
-          u.name as user_name,
-          u.role as user_role,
-          j.title as job_title,
-        c.name as customer_name
-        FROM job_updates ju
-        JOIN users u ON ju.user_id = u.id
-        JOIN jobs j ON ju.job_id = j.id
-        LEFT JOIN customers c ON j.customer_id = c.id
-        ORDER BY ju.created_at DESC
-        LIMIT 20
-      `;
-    }
-
-    const updates = await pool.query(query, params);
-    res.json(
-      successResponse(
-        { updates: updates.rows },
-        "Activity feed retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Get activity feed error:", error);
-    res.status(500).json(internalServerErrorResponse());
-  }
+  const result = await jobService.getActivityFeed(req.user.id, req.user.role);
+  sendResponse(res, result);
 });
 
 // Get jobs with location data for mapping
@@ -349,155 +300,15 @@ app.post(
   authenticateToken,
   requirePermission("jobs.assign"),
   async (req, res) => {
-    try {
-      const { job_ids, start_location, end_location } = req.body;
-
-      if (!job_ids || job_ids.length === 0) {
-        return res
-          .status(400)
-          .json(errorResponse("No jobs selected for optimization"));
-      }
-
-      // Get job locations
-      const jobsResult = await pool.query(
-        `SELECT j.id, c.latitude, c.longitude, c.address
-       FROM jobs j
-       JOIN customers c ON j.customer_id = c.id
-       WHERE j.id = ANY($1::int[])
-       AND c.latitude IS NOT NULL
-       AND c.longitude IS NOT NULL`,
-        [job_ids]
-      );
-
-      const jobs = jobsResult.rows;
-
-      if (jobs.length < 2) {
-        return res.json(
-          successResponse({ optimized_order: job_ids }, "Route optimized")
-        );
-      }
-
-      // Enhanced nearest neighbor algorithm with start/end points
-      const optimizedOrder = [];
-      const unvisited = [...jobs];
-
-      // Use provided start location or default to first job
-      let currentLocation = start_location || {
-        latitude: jobs[0].latitude,
-        longitude: jobs[0].longitude,
-      };
-
-      // Find optimal route through all jobs
-      while (unvisited.length > 0) {
-        let nearestIndex = 0;
-        let nearestDistance = Infinity;
-
-        unvisited.forEach((job, index) => {
-          const distance = calculateDistance(
-            currentLocation.latitude,
-            currentLocation.longitude,
-            job.latitude,
-            job.longitude
-          );
-
-          if (distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestIndex = index;
-          }
-        });
-
-        const nearest = unvisited.splice(nearestIndex, 1)[0];
-        optimizedOrder.push(nearest.id);
-        currentLocation = {
-          latitude: nearest.latitude,
-          longitude: nearest.longitude,
-        };
-      }
-
-      // Calculate total distance including return to end location
-      let totalDistance = 0;
-      let routeLocation = start_location || {
-        latitude: jobs[0].latitude,
-        longitude: jobs[0].longitude,
-      };
-
-      // Add distance from start to first job
-      if (start_location && optimizedOrder.length > 0) {
-        const firstJob = jobs.find((j) => j.id === optimizedOrder[0]);
-        totalDistance += calculateDistance(
-          start_location.latitude,
-          start_location.longitude,
-          firstJob.latitude,
-          firstJob.longitude
-        );
-      }
-
-      // Add distances between jobs
-      for (let i = 0; i < optimizedOrder.length - 1; i++) {
-        const currentJob = jobs.find((j) => j.id === optimizedOrder[i]);
-        const nextJob = jobs.find((j) => j.id === optimizedOrder[i + 1]);
-        totalDistance += calculateDistance(
-          currentJob.latitude,
-          currentJob.longitude,
-          nextJob.latitude,
-          nextJob.longitude
-        );
-      }
-
-      // Add distance from last job to end location
-      if (end_location && optimizedOrder.length > 0) {
-        const lastJob = jobs.find(
-          (j) => j.id === optimizedOrder[optimizedOrder.length - 1]
-        );
-        totalDistance += calculateDistance(
-          lastJob.latitude,
-          lastJob.longitude,
-          end_location.latitude,
-          end_location.longitude
-        );
-      }
-
-      // Update route_order in database
-      for (let i = 0; i < optimizedOrder.length; i++) {
-        await pool.query("UPDATE jobs SET route_order = $1 WHERE id = $2", [
-          i + 1,
-          optimizedOrder[i],
-        ]);
-      }
-
-      res.json(
-        successResponse(
-          {
-            optimized_order: optimizedOrder,
-            total_jobs: optimizedOrder.length,
-            total_distance_km: Math.round(totalDistance * 100) / 100,
-            start_location: start_location,
-            end_location: end_location,
-          },
-          "Route optimized successfully"
-        )
-      );
-    } catch (error) {
-      console.error("Route optimization error:", error);
-      res.status(500).json(internalServerErrorResponse());
-    }
+    const { job_ids, start_location, end_location } = req.body;
+    const result = await jobService.optimizeRoute(
+      job_ids,
+      start_location,
+      end_location
+    );
+    sendResponse(res, result);
   }
 );
-
-// Helper function for distance calculation
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 // Advanced Route Optimization endpoint with 2-opt improvement
 app.post(
@@ -505,466 +316,34 @@ app.post(
   authenticateToken,
   requirePermission("jobs.assign"),
   async (req, res) => {
-    try {
-      const {
-        job_ids,
-        start_location,
-        optimization_type = "distance",
-        consider_traffic = true,
-        time_windows = false,
-      } = req.body;
-
-      if (!job_ids || job_ids.length === 0) {
-        return res
-          .status(400)
-          .json(errorResponse("No jobs selected for optimization"));
-      }
-
-      // Get job locations with additional data
-      const jobsResult = await pool.query(
-        `SELECT j.id, j.scheduled_time, j.estimated_duration, c.latitude, c.longitude, c.address
-       FROM jobs j
-       JOIN customers c ON j.customer_id = c.id
-       WHERE j.id = ANY($1::int[])
-       AND c.latitude IS NOT NULL
-       AND c.longitude IS NOT NULL
-       ORDER BY j.scheduled_time`,
-        [job_ids]
-      );
-
-      const jobs = jobsResult.rows;
-
-      if (jobs.length < 2) {
-        return res.json(
-          successResponse({ optimized_order: job_ids }, "Route optimized")
-        );
-      }
-
-      // Initial nearest neighbor solution
-      let optimizedOrder = nearestNeighborOptimization(jobs, start_location);
-
-      // Apply 2-opt improvement if we have enough jobs
-      if (jobs.length > 3) {
-        optimizedOrder = twoOptImprovement(
-          jobs,
-          optimizedOrder,
-          start_location
-        );
-      }
-
-      // Calculate total metrics
-      const metrics = calculateRouteMetrics(
-        jobs,
-        optimizedOrder,
-        start_location,
-        consider_traffic
-      );
-
-      // Update route_order in database
-      for (let i = 0; i < optimizedOrder.length; i++) {
-        await pool.query("UPDATE jobs SET route_order = $1 WHERE id = $2", [
-          i + 1,
-          optimizedOrder[i],
-        ]);
-      }
-
-      res.json(
-        successResponse(
-          {
-            optimized_order: optimizedOrder,
-            total_jobs: optimizedOrder.length,
-            total_distance_km: metrics.distance,
-            estimated_duration_hours: metrics.duration,
-            optimization_type: optimization_type,
-            improvements: metrics.improvements,
-          },
-          "Advanced route optimization completed"
-        )
-      );
-    } catch (error) {
-      console.error("Advanced route optimization error:", error);
-      res.status(500).json(internalServerErrorResponse());
-    }
+    const {
+      job_ids,
+      start_location,
+      optimization_type,
+      consider_traffic,
+      time_windows,
+    } = req.body;
+    const result = await jobService.optimizeRouteAdvanced(
+      job_ids,
+      start_location,
+      optimization_type,
+      consider_traffic,
+      time_windows
+    );
+    sendResponse(res, result);
   }
 );
-
-// Enhanced nearest neighbor with time windows
-function nearestNeighborOptimization(jobs, startLocation) {
-  const optimizedOrder = [];
-  const unvisited = [...jobs];
-
-  let currentLocation = startLocation || {
-    latitude: jobs[0].latitude,
-    longitude: jobs[0].longitude,
-  };
-
-  while (unvisited.length > 0) {
-    let nearestIndex = 0;
-    let nearestScore = Infinity;
-
-    unvisited.forEach((job, index) => {
-      const distance = calculateDistance(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        job.latitude,
-        job.longitude
-      );
-
-      // Consider time windows if scheduled_time exists
-      let timePenalty = 0;
-      if (job.scheduled_time) {
-        const jobTime = new Date(job.scheduled_time);
-        const currentTime = new Date();
-        const timeDiff = Math.abs(jobTime - currentTime) / (1000 * 60 * 60); // hours
-        timePenalty = timeDiff * 0.1; // Small penalty for time deviation
-      }
-
-      const score = distance + timePenalty;
-
-      if (score < nearestScore) {
-        nearestScore = score;
-        nearestIndex = index;
-      }
-    });
-
-    const nearest = unvisited.splice(nearestIndex, 1)[0];
-    optimizedOrder.push(nearest.id);
-    currentLocation = {
-      latitude: nearest.latitude,
-      longitude: nearest.longitude,
-    };
-  }
-
-  return optimizedOrder;
-}
-
-// 2-opt improvement algorithm
-function twoOptImprovement(jobs, route, startLocation) {
-  let improved = true;
-  let bestDistance = calculateTotalDistance(jobs, route, startLocation);
-  let bestRoute = [...route];
-
-  while (improved) {
-    improved = false;
-
-    for (let i = 0; i < route.length - 1; i++) {
-      for (let j = i + 2; j < route.length; j++) {
-        // Create new route by reversing segment i+1 to j
-        const newRoute = [...route];
-        const segment = newRoute.slice(i + 1, j + 1).reverse();
-        newRoute.splice(i + 1, j - i, ...segment);
-
-        const newDistance = calculateTotalDistance(
-          jobs,
-          newRoute,
-          startLocation
-        );
-
-        if (newDistance < bestDistance) {
-          bestDistance = newDistance;
-          bestRoute = newRoute;
-          improved = true;
-        }
-      }
-    }
-
-    if (improved) {
-      route = [...bestRoute];
-    }
-  }
-
-  return bestRoute;
-}
-
-// Calculate total distance for a route
-function calculateTotalDistance(jobs, route, startLocation) {
-  let totalDistance = 0;
-  let currentLocation = startLocation;
-
-  for (let i = 0; i < route.length; i++) {
-    const job = jobs.find((j) => j.id === route[i]);
-    const distance = calculateDistance(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      job.latitude,
-      job.longitude
-    );
-    totalDistance += distance;
-    currentLocation = { latitude: job.latitude, longitude: job.longitude };
-  }
-
-  return totalDistance;
-}
-
-// Calculate comprehensive route metrics
-function calculateRouteMetrics(jobs, route, startLocation, considerTraffic) {
-  let totalDistance = 0;
-  let totalDuration = 0;
-  let currentLocation = startLocation;
-
-  for (let i = 0; i < route.length; i++) {
-    const job = jobs.find((j) => j.id === route[i]);
-    const distance = calculateDistance(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      job.latitude,
-      job.longitude
-    );
-
-    totalDistance += distance;
-
-    // Estimate travel time (assuming 50 km/h average speed)
-    const travelTime = distance / 50; // hours
-    totalDuration += travelTime;
-
-    // Add job duration if available
-    if (job.estimated_duration) {
-      totalDuration += job.estimated_duration / 60; // convert minutes to hours
-    }
-
-    currentLocation = { latitude: job.latitude, longitude: job.longitude };
-  }
-
-  // Apply traffic factor if requested
-  if (considerTraffic) {
-    totalDuration *= 1.2; // 20% traffic penalty
-  }
-
-  return {
-    distance: Math.round(totalDistance * 100) / 100,
-    duration: Math.round(totalDuration * 100) / 100,
-    improvements: route.length > 3 ? "2-opt applied" : "nearest neighbor only",
-  };
-}
 
 // Dashboard stats
 app.get("/api/dashboard", authenticateToken, async (req, res) => {
-  try {
-    const customerCount = await pool.query(
-      "SELECT COUNT(*) as total FROM customers"
-    );
-    const jobCount = await pool.query("SELECT COUNT(*) as total FROM jobs");
-    const pendingCount = await pool.query(
-      "SELECT COUNT(*) as total FROM jobs WHERE status = $1",
-      ["pending"]
-    );
-
-    res.json(
-      successResponse(
-        {
-          stats: {
-            totalCustomers: parseInt(customerCount.rows[0].total),
-            totalJobs: parseInt(jobCount.rows[0].total),
-            pendingJobs: parseInt(pendingCount.rows[0].total),
-          },
-        },
-        "Dashboard stats retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Dashboard error:", error);
-    res.status(500).json(internalServerErrorResponse());
-  }
-});
-
-// Enhanced geocoding endpoint with validation
-app.post("/api/geocode", authenticateToken, async (req, res) => {
-  try {
-    const { address } = req.body;
-
-    if (!address) {
-      return res.status(400).json(errorResponse("Address is required"));
-    }
-
-    const { geocodeAddress, validateAddress } = require("./services/geocoding");
-
-    // First validate the address
-    const validation = await validateAddress(address);
-
-    // Then geocode it
-    const result = await geocodeAddress(address);
-
-    if (result) {
-      res.json(
-        successResponse(
-          {
-            latitude: result.latitude,
-            longitude: result.longitude,
-            formatted_address: result.formatted_address,
-            location_type: result.location_type,
-            confidence_score: result.confidence_score,
-            verified: result.verified,
-            validation: validation,
-          },
-          "Address geocoded successfully"
-        )
-      );
-    } else {
-      res.status(404).json(notFoundResponse("Address"));
-    }
-  } catch (error) {
-    console.error("Geocoding endpoint error:", error);
-    res.status(500).json(errorResponse("Geocoding failed", 500));
-  }
-});
-
-// Address validation endpoint
-app.post("/api/validate-address", authenticateToken, async (req, res) => {
-  try {
-    const { address } = req.body;
-
-    if (!address) {
-      return res.status(400).json(errorResponse("Address is required"));
-    }
-
-    const { validateAddress } = require("./services/geocoding");
-    const validation = await validateAddress(address);
-
-    res.json(successResponse(validation, "Address validation completed"));
-  } catch (error) {
-    console.error("Address validation error:", error);
-    res.status(500).json(errorResponse("Address validation failed", 500));
-  }
-});
-
-// Add known address endpoint
-app.post(
-  "/api/known-addresses",
-  authenticateToken,
-  requirePermission("admin"),
-  async (req, res) => {
-    try {
-      const { address, latitude, longitude, name } = req.body;
-
-      if (!address || !latitude || !longitude) {
-        return res
-          .status(400)
-          .json(errorResponse("Address, latitude, and longitude are required"));
-      }
-
-      const {
-        addKnownAddress,
-        KNOWN_ADDRESSES,
-      } = require("./services/geocoding");
-      addKnownAddress(address, latitude, longitude, name);
-
-      res.json(
-        successResponse(
-          {
-            known_addresses: Object.keys(KNOWN_ADDRESSES),
-          },
-          "Known address added successfully"
-        )
-      );
-    } catch (error) {
-      console.error("Add known address error:", error);
-      res.status(500).json(errorResponse("Failed to add known address", 500));
-    }
-  }
-);
-
-// Get known addresses endpoint
-app.get("/api/known-addresses", authenticateToken, async (req, res) => {
-  try {
-    const { KNOWN_ADDRESSES } = require("./services/geocoding");
-
-    const addresses = Object.entries(KNOWN_ADDRESSES).map(
-      ([address, data]) => ({
-        address,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        name: data.name,
-        verified: data.verified,
-      })
-    );
-
-    res.json(
-      successResponse(
-        { known_addresses: addresses },
-        "Known addresses retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Get known addresses error:", error);
-    res.status(500).json(errorResponse("Failed to get known addresses", 500));
-  }
-});
-
-// Secure Maps Configuration endpoint
-app.get("/api/maps-config", authenticateToken, (req, res) => {
-  try {
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      return res
-        .status(500)
-        .json(errorResponse("Maps API key not configured", 500));
-    }
-
-    res.json(
-      successResponse(
-        {
-          apiKey: apiKey,
-          restrictions: {
-            domain: process.env.DOMAIN || req.get("origin"),
-            apis: ["maps", "geocoding", "directions"],
-            referrer: process.env.DOMAIN || req.get("origin"),
-          },
-          mapOptions: {
-            gestureHandling: "greedy",
-            zoomControl: true,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: true,
-          },
-        },
-        "Maps configuration loaded successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Maps config error:", error);
-    res
-      .status(500)
-      .json(errorResponse("Failed to load maps configuration", 500));
-  }
+  const result = await jobService.getDashboardStats();
+  sendResponse(res, result);
 });
 
 // Debug endpoint to show all jobs (for troubleshooting)
 app.get("/api/jobs/debug", authenticateToken, async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        j.*,
-        c.name as customer_name,
-        c.address as customer_address,
-        c.latitude,
-        c.longitude,
-        u.name as technician_name
-      FROM jobs j
-      LEFT JOIN customers c ON j.customer_id = c.id
-      LEFT JOIN users u ON j.assigned_to = u.id
-      ORDER BY j.id DESC
-    `;
-
-    const result = await pool.query(query);
-    res.json(
-      successResponse(
-        {
-          jobs: result.rows,
-          total_jobs: result.rows.length,
-          jobs_with_coordinates: result.rows.filter(
-            (job) => job.latitude && job.longitude
-          ).length,
-          jobs_pending_inprogress: result.rows.filter((job) =>
-            ["pending", "in_progress"].includes(job.status)
-          ).length,
-        },
-        "Debug information retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Debug jobs error:", error);
-    res.status(500).json(internalServerErrorResponse());
-  }
+  const result = await jobService.getDebugJobs();
+  sendResponse(res, result);
 });
 
 // ===== REAL-TIME FEATURES =====
@@ -974,194 +353,35 @@ app.post(
   "/api/technicians/:id/location",
   authenticateToken,
   async (req, res) => {
-    try {
-      const { latitude, longitude, accuracy, timestamp } = req.body;
-
-      await pool.query(
-        `
-      INSERT INTO technician_locations (user_id, latitude, longitude, accuracy, updated_at)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (user_id) 
-      DO UPDATE SET latitude = $2, longitude = $3, accuracy = $4, updated_at = $5
-    `,
-        [req.params.id, latitude, longitude, accuracy, new Date(timestamp)]
-      );
-
-      // Emit to connected clients via WebSocket
-      io.to(`technician_${req.params.id}`).emit("location_update", {
-        technicianId: req.params.id,
-        location: { latitude, longitude, accuracy, timestamp },
-      });
-
-      res.json(successResponse(null, "Location updated successfully"));
-    } catch (error) {
-      console.error("Location update error:", error);
-      res.status(500).json(errorResponse("Failed to update location", 500));
-    }
+    const result = await userService.updateTechnicianLocation(
+      req.params.id,
+      req.body
+    );
+    sendResponse(res, result);
   }
 );
 
 // Get technician locations
 app.get("/api/technicians/locations", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        tl.user_id,
-        tl.latitude,
-        tl.longitude,
-        tl.accuracy,
-        tl.updated_at,
-        u.name as technician_name,
-        u.role
-      FROM technician_locations tl
-      JOIN users u ON tl.user_id = u.id
-      WHERE u.role = 'technician'
-      AND tl.updated_at > NOW() - INTERVAL '1 hour'
-      ORDER BY tl.updated_at DESC
-    `);
-
-    res.json(
-      successResponse(
-        { locations: result.rows },
-        "Technician locations retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Get locations error:", error);
-    res
-      .status(500)
-      .json(errorResponse("Failed to get technician locations", 500));
-  }
+  const result = await userService.getTechnicianLocations();
+  sendResponse(res, result);
 });
 
 // Route sharing functionality
 app.post("/api/routes/share", authenticateToken, async (req, res) => {
-  try {
-    const { routeId, routeData } = req.body;
-    const shareToken = crypto.randomBytes(32).toString("hex");
-
-    await pool.query(
-      "INSERT INTO shared_routes (route_id, share_token, created_by, expires_at) VALUES ($1, $2, $3, $4)",
-      [
-        routeId,
-        shareToken,
-        req.user.id,
-        new Date(Date.now() + 24 * 60 * 60 * 1000),
-      ] // 24 hours
-    );
-
-    res.json(
-      successResponse(
-        {
-          shareUrl: `${
-            process.env.FRONTEND_URL || "http://localhost:5173"
-          }/shared-route/${shareToken}`,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          shareToken,
-        },
-        "Route shared successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Route sharing error:", error);
-    res.status(500).json(errorResponse("Failed to create shared route", 500));
-  }
+  const result = await jobService.shareRoute(req.user.id, req.body);
+  sendResponse(res, result);
 });
 
-// Get shared route
 app.get("/api/routes/shared/:token", async (req, res) => {
-  try {
-    const { token } = req.params;
-
-    const result = await pool.query(
-      "SELECT * FROM shared_routes WHERE share_token = $1 AND expires_at > NOW()",
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json(notFoundResponse("Shared route"));
-    }
-
-    const sharedRoute = result.rows[0];
-
-    // Get route data (you might want to store route data in a separate table)
-    // For now, we'll return the basic info
-    res.json(
-      successResponse(
-        {
-          routeId: sharedRoute.route_id,
-          createdAt: sharedRoute.created_at,
-          expiresAt: sharedRoute.expires_at,
-        },
-        "Shared route retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Get shared route error:", error);
-    res.status(500).json(errorResponse("Failed to get shared route", 500));
-  }
+  const result = await jobService.getSharedRoute(req.params.token);
+  sendResponse(res, result);
 });
 
 // ETA calculation with traffic
 app.post("/api/eta/calculate", authenticateToken, async (req, res) => {
-  try {
-    const { fromLocation, toLocation, considerTraffic = true } = req.body;
-
-    if (!fromLocation || !toLocation) {
-      return res
-        .status(400)
-        .json(errorResponse("From and to locations are required"));
-    }
-
-    // Use Google Maps Directions API for traffic-aware ETA
-    const { Client } = require("@googlemaps/google-maps-services-js");
-    const client = new Client({});
-
-    const response = await client.directions({
-      params: {
-        origin: `${fromLocation.latitude},${fromLocation.longitude}`,
-        destination: `${toLocation.latitude},${toLocation.longitude}`,
-        mode: "driving",
-        departure_time: "now",
-        traffic_model: considerTraffic ? "best_guess" : "pessimistic",
-        key: process.env.GOOGLE_MAPS_API_KEY,
-      },
-    });
-
-    if (response.data.status === "OK") {
-      const route = response.data.routes[0];
-      const leg = route.legs[0];
-
-      const eta = {
-        duration: leg.duration.value,
-        durationInTraffic: leg.duration_in_traffic?.value || leg.duration.value,
-        distance: leg.distance.value,
-        eta: new Date(
-          Date.now() +
-            (leg.duration_in_traffic?.value || leg.duration.value) * 1000
-        ),
-        trafficLevel: leg.duration_in_traffic
-          ? "traffic_considered"
-          : "no_traffic_data",
-        steps: leg.steps.map((step) => ({
-          instruction: step.html_instructions,
-          distance: step.distance.value,
-          duration: step.duration.value,
-        })),
-      };
-
-      res.json(successResponse(eta, "ETA calculated successfully"));
-    } else {
-      res
-        .status(400)
-        .json(
-          errorResponse(`Directions request failed: ${response.data.status}`)
-        );
-    }
-  } catch (error) {
-    console.error("ETA calculation error:", error);
-    res.status(500).json(errorResponse("Failed to calculate ETA", 500));
-  }
+  const result = await jobService.calculateEta(req.body);
+  sendResponse(res, result);
 });
 
 // Enhanced Authentication Routes
@@ -1376,21 +596,8 @@ io.on("connection", (socket) => {
 
 // Get notifications
 app.get("/api/notifications", authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC",
-      [req.user.id]
-    );
-    res.json(
-      successResponse(
-        { notifications: result.rows },
-        "Notifications retrieved successfully"
-      )
-    );
-  } catch (error) {
-    console.error("Get notifications error:", error);
-    res.status(500).json(internalServerErrorResponse());
-  }
+  const result = await userService.getNotifications(req.user.id);
+  sendResponse(res, result);
 });
 
 server.listen(PORT, () => {
