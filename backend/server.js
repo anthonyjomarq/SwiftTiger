@@ -20,6 +20,16 @@ const socketService = require("./services/socketService");
 const jobService = require("./services/jobService");
 const customerService = require("./services/customerService");
 const userService = require("./services/userService");
+const {
+  successResponse,
+  errorResponse,
+  validationErrorResponse,
+  notFoundResponse,
+  unauthorizedResponse,
+  forbiddenResponse,
+  internalServerErrorResponse,
+  sendResponse,
+} = require("./utils/apiResponse");
 require("dotenv").config();
 
 const app = express();
@@ -50,12 +60,12 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ error: "Access token required" });
+    return res.status(401).json(unauthorizedResponse());
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: "Invalid token" });
+      return res.status(403).json(forbiddenResponse());
     }
     req.user = user;
     next();
@@ -81,13 +91,15 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json(validationErrorResponse(errors.array()));
     }
 
     const result = await userService.createUser(req.body);
 
     if (!result.success) {
-      return res.status(result.statusCode).json({ error: result.error });
+      return res
+        .status(result.statusCode)
+        .json(errorResponse(result.error, result.statusCode));
     }
 
     // Generate JWT token for the new user
@@ -97,13 +109,19 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    res.json({
-      token,
-      user: result.data,
-    });
+    res.json(
+      successResponse(
+        {
+          token,
+          user: result.data,
+        },
+        "User registered successfully",
+        201
+      )
+    );
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
@@ -112,35 +130,29 @@ app.post("/api/auth/login", validateLogin, async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json(validationErrorResponse(errors.array()));
     }
 
     const { email, password } = req.body;
     const result = await userService.authenticateUser(email, password);
 
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
 // Get current user
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   const result = await userService.getCurrentUser(req.user.id);
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 // Get user permissions
 app.get("/api/auth/permissions", authenticateToken, async (req, res) => {
   const result = await userService.getUserPermissions(req.user.id);
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 // Get all users (for technician assignment)
@@ -150,9 +162,7 @@ app.get(
   requirePermission("users.view"),
   async (req, res) => {
     const result = await userService.getUsers();
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -163,9 +173,7 @@ app.get(
   requirePermission("customers.view"),
   async (req, res) => {
     const result = await customerService.getCustomers();
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -175,9 +183,7 @@ app.post(
   requirePermission("customers.create"),
   async (req, res) => {
     const result = await customerService.createCustomer(req.body);
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -190,9 +196,7 @@ app.put(
       req.params.id,
       req.body
     );
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -202,9 +206,7 @@ app.delete(
   requirePermission("customers.delete"),
   async (req, res) => {
     const result = await customerService.deleteCustomer(req.params.id);
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -215,18 +217,14 @@ app.post(
   requirePermission("customers.edit"),
   async (req, res) => {
     const result = await customerService.geocodeCustomer(req.params.id);
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
 // Job routes
 app.get("/api/jobs", authenticateToken, async (req, res) => {
   const result = await jobService.getJobs(req.user.id, req.user.role);
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 app.post(
@@ -235,9 +233,7 @@ app.post(
   requirePermission("jobs.create"),
   async (req, res) => {
     const result = await jobService.createJob(req.body, req.user.id);
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -248,9 +244,7 @@ app.put("/api/jobs/:id", authenticateToken, async (req, res) => {
     req.user.id,
     req.user.role
   );
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 app.delete(
@@ -259,9 +253,7 @@ app.delete(
   requirePermission("jobs.delete"),
   async (req, res) => {
     const result = await jobService.deleteJob(req.params.id, req.user.id);
-    res
-      .status(result.statusCode)
-      .json(result.success ? result.data : { error: result.error });
+    sendResponse(res, result);
   }
 );
 
@@ -274,9 +266,7 @@ app.get("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
     req.user.id,
     req.user.role
   );
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 // Create a new job update
@@ -287,9 +277,7 @@ app.post("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
     req.user.id,
     req.user.role
   );
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 // Get recent activity feed for dashboard
@@ -324,7 +312,7 @@ app.get("/api/activity-feed", authenticateToken, async (req, res) => {
           u.name as user_name,
           u.role as user_role,
           j.title as job_title,
-          c.name as customer_name
+        c.name as customer_name
         FROM job_updates ju
         JOIN users u ON ju.user_id = u.id
         JOIN jobs j ON ju.job_id = j.id
@@ -335,10 +323,15 @@ app.get("/api/activity-feed", authenticateToken, async (req, res) => {
     }
 
     const updates = await pool.query(query, params);
-    res.json({ updates: updates.rows });
+    res.json(
+      successResponse(
+        { updates: updates.rows },
+        "Activity feed retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Get activity feed error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
@@ -349,9 +342,7 @@ app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
     req.user.role,
     req.query
   );
-  res
-    .status(result.statusCode)
-    .json(result.success ? result.data : { error: result.error });
+  sendResponse(res, result);
 });
 
 // Original Route optimization endpoint (kept for backward compatibility)
@@ -366,7 +357,7 @@ app.post(
       if (!job_ids || job_ids.length === 0) {
         return res
           .status(400)
-          .json({ error: "No jobs selected for optimization" });
+          .json(errorResponse("No jobs selected for optimization"));
       }
 
       // Get job locations
@@ -383,7 +374,9 @@ app.post(
       const jobs = jobsResult.rows;
 
       if (jobs.length < 2) {
-        return res.json({ optimized_order: job_ids });
+        return res.json(
+          successResponse({ optimized_order: job_ids }, "Route optimized")
+        );
       }
 
       // Enhanced nearest neighbor algorithm with start/end points
@@ -474,16 +467,21 @@ app.post(
         ]);
       }
 
-      res.json({
-        optimized_order: optimizedOrder,
-        total_jobs: optimizedOrder.length,
-        total_distance_km: Math.round(totalDistance * 100) / 100,
-        start_location: start_location,
-        end_location: end_location,
-      });
+      res.json(
+        successResponse(
+          {
+            optimized_order: optimizedOrder,
+            total_jobs: optimizedOrder.length,
+            total_distance_km: Math.round(totalDistance * 100) / 100,
+            start_location: start_location,
+            end_location: end_location,
+          },
+          "Route optimized successfully"
+        )
+      );
     } catch (error) {
       console.error("Route optimization error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(internalServerErrorResponse());
     }
   }
 );
@@ -521,7 +519,7 @@ app.post(
       if (!job_ids || job_ids.length === 0) {
         return res
           .status(400)
-          .json({ error: "No jobs selected for optimization" });
+          .json(errorResponse("No jobs selected for optimization"));
       }
 
       // Get job locations with additional data
@@ -539,7 +537,9 @@ app.post(
       const jobs = jobsResult.rows;
 
       if (jobs.length < 2) {
-        return res.json({ optimized_order: job_ids });
+        return res.json(
+          successResponse({ optimized_order: job_ids }, "Route optimized")
+        );
       }
 
       // Initial nearest neighbor solution
@@ -570,17 +570,22 @@ app.post(
         ]);
       }
 
-      res.json({
-        optimized_order: optimizedOrder,
-        total_jobs: optimizedOrder.length,
-        total_distance_km: metrics.distance,
-        estimated_duration_hours: metrics.duration,
-        optimization_type: optimization_type,
-        improvements: metrics.improvements,
-      });
+      res.json(
+        successResponse(
+          {
+            optimized_order: optimizedOrder,
+            total_jobs: optimizedOrder.length,
+            total_distance_km: metrics.distance,
+            estimated_duration_hours: metrics.duration,
+            optimization_type: optimization_type,
+            improvements: metrics.improvements,
+          },
+          "Advanced route optimization completed"
+        )
+      );
     } catch (error) {
       console.error("Advanced route optimization error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(internalServerErrorResponse());
     }
   }
 );
@@ -746,16 +751,21 @@ app.get("/api/dashboard", authenticateToken, async (req, res) => {
       ["pending"]
     );
 
-    res.json({
-      stats: {
-        totalCustomers: parseInt(customerCount.rows[0].total),
-        totalJobs: parseInt(jobCount.rows[0].total),
-        pendingJobs: parseInt(pendingCount.rows[0].total),
-      },
-    });
+    res.json(
+      successResponse(
+        {
+          stats: {
+            totalCustomers: parseInt(customerCount.rows[0].total),
+            totalJobs: parseInt(jobCount.rows[0].total),
+            pendingJobs: parseInt(pendingCount.rows[0].total),
+          },
+        },
+        "Dashboard stats retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Dashboard error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
@@ -765,7 +775,7 @@ app.post("/api/geocode", authenticateToken, async (req, res) => {
     const { address } = req.body;
 
     if (!address) {
-      return res.status(400).json({ error: "Address is required" });
+      return res.status(400).json(errorResponse("Address is required"));
     }
 
     const { geocodeAddress, validateAddress } = require("./services/geocoding");
@@ -777,21 +787,26 @@ app.post("/api/geocode", authenticateToken, async (req, res) => {
     const result = await geocodeAddress(address);
 
     if (result) {
-      res.json({
-        latitude: result.latitude,
-        longitude: result.longitude,
-        formatted_address: result.formatted_address,
-        location_type: result.location_type,
-        confidence_score: result.confidence_score,
-        verified: result.verified,
-        validation: validation,
-      });
+      res.json(
+        successResponse(
+          {
+            latitude: result.latitude,
+            longitude: result.longitude,
+            formatted_address: result.formatted_address,
+            location_type: result.location_type,
+            confidence_score: result.confidence_score,
+            verified: result.verified,
+            validation: validation,
+          },
+          "Address geocoded successfully"
+        )
+      );
     } else {
-      res.status(404).json({ error: "Address not found" });
+      res.status(404).json(notFoundResponse("Address"));
     }
   } catch (error) {
     console.error("Geocoding endpoint error:", error);
-    res.status(500).json({ error: "Geocoding failed" });
+    res.status(500).json(errorResponse("Geocoding failed", 500));
   }
 });
 
@@ -801,16 +816,16 @@ app.post("/api/validate-address", authenticateToken, async (req, res) => {
     const { address } = req.body;
 
     if (!address) {
-      return res.status(400).json({ error: "Address is required" });
+      return res.status(400).json(errorResponse("Address is required"));
     }
 
     const { validateAddress } = require("./services/geocoding");
     const validation = await validateAddress(address);
 
-    res.json(validation);
+    res.json(successResponse(validation, "Address validation completed"));
   } catch (error) {
     console.error("Address validation error:", error);
-    res.status(500).json({ error: "Address validation failed" });
+    res.status(500).json(errorResponse("Address validation failed", 500));
   }
 });
 
@@ -826,7 +841,7 @@ app.post(
       if (!address || !latitude || !longitude) {
         return res
           .status(400)
-          .json({ error: "Address, latitude, and longitude are required" });
+          .json(errorResponse("Address, latitude, and longitude are required"));
       }
 
       const {
@@ -835,13 +850,17 @@ app.post(
       } = require("./services/geocoding");
       addKnownAddress(address, latitude, longitude, name);
 
-      res.json({
-        message: "Known address added successfully",
-        known_addresses: Object.keys(KNOWN_ADDRESSES),
-      });
+      res.json(
+        successResponse(
+          {
+            known_addresses: Object.keys(KNOWN_ADDRESSES),
+          },
+          "Known address added successfully"
+        )
+      );
     } catch (error) {
       console.error("Add known address error:", error);
-      res.status(500).json({ error: "Failed to add known address" });
+      res.status(500).json(errorResponse("Failed to add known address", 500));
     }
   }
 );
@@ -861,10 +880,15 @@ app.get("/api/known-addresses", authenticateToken, async (req, res) => {
       })
     );
 
-    res.json({ known_addresses: addresses });
+    res.json(
+      successResponse(
+        { known_addresses: addresses },
+        "Known addresses retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Get known addresses error:", error);
-    res.status(500).json({ error: "Failed to get known addresses" });
+    res.status(500).json(errorResponse("Failed to get known addresses", 500));
   }
 });
 
@@ -873,27 +897,36 @@ app.get("/api/maps-config", authenticateToken, (req, res) => {
   try {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: "Maps API key not configured" });
+      return res
+        .status(500)
+        .json(errorResponse("Maps API key not configured", 500));
     }
 
-    res.json({
-      apiKey: apiKey,
-      restrictions: {
-        domain: process.env.DOMAIN || req.get("origin"),
-        apis: ["maps", "geocoding", "directions"],
-        referrer: process.env.DOMAIN || req.get("origin"),
-      },
-      mapOptions: {
-        gestureHandling: "greedy",
-        zoomControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-      },
-    });
+    res.json(
+      successResponse(
+        {
+          apiKey: apiKey,
+          restrictions: {
+            domain: process.env.DOMAIN || req.get("origin"),
+            apis: ["maps", "geocoding", "directions"],
+            referrer: process.env.DOMAIN || req.get("origin"),
+          },
+          mapOptions: {
+            gestureHandling: "greedy",
+            zoomControl: true,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+          },
+        },
+        "Maps configuration loaded successfully"
+      )
+    );
   } catch (error) {
     console.error("Maps config error:", error);
-    res.status(500).json({ error: "Failed to load maps configuration" });
+    res
+      .status(500)
+      .json(errorResponse("Failed to load maps configuration", 500));
   }
 });
 
@@ -915,19 +948,24 @@ app.get("/api/jobs/debug", authenticateToken, async (req, res) => {
     `;
 
     const result = await pool.query(query);
-    res.json({
-      jobs: result.rows,
-      total_jobs: result.rows.length,
-      jobs_with_coordinates: result.rows.filter(
-        (job) => job.latitude && job.longitude
-      ).length,
-      jobs_pending_inprogress: result.rows.filter((job) =>
-        ["pending", "in_progress"].includes(job.status)
-      ).length,
-    });
+    res.json(
+      successResponse(
+        {
+          jobs: result.rows,
+          total_jobs: result.rows.length,
+          jobs_with_coordinates: result.rows.filter(
+            (job) => job.latitude && job.longitude
+          ).length,
+          jobs_pending_inprogress: result.rows.filter((job) =>
+            ["pending", "in_progress"].includes(job.status)
+          ).length,
+        },
+        "Debug information retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Debug jobs error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
@@ -957,10 +995,10 @@ app.post(
         location: { latitude, longitude, accuracy, timestamp },
       });
 
-      res.json({ success: true, message: "Location updated successfully" });
+      res.json(successResponse(null, "Location updated successfully"));
     } catch (error) {
       console.error("Location update error:", error);
-      res.status(500).json({ error: "Failed to update location" });
+      res.status(500).json(errorResponse("Failed to update location", 500));
     }
   }
 );
@@ -984,10 +1022,17 @@ app.get("/api/technicians/locations", authenticateToken, async (req, res) => {
       ORDER BY tl.updated_at DESC
     `);
 
-    res.json({ locations: result.rows });
+    res.json(
+      successResponse(
+        { locations: result.rows },
+        "Technician locations retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Get locations error:", error);
-    res.status(500).json({ error: "Failed to get technician locations" });
+    res
+      .status(500)
+      .json(errorResponse("Failed to get technician locations", 500));
   }
 });
 
@@ -1007,16 +1052,21 @@ app.post("/api/routes/share", authenticateToken, async (req, res) => {
       ] // 24 hours
     );
 
-    res.json({
-      shareUrl: `${
-        process.env.FRONTEND_URL || "http://localhost:5173"
-      }/shared-route/${shareToken}`,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      shareToken,
-    });
+    res.json(
+      successResponse(
+        {
+          shareUrl: `${
+            process.env.FRONTEND_URL || "http://localhost:5173"
+          }/shared-route/${shareToken}`,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          shareToken,
+        },
+        "Route shared successfully"
+      )
+    );
   } catch (error) {
     console.error("Route sharing error:", error);
-    res.status(500).json({ error: "Failed to create shared route" });
+    res.status(500).json(errorResponse("Failed to create shared route", 500));
   }
 });
 
@@ -1031,23 +1081,26 @@ app.get("/api/routes/shared/:token", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "Shared route not found or expired" });
+      return res.status(404).json(notFoundResponse("Shared route"));
     }
 
     const sharedRoute = result.rows[0];
 
     // Get route data (you might want to store route data in a separate table)
     // For now, we'll return the basic info
-    res.json({
-      routeId: sharedRoute.route_id,
-      createdAt: sharedRoute.created_at,
-      expiresAt: sharedRoute.expires_at,
-    });
+    res.json(
+      successResponse(
+        {
+          routeId: sharedRoute.route_id,
+          createdAt: sharedRoute.created_at,
+          expiresAt: sharedRoute.expires_at,
+        },
+        "Shared route retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Get shared route error:", error);
-    res.status(500).json({ error: "Failed to get shared route" });
+    res.status(500).json(errorResponse("Failed to get shared route", 500));
   }
 });
 
@@ -1059,7 +1112,7 @@ app.post("/api/eta/calculate", authenticateToken, async (req, res) => {
     if (!fromLocation || !toLocation) {
       return res
         .status(400)
-        .json({ error: "From and to locations are required" });
+        .json(errorResponse("From and to locations are required"));
     }
 
     // Use Google Maps Directions API for traffic-aware ETA
@@ -1099,15 +1152,17 @@ app.post("/api/eta/calculate", authenticateToken, async (req, res) => {
         })),
       };
 
-      res.json(eta);
+      res.json(successResponse(eta, "ETA calculated successfully"));
     } else {
       res
         .status(400)
-        .json({ error: `Directions request failed: ${response.data.status}` });
+        .json(
+          errorResponse(`Directions request failed: ${response.data.status}`)
+        );
     }
   } catch (error) {
     console.error("ETA calculation error:", error);
-    res.status(500).json({ error: "Failed to calculate ETA" });
+    res.status(500).json(errorResponse("Failed to calculate ETA", 500));
   }
 });
 
@@ -1119,25 +1174,30 @@ app.post("/api/auth/refresh", async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(400).json({ error: "Refresh token required" });
+      return res.status(400).json(errorResponse("Refresh token required"));
     }
 
     const { accessToken, user } = await authService.refreshAccessToken(
       refreshToken
     );
 
-    res.json({
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
+    res.json(
+      successResponse(
+        {
+          accessToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          },
+        },
+        "Token refreshed successfully"
+      )
+    );
   } catch (error) {
     console.error("Token refresh error:", error);
-    res.status(401).json({ error: "Token refresh failed" });
+    res.status(401).json(errorResponse("Token refresh failed", 401));
   }
 });
 
@@ -1147,7 +1207,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ error: "Email required" });
+      return res.status(400).json(errorResponse("Email required"));
     }
 
     const { resetToken, user } = await authService.generatePasswordResetToken(
@@ -1155,16 +1215,23 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     );
     await authService.sendPasswordResetEmail(email, resetToken);
 
-    res.json({
-      message: "Password reset email sent",
-      email: user.email, // Return email for confirmation
-    });
+    res.json(
+      successResponse(
+        {
+          email: user.email, // Return email for confirmation
+        },
+        "Password reset email sent"
+      )
+    );
   } catch (error) {
     console.error("Password reset request error:", error);
     // Don't reveal if user exists or not
-    res.json({
-      message: "If the email exists, a password reset link has been sent",
-    });
+    res.json(
+      successResponse(
+        null,
+        "If the email exists, a password reset link has been sent"
+      )
+    );
   }
 });
 
@@ -1176,15 +1243,15 @@ app.post("/api/auth/reset-password", async (req, res) => {
     if (!email || !resetToken || !newPassword) {
       return res
         .status(400)
-        .json({ error: "Email, reset token, and new password required" });
+        .json(errorResponse("Email, reset token, and new password required"));
     }
 
     await authService.resetPassword(email, resetToken, newPassword);
 
-    res.json({ message: "Password reset successfully" });
+    res.json(successResponse(null, "Password reset successfully"));
   } catch (error) {
     console.error("Password reset error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json(errorResponse(error.message, 400));
   }
 });
 
@@ -1196,10 +1263,12 @@ app.post("/api/auth/send-verification", authenticateToken, async (req, res) => {
     );
     await authService.sendEmailVerification(req.user.email, verificationToken);
 
-    res.json({ message: "Verification email sent" });
+    res.json(successResponse(null, "Verification email sent"));
   } catch (error) {
     console.error("Email verification request error:", error);
-    res.status(500).json({ error: "Failed to send verification email" });
+    res
+      .status(500)
+      .json(errorResponse("Failed to send verification email", 500));
   }
 });
 
@@ -1211,15 +1280,15 @@ app.post("/api/auth/verify-email", async (req, res) => {
     if (!userId || !verificationToken) {
       return res
         .status(400)
-        .json({ error: "User ID and verification token required" });
+        .json(errorResponse("User ID and verification token required"));
     }
 
     await authService.verifyEmail(userId, verificationToken);
 
-    res.json({ message: "Email verified successfully" });
+    res.json(successResponse(null, "Email verified successfully"));
   } catch (error) {
     console.error("Email verification error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json(errorResponse(error.message, 400));
   }
 });
 
@@ -1232,10 +1301,10 @@ app.post("/api/auth/logout", authenticateToken, async (req, res) => {
       await authService.invalidateSession(sessionId);
     }
 
-    res.json({ message: "Logged out successfully" });
+    res.json(successResponse(null, "Logged out successfully"));
   } catch (error) {
     console.error("Logout error:", error);
-    res.status(500).json({ error: "Logout failed" });
+    res.status(500).json(errorResponse("Logout failed", 500));
   }
 });
 
@@ -1243,10 +1312,10 @@ app.post("/api/auth/logout", authenticateToken, async (req, res) => {
 app.get("/api/auth/sessions", authenticateToken, async (req, res) => {
   try {
     const sessions = await authService.getUserSessions(req.user.id);
-    res.json({ sessions });
+    res.json(successResponse({ sessions }, "Sessions retrieved successfully"));
   } catch (error) {
     console.error("Get sessions error:", error);
-    res.status(500).json({ error: "Failed to get sessions" });
+    res.status(500).json(errorResponse("Failed to get sessions", 500));
   }
 });
 
@@ -1257,10 +1326,10 @@ app.delete(
   async (req, res) => {
     try {
       await authService.invalidateSession(req.params.sessionId);
-      res.json({ message: "Session invalidated" });
+      res.json(successResponse(null, "Session invalidated"));
     } catch (error) {
       console.error("Session invalidation error:", error);
-      res.status(500).json({ error: "Failed to invalidate session" });
+      res.status(500).json(errorResponse("Failed to invalidate session", 500));
     }
   }
 );
@@ -1269,10 +1338,10 @@ app.delete(
 app.delete("/api/auth/sessions", authenticateToken, async (req, res) => {
   try {
     await authService.invalidateAllUserSessions(req.user.id);
-    res.json({ message: "All sessions invalidated" });
+    res.json(successResponse(null, "All sessions invalidated"));
   } catch (error) {
     console.error("Sessions invalidation error:", error);
-    res.status(500).json({ error: "Failed to invalidate sessions" });
+    res.status(500).json(errorResponse("Failed to invalidate sessions", 500));
   }
 });
 
@@ -1314,10 +1383,15 @@ app.get("/api/notifications", authenticateToken, async (req, res) => {
       "SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC",
       [req.user.id]
     );
-    res.json({ notifications: result.rows });
+    res.json(
+      successResponse(
+        { notifications: result.rows },
+        "Notifications retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error("Get notifications error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json(internalServerErrorResponse());
   }
 });
 
