@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
+import usePlacesAutocomplete, {
+  getGeocode,
+  getLatLng,
+} from "use-places-autocomplete";
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
@@ -18,6 +22,21 @@ const Customers = () => {
   const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [addressInput, setAddressInput] = useState("");
+
+  // Places Autocomplete for address (Puerto Rico only)
+  const {
+    ready: addressReady,
+    value: addressValue,
+    suggestions: { status: addressStatus, data: addressData },
+    setValue: setAddressValue,
+    clearSuggestions: clearAddressSuggestions,
+  } = usePlacesAutocomplete({
+    debounce: 300,
+    requestOptions: {
+      componentRestrictions: { country: "PR" },
+    },
+  });
 
   useEffect(() => {
     fetchCustomers();
@@ -106,6 +125,25 @@ const Customers = () => {
     if (location.state?.showAddForm) {
       navigate("/dashboard");
     }
+  };
+
+  // Handle input change for address
+  const handleAddressInputChange = (e) => {
+    setAddressInput(e.target.value);
+    setAddressValue(e.target.value);
+    setFormData({ ...formData, address: e.target.value });
+  };
+
+  // Handle address selection
+  const handleAddressSelect = async (address) => {
+    setAddressInput(address);
+    setAddressValue(address, false);
+    clearAddressSuggestions();
+    setFormData({ ...formData, address });
+    // Optionally, geocode for coordinates here if you want to store them immediately
+    // const geo = await getGeocode({ address });
+    // const { lat, lng } = await getLatLng(geo[0]);
+    // setFormData({ ...formData, address, latitude: lat, longitude: lng });
   };
 
   if (loading) {
@@ -203,11 +241,31 @@ const Customers = () => {
                 <input
                   type="text"
                   name="address"
-                  value={formData.address}
-                  onChange={handleChange}
+                  value={addressInput}
+                  onChange={handleAddressInputChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter address"
+                  list="address-places-suggestions"
+                  // disabled={!addressReady}
                 />
+                <datalist id="address-places-suggestions">
+                  {addressStatus === "OK" &&
+                    addressData.map(({ description }, idx) => (
+                      <option key={idx} value={description} />
+                    ))}
+                </datalist>
+                <ul className="mb-2">
+                  {addressStatus === "OK" &&
+                    addressData.map(({ description }, idx) => (
+                      <li
+                        key={idx}
+                        className="cursor-pointer hover:bg-gray-100 px-2 py-1"
+                        onClick={() => handleAddressSelect(description)}
+                      >
+                        {description}
+                      </li>
+                    ))}
+                </ul>
               </div>
             </div>
             <div className="flex justify-end space-x-3">

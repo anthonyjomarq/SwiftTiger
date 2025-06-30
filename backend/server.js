@@ -8,6 +8,9 @@ const { requirePermission } = require("./middleware/permissions");
 const {
   geocodeAddress,
   updateCustomerCoordinates,
+  validateAddress,
+  addKnownAddress,
+  KNOWN_ADDRESSES,
 } = require("./services/geocoding");
 require("dotenv").config();
 
@@ -281,6 +284,11 @@ app.put(
         return res.status(404).json({ error: "Customer not found" });
       }
 
+      // Geocode address in background if provided
+      if (address) {
+        updateCustomerCoordinates(id, address).catch(console.error);
+      }
+
       res.json(result.rows[0]);
     } catch (error) {
       console.error("Update customer error:", error);
@@ -310,6 +318,50 @@ app.delete(
     } catch (error) {
       console.error("Delete customer error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// Manual geocoding endpoint for customer
+app.post(
+  "/api/customers/:id/geocode",
+  authenticateToken,
+  requirePermission("customers.edit"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Get customer with current address
+      const customerResult = await pool.query(
+        "SELECT * FROM customers WHERE id = $1",
+        [id]
+      );
+
+      if (customerResult.rows.length === 0) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      const customer = customerResult.rows[0];
+
+      if (!customer.address) {
+        return res
+          .status(400)
+          .json({ error: "Customer has no address to geocode" });
+      }
+
+      // Geocode the address
+      const geocodeResult = await updateCustomerCoordinates(
+        id,
+        customer.address
+      );
+
+      res.json({
+        message: "Address geocoded successfully",
+        customer: geocodeResult,
+      });
+    } catch (error) {
+      console.error("Manual geocoding error:", error);
+      res.status(500).json({ error: "Geocoding failed" });
     }
   }
 );
@@ -391,6 +443,9 @@ app.post(
   requirePermission("jobs.create"),
   async (req, res) => {
     try {
+      console.log("Creating job with data:", req.body);
+      console.log("User:", req.user);
+
       const {
         title,
         description,
@@ -406,6 +461,17 @@ app.post(
         return res.status(400).json({ error: "Job title is required" });
       }
 
+      console.log("Inserting job with values:", [
+        title,
+        description,
+        customer_id,
+        status || "pending",
+        assigned_to,
+        scheduled_date,
+        scheduled_time,
+        estimated_duration || 60,
+      ]);
+
       const result = await pool.query(
         "INSERT INTO jobs (title, description, customer_id, status, assigned_to, scheduled_date, scheduled_time, estimated_duration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
         [
@@ -420,10 +486,14 @@ app.post(
         ]
       );
 
+      console.log("Job created successfully:", result.rows[0]);
       res.json(result.rows[0]);
     } catch (error) {
-      console.error("Create job error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error("Create job error details:", error);
+      console.error("Error stack:", error.stack);
+      res
+        .status(500)
+        .json({ error: "Internal server error", details: error.message });
     }
   }
 );
@@ -716,14 +786,15 @@ app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
       LEFT JOIN customers c ON j.customer_id = c.id
       LEFT JOIN users u ON j.assigned_to = u.id
       WHERE j.status IN ('pending', 'in_progress')
-      AND c.latitude IS NOT NULL
-      AND c.longitude IS NOT NULL
     `;
 
     const params = [];
 
     if (date) {
-      query += " AND j.scheduled_date = $" + (params.length + 1);
+      query +=
+        " AND (j.scheduled_date = $" +
+        (params.length + 1) +
+        " OR j.scheduled_date IS NULL)";
       params.push(date);
     }
 
@@ -741,14 +812,31 @@ app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
     query += " ORDER BY j.route_order NULLS LAST, j.scheduled_time";
 
     const result = await pool.query(query, params);
-    res.json({ jobs: result.rows });
+
+    // Separate jobs with and without coordinates
+    const jobsWithCoords = result.rows.filter(
+      (job) => job.latitude && job.longitude
+    );
+    const jobsWithoutCoords = result.rows.filter(
+      (job) => !job.latitude || !job.longitude
+    );
+
+    res.json({
+      jobs: result.rows,
+      jobs_with_coordinates: jobsWithCoords.length,
+      jobs_without_coordinates: jobsWithoutCoords.length,
+      warning:
+        jobsWithoutCoords.length > 0
+          ? `${jobsWithoutCoords.length} job(s) missing coordinates. Use "Force Geocode" to update them.`
+          : null,
+    });
   } catch (error) {
     console.error("Get map data error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Route optimization endpoint
+// Original Route optimization endpoint (kept for backward compatibility)
 app.post(
   "/api/jobs/optimize-route",
   authenticateToken,
@@ -765,14 +853,12 @@ app.post(
 
       // Get job locations
       const jobsResult = await pool.query(
-        `
-      SELECT j.id, c.latitude, c.longitude, c.address
-      FROM jobs j
-      JOIN customers c ON j.customer_id = c.id
-      WHERE j.id = ANY($1::int[])
-      AND c.latitude IS NOT NULL
-      AND c.longitude IS NOT NULL
-    `,
+        `SELECT j.id, c.latitude, c.longitude, c.address
+       FROM jobs j
+       JOIN customers c ON j.customer_id = c.id
+       WHERE j.id = ANY($1::int[])
+       AND c.latitude IS NOT NULL
+       AND c.longitude IS NOT NULL`,
         [job_ids]
       );
 
@@ -899,6 +985,237 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Advanced Route Optimization endpoint with 2-opt improvement
+app.post(
+  "/api/jobs/optimize-route-advanced",
+  authenticateToken,
+  requirePermission("jobs.assign"),
+  async (req, res) => {
+    try {
+      const {
+        job_ids,
+        start_location,
+        optimization_type = "distance",
+        consider_traffic = true,
+        time_windows = false,
+      } = req.body;
+
+      if (!job_ids || job_ids.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "No jobs selected for optimization" });
+      }
+
+      // Get job locations with additional data
+      const jobsResult = await pool.query(
+        `SELECT j.id, j.scheduled_time, j.estimated_duration, c.latitude, c.longitude, c.address
+       FROM jobs j
+       JOIN customers c ON j.customer_id = c.id
+       WHERE j.id = ANY($1::int[])
+       AND c.latitude IS NOT NULL
+       AND c.longitude IS NOT NULL
+       ORDER BY j.scheduled_time`,
+        [job_ids]
+      );
+
+      const jobs = jobsResult.rows;
+
+      if (jobs.length < 2) {
+        return res.json({ optimized_order: job_ids });
+      }
+
+      // Initial nearest neighbor solution
+      let optimizedOrder = nearestNeighborOptimization(jobs, start_location);
+
+      // Apply 2-opt improvement if we have enough jobs
+      if (jobs.length > 3) {
+        optimizedOrder = twoOptImprovement(
+          jobs,
+          optimizedOrder,
+          start_location
+        );
+      }
+
+      // Calculate total metrics
+      const metrics = calculateRouteMetrics(
+        jobs,
+        optimizedOrder,
+        start_location,
+        consider_traffic
+      );
+
+      // Update route_order in database
+      for (let i = 0; i < optimizedOrder.length; i++) {
+        await pool.query("UPDATE jobs SET route_order = $1 WHERE id = $2", [
+          i + 1,
+          optimizedOrder[i],
+        ]);
+      }
+
+      res.json({
+        optimized_order: optimizedOrder,
+        total_jobs: optimizedOrder.length,
+        total_distance_km: metrics.distance,
+        estimated_duration_hours: metrics.duration,
+        optimization_type: optimization_type,
+        improvements: metrics.improvements,
+      });
+    } catch (error) {
+      console.error("Advanced route optimization error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// Enhanced nearest neighbor with time windows
+function nearestNeighborOptimization(jobs, startLocation) {
+  const optimizedOrder = [];
+  const unvisited = [...jobs];
+
+  let currentLocation = startLocation || {
+    latitude: jobs[0].latitude,
+    longitude: jobs[0].longitude,
+  };
+
+  while (unvisited.length > 0) {
+    let nearestIndex = 0;
+    let nearestScore = Infinity;
+
+    unvisited.forEach((job, index) => {
+      const distance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        job.latitude,
+        job.longitude
+      );
+
+      // Consider time windows if scheduled_time exists
+      let timePenalty = 0;
+      if (job.scheduled_time) {
+        const jobTime = new Date(job.scheduled_time);
+        const currentTime = new Date();
+        const timeDiff = Math.abs(jobTime - currentTime) / (1000 * 60 * 60); // hours
+        timePenalty = timeDiff * 0.1; // Small penalty for time deviation
+      }
+
+      const score = distance + timePenalty;
+
+      if (score < nearestScore) {
+        nearestScore = score;
+        nearestIndex = index;
+      }
+    });
+
+    const nearest = unvisited.splice(nearestIndex, 1)[0];
+    optimizedOrder.push(nearest.id);
+    currentLocation = {
+      latitude: nearest.latitude,
+      longitude: nearest.longitude,
+    };
+  }
+
+  return optimizedOrder;
+}
+
+// 2-opt improvement algorithm
+function twoOptImprovement(jobs, route, startLocation) {
+  let improved = true;
+  let bestDistance = calculateTotalDistance(jobs, route, startLocation);
+  let bestRoute = [...route];
+
+  while (improved) {
+    improved = false;
+
+    for (let i = 0; i < route.length - 1; i++) {
+      for (let j = i + 2; j < route.length; j++) {
+        // Create new route by reversing segment i+1 to j
+        const newRoute = [...route];
+        const segment = newRoute.slice(i + 1, j + 1).reverse();
+        newRoute.splice(i + 1, j - i, ...segment);
+
+        const newDistance = calculateTotalDistance(
+          jobs,
+          newRoute,
+          startLocation
+        );
+
+        if (newDistance < bestDistance) {
+          bestDistance = newDistance;
+          bestRoute = newRoute;
+          improved = true;
+        }
+      }
+    }
+
+    if (improved) {
+      route = [...bestRoute];
+    }
+  }
+
+  return bestRoute;
+}
+
+// Calculate total distance for a route
+function calculateTotalDistance(jobs, route, startLocation) {
+  let totalDistance = 0;
+  let currentLocation = startLocation;
+
+  for (let i = 0; i < route.length; i++) {
+    const job = jobs.find((j) => j.id === route[i]);
+    const distance = calculateDistance(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      job.latitude,
+      job.longitude
+    );
+    totalDistance += distance;
+    currentLocation = { latitude: job.latitude, longitude: job.longitude };
+  }
+
+  return totalDistance;
+}
+
+// Calculate comprehensive route metrics
+function calculateRouteMetrics(jobs, route, startLocation, considerTraffic) {
+  let totalDistance = 0;
+  let totalDuration = 0;
+  let currentLocation = startLocation;
+
+  for (let i = 0; i < route.length; i++) {
+    const job = jobs.find((j) => j.id === route[i]);
+    const distance = calculateDistance(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      job.latitude,
+      job.longitude
+    );
+
+    totalDistance += distance;
+
+    // Estimate travel time (assuming 50 km/h average speed)
+    const travelTime = distance / 50; // hours
+    totalDuration += travelTime;
+
+    // Add job duration if available
+    if (job.estimated_duration) {
+      totalDuration += job.estimated_duration / 60; // convert minutes to hours
+    }
+
+    currentLocation = { latitude: job.latitude, longitude: job.longitude };
+  }
+
+  // Apply traffic factor if requested
+  if (considerTraffic) {
+    totalDuration *= 1.2; // 20% traffic penalty
+  }
+
+  return {
+    distance: Math.round(totalDistance * 100) / 100,
+    duration: Math.round(totalDuration * 100) / 100,
+    improvements: route.length > 3 ? "2-opt applied" : "nearest neighbor only",
+  };
+}
+
 // Dashboard stats
 app.get("/api/dashboard", authenticateToken, async (req, res) => {
   try {
@@ -924,7 +1241,7 @@ app.get("/api/dashboard", authenticateToken, async (req, res) => {
   }
 });
 
-// Geocoding endpoint
+// Enhanced geocoding endpoint with validation
 app.post("/api/geocode", authenticateToken, async (req, res) => {
   try {
     const { address } = req.body;
@@ -933,14 +1250,23 @@ app.post("/api/geocode", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Address is required" });
     }
 
-    const { geocodeAddress } = require("./services/geocoding");
+    const { geocodeAddress, validateAddress } = require("./services/geocoding");
+
+    // First validate the address
+    const validation = await validateAddress(address);
+
+    // Then geocode it
     const result = await geocodeAddress(address);
 
     if (result) {
       res.json({
-        latitude: result.lat,
-        longitude: result.lng,
+        latitude: result.latitude,
+        longitude: result.longitude,
         formatted_address: result.formatted_address,
+        location_type: result.location_type,
+        confidence_score: result.confidence_score,
+        verified: result.verified,
+        validation: validation,
       });
     } else {
       res.status(404).json({ error: "Address not found" });
@@ -948,6 +1274,142 @@ app.post("/api/geocode", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Geocoding endpoint error:", error);
     res.status(500).json({ error: "Geocoding failed" });
+  }
+});
+
+// Address validation endpoint
+app.post("/api/validate-address", authenticateToken, async (req, res) => {
+  try {
+    const { address } = req.body;
+
+    if (!address) {
+      return res.status(400).json({ error: "Address is required" });
+    }
+
+    const { validateAddress } = require("./services/geocoding");
+    const validation = await validateAddress(address);
+
+    res.json(validation);
+  } catch (error) {
+    console.error("Address validation error:", error);
+    res.status(500).json({ error: "Address validation failed" });
+  }
+});
+
+// Add known address endpoint
+app.post(
+  "/api/known-addresses",
+  authenticateToken,
+  requirePermission("admin"),
+  async (req, res) => {
+    try {
+      const { address, latitude, longitude, name } = req.body;
+
+      if (!address || !latitude || !longitude) {
+        return res
+          .status(400)
+          .json({ error: "Address, latitude, and longitude are required" });
+      }
+
+      const {
+        addKnownAddress,
+        KNOWN_ADDRESSES,
+      } = require("./services/geocoding");
+      addKnownAddress(address, latitude, longitude, name);
+
+      res.json({
+        message: "Known address added successfully",
+        known_addresses: Object.keys(KNOWN_ADDRESSES),
+      });
+    } catch (error) {
+      console.error("Add known address error:", error);
+      res.status(500).json({ error: "Failed to add known address" });
+    }
+  }
+);
+
+// Get known addresses endpoint
+app.get("/api/known-addresses", authenticateToken, async (req, res) => {
+  try {
+    const { KNOWN_ADDRESSES } = require("./services/geocoding");
+
+    const addresses = Object.entries(KNOWN_ADDRESSES).map(
+      ([address, data]) => ({
+        address,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        name: data.name,
+        verified: data.verified,
+      })
+    );
+
+    res.json({ known_addresses: addresses });
+  } catch (error) {
+    console.error("Get known addresses error:", error);
+    res.status(500).json({ error: "Failed to get known addresses" });
+  }
+});
+
+// Secure Maps Configuration endpoint
+app.get("/api/maps-config", authenticateToken, (req, res) => {
+  try {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Maps API key not configured" });
+    }
+
+    res.json({
+      apiKey: apiKey,
+      restrictions: {
+        domain: process.env.DOMAIN || req.get("origin"),
+        apis: ["maps", "geocoding", "directions"],
+        referrer: process.env.DOMAIN || req.get("origin"),
+      },
+      mapOptions: {
+        gestureHandling: "greedy",
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+      },
+    });
+  } catch (error) {
+    console.error("Maps config error:", error);
+    res.status(500).json({ error: "Failed to load maps configuration" });
+  }
+});
+
+// Debug endpoint to show all jobs (for troubleshooting)
+app.get("/api/jobs/debug", authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        j.*,
+        c.name as customer_name,
+        c.address as customer_address,
+        c.latitude,
+        c.longitude,
+        u.name as technician_name
+      FROM jobs j
+      LEFT JOIN customers c ON j.customer_id = c.id
+      LEFT JOIN users u ON j.assigned_to = u.id
+      ORDER BY j.id DESC
+    `;
+
+    const result = await pool.query(query);
+    res.json({
+      jobs: result.rows,
+      total_jobs: result.rows.length,
+      jobs_with_coordinates: result.rows.filter(
+        (job) => job.latitude && job.longitude
+      ).length,
+      jobs_pending_inprogress: result.rows.filter((job) =>
+        ["pending", "in_progress"].includes(job.status)
+      ).length,
+    });
+  } catch (error) {
+    console.error("Debug jobs error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
