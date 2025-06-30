@@ -97,9 +97,7 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
     const result = await userService.createUser(req.body);
 
     if (!result.success) {
-      return res
-        .status(result.statusCode)
-        .json(errorResponse(result.error, result.statusCode));
+      return sendResponse(res, result);
     }
 
     // Generate JWT token for the new user
@@ -109,16 +107,16 @@ app.post("/api/auth/register", validateRegistration, async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    res.json(
-      successResponse(
-        {
-          token,
-          user: result.data,
-        },
-        "User registered successfully",
-        201
-      )
-    );
+    // Create a new response with token included
+    const responseWithToken = {
+      ...result,
+      data: {
+        token,
+        user: result.data,
+      },
+    };
+
+    sendResponse(res, responseWithToken);
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json(internalServerErrorResponse());
