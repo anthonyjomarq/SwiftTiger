@@ -12,9 +12,25 @@ const {
   addKnownAddress,
   KNOWN_ADDRESSES,
 } = require("./services/geocoding");
+const crypto = require("crypto");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
+const SocketHandlers = require("./socketHandlers");
+const authService = require("./services/authService");
 require("dotenv").config();
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Initialize Socket.IO handlers
+const socketHandlers = new SocketHandlers(io);
+
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
@@ -1413,6 +1429,377 @@ app.get("/api/jobs/debug", authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// ===== REAL-TIME FEATURES =====
+
+// Real-time technician location tracking
+app.post(
+  "/api/technicians/:id/location",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { latitude, longitude, accuracy, timestamp } = req.body;
+
+      await pool.query(
+        `
+      INSERT INTO technician_locations (user_id, latitude, longitude, accuracy, updated_at)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (user_id) 
+      DO UPDATE SET latitude = $2, longitude = $3, accuracy = $4, updated_at = $5
+    `,
+        [req.params.id, latitude, longitude, accuracy, new Date(timestamp)]
+      );
+
+      // Emit to connected clients via WebSocket
+      io.to(`technician_${req.params.id}`).emit("location_update", {
+        technicianId: req.params.id,
+        location: { latitude, longitude, accuracy, timestamp },
+      });
+
+      res.json({ success: true, message: "Location updated successfully" });
+    } catch (error) {
+      console.error("Location update error:", error);
+      res.status(500).json({ error: "Failed to update location" });
+    }
+  }
+);
+
+// Get technician locations
+app.get("/api/technicians/locations", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        tl.user_id,
+        tl.latitude,
+        tl.longitude,
+        tl.accuracy,
+        tl.updated_at,
+        u.name as technician_name,
+        u.role
+      FROM technician_locations tl
+      JOIN users u ON tl.user_id = u.id
+      WHERE u.role = 'technician'
+      AND tl.updated_at > NOW() - INTERVAL '1 hour'
+      ORDER BY tl.updated_at DESC
+    `);
+
+    res.json({ locations: result.rows });
+  } catch (error) {
+    console.error("Get locations error:", error);
+    res.status(500).json({ error: "Failed to get technician locations" });
+  }
+});
+
+// Route sharing functionality
+app.post("/api/routes/share", authenticateToken, async (req, res) => {
+  try {
+    const { routeId, routeData } = req.body;
+    const shareToken = crypto.randomBytes(32).toString("hex");
+
+    await pool.query(
+      "INSERT INTO shared_routes (route_id, share_token, created_by, expires_at) VALUES ($1, $2, $3, $4)",
+      [
+        routeId,
+        shareToken,
+        req.user.id,
+        new Date(Date.now() + 24 * 60 * 60 * 1000),
+      ] // 24 hours
+    );
+
+    res.json({
+      shareUrl: `${
+        process.env.FRONTEND_URL || "http://localhost:5173"
+      }/shared-route/${shareToken}`,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      shareToken,
+    });
+  } catch (error) {
+    console.error("Route sharing error:", error);
+    res.status(500).json({ error: "Failed to create shared route" });
+  }
+});
+
+// Get shared route
+app.get("/api/routes/shared/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await pool.query(
+      "SELECT * FROM shared_routes WHERE share_token = $1 AND expires_at > NOW()",
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Shared route not found or expired" });
+    }
+
+    const sharedRoute = result.rows[0];
+
+    // Get route data (you might want to store route data in a separate table)
+    // For now, we'll return the basic info
+    res.json({
+      routeId: sharedRoute.route_id,
+      createdAt: sharedRoute.created_at,
+      expiresAt: sharedRoute.expires_at,
+    });
+  } catch (error) {
+    console.error("Get shared route error:", error);
+    res.status(500).json({ error: "Failed to get shared route" });
+  }
+});
+
+// ETA calculation with traffic
+app.post("/api/eta/calculate", authenticateToken, async (req, res) => {
+  try {
+    const { fromLocation, toLocation, considerTraffic = true } = req.body;
+
+    if (!fromLocation || !toLocation) {
+      return res
+        .status(400)
+        .json({ error: "From and to locations are required" });
+    }
+
+    // Use Google Maps Directions API for traffic-aware ETA
+    const { Client } = require("@googlemaps/google-maps-services-js");
+    const client = new Client({});
+
+    const response = await client.directions({
+      params: {
+        origin: `${fromLocation.latitude},${fromLocation.longitude}`,
+        destination: `${toLocation.latitude},${toLocation.longitude}`,
+        mode: "driving",
+        departure_time: "now",
+        traffic_model: considerTraffic ? "best_guess" : "pessimistic",
+        key: process.env.GOOGLE_MAPS_API_KEY,
+      },
+    });
+
+    if (response.data.status === "OK") {
+      const route = response.data.routes[0];
+      const leg = route.legs[0];
+
+      const eta = {
+        duration: leg.duration.value,
+        durationInTraffic: leg.duration_in_traffic?.value || leg.duration.value,
+        distance: leg.distance.value,
+        eta: new Date(
+          Date.now() +
+            (leg.duration_in_traffic?.value || leg.duration.value) * 1000
+        ),
+        trafficLevel: leg.duration_in_traffic
+          ? "traffic_considered"
+          : "no_traffic_data",
+        steps: leg.steps.map((step) => ({
+          instruction: step.html_instructions,
+          distance: step.distance.value,
+          duration: step.duration.value,
+        })),
+      };
+
+      res.json(eta);
+    } else {
+      res
+        .status(400)
+        .json({ error: `Directions request failed: ${response.data.status}` });
+    }
+  } catch (error) {
+    console.error("ETA calculation error:", error);
+    res.status(500).json({ error: "Failed to calculate ETA" });
+  }
+});
+
+// Enhanced Authentication Routes
+
+// Refresh token endpoint
+app.post("/api/auth/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: "Refresh token required" });
+    }
+
+    const { accessToken, user } = await authService.refreshAccessToken(
+      refreshToken
+    );
+
+    res.json({
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    res.status(401).json({ error: "Token refresh failed" });
+  }
+});
+
+// Password reset request
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email required" });
+    }
+
+    const { resetToken, user } = await authService.generatePasswordResetToken(
+      email
+    );
+    await authService.sendPasswordResetEmail(email, resetToken);
+
+    res.json({
+      message: "Password reset email sent",
+      email: user.email, // Return email for confirmation
+    });
+  } catch (error) {
+    console.error("Password reset request error:", error);
+    // Don't reveal if user exists or not
+    res.json({
+      message: "If the email exists, a password reset link has been sent",
+    });
+  }
+});
+
+// Password reset
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+
+    if (!email || !resetToken || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Email, reset token, and new password required" });
+    }
+
+    await authService.resetPassword(email, resetToken, newPassword);
+
+    res.json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.error("Password reset error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Email verification request
+app.post("/api/auth/send-verification", authenticateToken, async (req, res) => {
+  try {
+    const verificationToken = await authService.generateEmailVerificationToken(
+      req.user.id
+    );
+    await authService.sendEmailVerification(req.user.email, verificationToken);
+
+    res.json({ message: "Verification email sent" });
+  } catch (error) {
+    console.error("Email verification request error:", error);
+    res.status(500).json({ error: "Failed to send verification email" });
+  }
+});
+
+// Email verification
+app.post("/api/auth/verify-email", async (req, res) => {
+  try {
+    const { userId, verificationToken } = req.body;
+
+    if (!userId || !verificationToken) {
+      return res
+        .status(400)
+        .json({ error: "User ID and verification token required" });
+    }
+
+    await authService.verifyEmail(userId, verificationToken);
+
+    res.json({ message: "Email verified successfully" });
+  } catch (error) {
+    console.error("Email verification error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Logout (invalidate session)
+app.post("/api/auth/logout", authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.headers["x-session-id"];
+
+    if (sessionId) {
+      await authService.invalidateSession(sessionId);
+    }
+
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// Get user sessions
+app.get("/api/auth/sessions", authenticateToken, async (req, res) => {
+  try {
+    const sessions = await authService.getUserSessions(req.user.id);
+    res.json({ sessions });
+  } catch (error) {
+    console.error("Get sessions error:", error);
+    res.status(500).json({ error: "Failed to get sessions" });
+  }
+});
+
+// Invalidate specific session
+app.delete(
+  "/api/auth/sessions/:sessionId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      await authService.invalidateSession(req.params.sessionId);
+      res.json({ message: "Session invalidated" });
+    } catch (error) {
+      console.error("Session invalidation error:", error);
+      res.status(500).json({ error: "Failed to invalidate session" });
+    }
+  }
+);
+
+// Invalidate all user sessions
+app.delete("/api/auth/sessions", authenticateToken, async (req, res) => {
+  try {
+    await authService.invalidateAllUserSessions(req.user.id);
+    res.json({ message: "All sessions invalidated" });
+  } catch (error) {
+    console.error("Sessions invalidation error:", error);
+    res.status(500).json({ error: "Failed to invalidate sessions" });
+  }
+});
+
+// WebSocket connection handling
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+
+  // Join technician room for location updates
+  socket.on("join_technician_room", (technicianId) => {
+    socket.join(`technician_${technicianId}`);
+    console.log(`Client ${socket.id} joined technician room: ${technicianId}`);
+  });
+
+  // Join route room for real-time updates
+  socket.on("join_route_room", (routeId) => {
+    socket.join(`route_${routeId}`);
+    console.log(`Client ${socket.id} joined route room: ${routeId}`);
+  });
+
+  // Handle route updates
+  socket.on("route_update", (data) => {
+    io.to(`route_${data.routeId}`).emit("route_updated", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

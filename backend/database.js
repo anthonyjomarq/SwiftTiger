@@ -87,8 +87,21 @@ const initializeDatabase = async () => {
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         latitude DECIMAL(10, 8),
         longitude DECIMAL(11, 8),
+        accuracy DECIMAL(10, 2),
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id)
+      )
+    `);
+
+    // Shared routes table for route sharing functionality
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shared_routes (
+        id SERIAL PRIMARY KEY,
+        route_id VARCHAR(255) NOT NULL,
+        share_token VARCHAR(255) UNIQUE NOT NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -96,6 +109,9 @@ const initializeDatabase = async () => {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_job_updates_job_id ON job_updates(job_id);
       CREATE INDEX IF NOT EXISTS idx_job_updates_created_at ON job_updates(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_technician_locations_user_id ON technician_locations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_shared_routes_token ON shared_routes(share_token);
+      CREATE INDEX IF NOT EXISTS idx_shared_routes_expires_at ON shared_routes(expires_at);
     `);
 
     // Permissions table

@@ -7,6 +7,12 @@ import {
   Autocomplete,
 } from "@react-google-maps/api";
 import axios from "axios";
+import ETACalculator from "../components/ETACalculator";
+import RouteSharing from "../components/RouteSharing";
+import TechnicianTracker from "../components/TechnicianTracker";
+import realtimeService from "../services/realtimeService";
+import offlineRouteManager from "../services/offlineRouteManager";
+import { useAuth } from "../contexts/AuthContext";
 
 const mapContainerStyle = {
   width: "100%",
@@ -14,7 +20,7 @@ const mapContainerStyle = {
 };
 
 const defaultCenter = {
-  lat: 18.3893, // San Juan center
+  lat: 18.3893, // San Juan, Puerto Rico center
   lng: -66.0739,
 };
 
@@ -22,9 +28,10 @@ const defaultCenter = {
 const libraries = ["places"];
 
 const RoutePlanning = () => {
+  const { user, token } = useAuth();
   const [startLocation, setStartLocation] = useState("");
   const [startCoords, setStartCoords] = useState({
-    lat: 18.3893,
+    lat: 18.3893, // San Juan, Puerto Rico
     lng: -66.0739,
   });
   const [startInput, setStartInput] = useState("");
@@ -52,10 +59,41 @@ const RoutePlanning = () => {
   const [mapsError, setMapsError] = useState(null);
   const autocompleteRef = useRef(null);
 
+  // New state for real-time features
+  const [currentETA, setCurrentETA] = useState(null);
+  const [showTechnicianTracker, setShowTechnicianTracker] = useState(false);
+  const [routeData, setRouteData] = useState(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [availableTechnicians, setAvailableTechnicians] = useState([]);
+  const [selectedTechnician, setSelectedTechnician] = useState(null);
+  const [technicianAssignments, setTechnicianAssignments] = useState({}); // jobId -> technicianId
+
   useEffect(() => {
     loadMapsConfig();
     fetchJobs();
-  }, [selectedDate]);
+    fetchTechnicians();
+    initializeRealtimeService();
+    setupOfflineDetection();
+  }, [selectedDate, user, token]);
+
+  const setupOfflineDetection = () => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  };
+
+  const initializeRealtimeService = () => {
+    if (user && token) {
+      realtimeService.connect(token);
+    }
+  };
 
   const loadMapsConfig = async () => {
     try {
@@ -81,10 +119,35 @@ const RoutePlanning = () => {
     }
   };
 
+  const fetchTechnicians = async () => {
+    try {
+      const response = await axios.get("/api/users?role=technician");
+      setAvailableTechnicians(response.data.users || []);
+    } catch (error) {
+      console.error("Error fetching technicians:", error);
+    }
+  };
+
   const addDestination = (job) => {
     if (!destinations.find((dest) => dest.id === job.id)) {
       setDestinations([...destinations, job]);
     }
+  };
+
+  const assignJobToTechnician = (jobId, technicianId) => {
+    setTechnicianAssignments((prev) => ({
+      ...prev,
+      [jobId]: technicianId,
+    }));
+  };
+
+  const getAssignedTechnician = (jobId) => {
+    return technicianAssignments[jobId] || null;
+  };
+
+  const getTechnicianName = (technicianId) => {
+    const technician = availableTechnicians.find((t) => t.id === technicianId);
+    return technician ? technician.name : "Unassigned";
   };
 
   const removeDestination = (jobId) => {
@@ -97,44 +160,118 @@ const RoutePlanning = () => {
       return;
     }
 
+    // Check if all jobs are assigned to technicians
+    const unassignedJobs = destinations.filter(
+      (job) => !technicianAssignments[job.id]
+    );
+    if (unassignedJobs.length > 0) {
+      alert(
+        `Please assign all jobs to technicians. Unassigned jobs: ${unassignedJobs
+          .map((job) => job.title)
+          .join(", ")}`
+      );
+      return;
+    }
+
     setIsCalculating(true);
     try {
-      const response = await axios.post("/api/jobs/optimize-route-advanced", {
-        job_ids: destinations.map((job) => job.id),
-        start_location: {
-          latitude: startCoords.lat,
-          longitude: startCoords.lng,
-          name: startLocation,
-        },
-        optimization_type: "distance",
-        consider_traffic: true,
-        time_windows: false,
+      // Group jobs by assigned technician
+      const jobsByTechnician = {};
+      destinations.forEach((job) => {
+        const technicianId = technicianAssignments[job.id];
+        if (!jobsByTechnician[technicianId]) {
+          jobsByTechnician[technicianId] = [];
+        }
+        jobsByTechnician[technicianId].push(job);
       });
 
-      if (response.data) {
-        const result = response.data;
+      // Calculate routes for each technician
+      const allRoutes = {};
+      const totalMetrics = { distance: 0, duration: 0 };
 
-        // Reorder destinations based on optimized order
-        const optimizedOrder = result.optimized_order;
-        const reorderedDestinations = optimizedOrder
-          .map((jobId) => destinations.find((dest) => dest.id === jobId))
-          .filter(Boolean);
+      for (const [technicianId, jobs] of Object.entries(jobsByTechnician)) {
+        if (jobs.length === 0) continue;
 
-        setOptimizedRoute(reorderedDestinations);
-        setTotalDistance(result.total_distance_km);
-        setTotalDuration(result.estimated_duration_hours);
-        setRouteCalculated(true);
-
-        // Calculate map route after optimization
-        setTimeout(() => {
-          calculateMapRoute(reorderedDestinations);
-        }, 500);
-
-        // Show success message
-        alert(
-          `Route optimized successfully!\n\nTotal Distance: ${result.total_distance_km} km\nEstimated Duration: ${result.estimated_duration_hours} hours\nStops: ${destinations.length}`
+        const technician = availableTechnicians.find(
+          (t) => t.id === parseInt(technicianId)
         );
+        const technicianStartLocation = {
+          latitude: 18.3893, // Default to San Juan, can be enhanced with actual technician location
+          longitude: -66.0739,
+          name: technician
+            ? `${technician.name}'s Location`
+            : "Technician Location",
+        };
+
+        const response = await axios.post("/api/jobs/optimize-route-advanced", {
+          job_ids: jobs.map((job) => job.id),
+          start_location: technicianStartLocation,
+          optimization_type: "distance",
+          consider_traffic: true,
+          time_windows: false,
+        });
+
+        if (response.data) {
+          const result = response.data;
+
+          // Reorder jobs based on optimized order
+          const optimizedOrder = result.optimized_order;
+          const reorderedJobs = optimizedOrder
+            .map((jobId) => jobs.find((job) => job.id === jobId))
+            .filter(Boolean);
+
+          allRoutes[technicianId] = {
+            technician: technician,
+            jobs: reorderedJobs,
+            totalDistance: result.total_distance_km,
+            totalDuration: result.estimated_duration_hours,
+            startLocation: technicianStartLocation,
+          };
+
+          totalMetrics.distance += result.total_distance_km;
+          totalMetrics.duration += result.estimated_duration_hours;
+        }
       }
+
+      // Set the optimized routes
+      setOptimizedRoute(
+        Object.values(allRoutes).flatMap((route) => route.jobs)
+      );
+      setTotalDistance(totalMetrics.distance);
+      setTotalDuration(totalMetrics.duration);
+      setRouteCalculated(true);
+
+      // Create route data for sharing and offline storage
+      const routeDataForStorage = {
+        routeId: `route_${Date.now()}`,
+        routes: allRoutes,
+        totalDistance: totalMetrics.distance,
+        totalDuration: totalMetrics.duration,
+        calculatedAt: new Date().toISOString(),
+        date: selectedDate,
+      };
+
+      setRouteData(routeDataForStorage);
+
+      // Save route for offline access
+      offlineRouteManager.saveRoute(routeDataForStorage);
+
+      // Calculate map route after optimization
+      setTimeout(() => {
+        calculateMapRoute(
+          Object.values(allRoutes).flatMap((route) => route.jobs)
+        );
+      }, 500);
+
+      // Show success message
+      const technicianCount = Object.keys(allRoutes).length;
+      alert(
+        `Multi-technician route optimized successfully!\n\n` +
+          `Technicians: ${technicianCount}\n` +
+          `Total Distance: ${totalMetrics.distance.toFixed(1)} km\n` +
+          `Total Duration: ${totalMetrics.duration.toFixed(1)} hours\n` +
+          `Total Stops: ${destinations.length}`
+      );
     } catch (error) {
       console.error("Error:", error);
       alert("Error calculating route. Please try again.");
@@ -200,6 +337,32 @@ const RoutePlanning = () => {
     setOptimizedRoute([]);
     setRoutePath([]);
     setRouteCalculated(false);
+    setRouteData(null);
+    setCurrentETA(null);
+    setTechnicianAssignments({});
+  };
+
+  const handleETAUpdate = (etaData) => {
+    setCurrentETA(etaData);
+  };
+
+  const loadOfflineRoutes = () => {
+    const offlineRoutes = offlineRouteManager.getOfflineRoutesSorted();
+    if (offlineRoutes.length > 0) {
+      const latestRoute = offlineRoutes[0];
+      setRouteData(latestRoute);
+      setOptimizedRoute(latestRoute.jobs || []);
+      setRouteCalculated(true);
+      setStartCoords(latestRoute.startLocation);
+      setStartLocation(latestRoute.startLocation.address);
+      setTotalDistance(latestRoute.totalDistance);
+      setTotalDuration(latestRoute.totalDuration);
+
+      // Calculate map route
+      setTimeout(() => {
+        calculateMapRoute(latestRoute.jobs || []);
+      }, 500);
+    }
   };
 
   const printRoute = () => {
@@ -293,6 +456,69 @@ const RoutePlanning = () => {
     );
   };
 
+  // Add function to get technician's current location
+  const getTechnicianLocation = () => {
+    if (navigator.geolocation && user?.role === "technician") {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+
+          // Update start coordinates
+          setStartCoords(location);
+
+          // Try to get address from coordinates using reverse geocoding
+          if (window.google && window.google.maps) {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ location: location }, (results, status) => {
+              if (status === "OK" && results[0]) {
+                const address = results[0].formatted_address;
+                setStartLocation(address);
+                setStartInput(address);
+              } else {
+                // Fallback to coordinates if geocoding fails
+                const coordAddress = `${location.lat.toFixed(
+                  6
+                )}, ${location.lng.toFixed(6)}`;
+                setStartLocation(coordAddress);
+                setStartInput(coordAddress);
+              }
+            });
+          } else {
+            // Fallback to coordinates if Google Maps not loaded
+            const coordAddress = `${location.lat.toFixed(
+              6
+            )}, ${location.lng.toFixed(6)}`;
+            setStartLocation(coordAddress);
+            setStartInput(coordAddress);
+          }
+
+          // Show success message
+          alert(
+            `Start location set to your current position!\nCoordinates: ${location.lat.toFixed(
+              6
+            )}, ${location.lng.toFixed(6)}`
+          );
+        },
+        (error) => {
+          console.error("Error getting current location:", error);
+          alert(
+            "Failed to get your current location. Please set the start location manually."
+          );
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    } else {
+      alert("Geolocation is not available or you are not a technician.");
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-6">
@@ -369,7 +595,7 @@ const RoutePlanning = () => {
                     key={job.id}
                     className="p-3 border rounded bg-blue-50 border-blue-200"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center">
                         <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-medium mr-2">
                           {index + 1}
@@ -393,6 +619,33 @@ const RoutePlanning = () => {
                         Remove
                       </button>
                     </div>
+
+                    {/* Technician Assignment */}
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Assign to Technician:
+                      </label>
+                      <select
+                        value={getAssignedTechnician(job.id) || ""}
+                        onChange={(e) =>
+                          assignJobToTechnician(job.id, e.target.value)
+                        }
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Select Technician</option>
+                        {availableTechnicians.map((technician) => (
+                          <option key={technician.id} value={technician.id}>
+                            {technician.name}
+                          </option>
+                        ))}
+                      </select>
+                      {getAssignedTechnician(job.id) && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ Assigned to{" "}
+                          {getTechnicianName(getAssignedTechnician(job.id))}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -400,12 +653,60 @@ const RoutePlanning = () => {
 
             {/* Action Buttons */}
             <div className="space-y-2">
+              {/* Technician Summary */}
+              {destinations.length > 0 && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Technician Assignments:
+                  </h4>
+                  <div className="space-y-1">
+                    {availableTechnicians.map((technician) => {
+                      const assignedJobs = destinations.filter(
+                        (job) => getAssignedTechnician(job.id) === technician.id
+                      );
+                      if (assignedJobs.length === 0) return null;
+
+                      return (
+                        <div
+                          key={technician.id}
+                          className="flex justify-between text-xs"
+                        >
+                          <span className="text-gray-600">
+                            {technician.name}:
+                          </span>
+                          <span className="font-medium text-blue-600">
+                            {assignedJobs.length} jobs
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {destinations.filter(
+                      (job) => !getAssignedTechnician(job.id)
+                    ).length > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Unassigned:</span>
+                        <span className="font-medium text-red-600">
+                          {
+                            destinations.filter(
+                              (job) => !getAssignedTechnician(job.id)
+                            ).length
+                          }{" "}
+                          jobs
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={calculateRoute}
                 disabled={isCalculating || destinations.length === 0}
                 className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCalculating ? "Calculating..." : "Calculate Optimal Route"}
+                {isCalculating
+                  ? "Calculating..."
+                  : "Calculate Multi-Technician Route"}
               </button>
 
               {routeCalculated && (
@@ -465,19 +766,32 @@ const RoutePlanning = () => {
                         <label className="block font-medium mb-1">
                           Start Location
                         </label>
-                        <Autocomplete
-                          onLoad={(ref) => (autocompleteRef.current = ref)}
-                          onPlaceChanged={handlePlaceChanged}
-                          options={{ componentRestrictions: { country: "PR" } }}
-                        >
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 border rounded mb-2"
-                            value={startInput}
-                            onChange={(e) => setStartInput(e.target.value)}
-                            placeholder="Enter start address (Google Places supported)"
-                          />
-                        </Autocomplete>
+                        <div className="flex space-x-2 mb-2">
+                          <Autocomplete
+                            onLoad={(ref) => (autocompleteRef.current = ref)}
+                            onPlaceChanged={handlePlaceChanged}
+                            options={{
+                              componentRestrictions: { country: "PR" },
+                            }}
+                          >
+                            <input
+                              type="text"
+                              className="flex-1 px-3 py-2 border rounded"
+                              value={startInput}
+                              onChange={(e) => setStartInput(e.target.value)}
+                              placeholder="Enter start address (Google Places supported)"
+                            />
+                          </Autocomplete>
+                          {user?.role === "technician" && (
+                            <button
+                              onClick={getTechnicianLocation}
+                              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap"
+                              title="Set start location to your current position"
+                            >
+                              📍 My Location
+                            </button>
+                          )}
+                        </div>
                         {startLocation && (
                           <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
                             <p className="text-green-800 font-medium">
@@ -591,71 +905,239 @@ const RoutePlanning = () => {
               {!routeCalculated ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>
-                    Add destinations and calculate route to see the optimized
-                    sequence
+                    Add destinations, assign to technicians, and calculate route
+                    to see the optimized sequence
                   </p>
                 </div>
               ) : (
                 <div>
                   <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                     <h4 className="font-medium text-green-900 mb-2">
-                      Route Optimized!
+                      Multi-Technician Route Optimized!
                     </h4>
                     <div className="text-sm text-green-800">
                       <p>
-                        <strong>Start Location:</strong> {startLocation}
+                        <strong>Technicians:</strong>{" "}
+                        {
+                          availableTechnicians.filter((t) =>
+                            destinations.some(
+                              (job) => getAssignedTechnician(job.id) === t.id
+                            )
+                          ).length
+                        }
                       </p>
                       <p>
                         <strong>Total Stops:</strong> {optimizedRoute.length}
                       </p>
                       <p>
-                        <strong>Optimized Order:</strong> Calculated for minimum
-                        distance
+                        <strong>Total Distance:</strong>{" "}
+                        {totalDistance.toFixed(1)} km
+                      </p>
+                      <p>
+                        <strong>Total Duration:</strong>{" "}
+                        {totalDuration.toFixed(1)} hours
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <h4 className="font-medium text-gray-900">
-                      Route Sequence:
+                      Technician Routes:
                     </h4>
-                    {optimizedRoute.map((job, index) => (
-                      <div
-                        key={job.id}
-                        className="p-4 border rounded-lg bg-blue-50 border-blue-200"
-                      >
-                        <div className="flex items-center">
-                          <span className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium mr-3">
-                            {index + 1}
-                          </span>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              {job.title}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {job.customer_name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {job.customer_address}
-                            </p>
-                            <p className="text-xs text-blue-600">
-                              📍 {job.latitude}, {job.longitude}
-                            </p>
+
+                    {routeData?.routes &&
+                      Object.entries(routeData.routes).map(
+                        ([technicianId, routeData]) => (
+                          <div
+                            key={technicianId}
+                            className="border rounded-lg p-4 bg-gray-50"
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="font-medium text-gray-800">
+                                {routeData.technician?.name || "Technician"}
+                                <span className="text-sm text-gray-600 ml-2">
+                                  ({routeData.jobs.length} jobs)
+                                </span>
+                              </h5>
+                              <div className="text-sm text-gray-600">
+                                {routeData.totalDistance.toFixed(1)} km •{" "}
+                                {routeData.totalDuration.toFixed(1)}h
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              {routeData.jobs.map((job, index) => (
+                                <div
+                                  key={job.id}
+                                  className="p-3 border rounded-lg bg-white border-gray-200"
+                                >
+                                  <div className="flex items-center">
+                                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-medium mr-3">
+                                      {index + 1}
+                                    </span>
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-900 text-sm">
+                                        {job.title}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        {job.customer_name}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {job.customer_address}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                        )
+                      )}
                   </div>
 
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">
-                      <strong>Note:</strong> This route is optimized using
-                      distance-based algorithms. The sequence minimizes total
-                      travel distance between stops.
+                      <strong>Note:</strong> Each technician's route is
+                      optimized separately using distance-based algorithms.
+                      Routes start from each technician's location.
                     </p>
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Real-time Features Section */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ETA Calculator */}
+        {routeCalculated && optimizedRoute.length > 0 && startCoords && (
+          <div className="lg:col-span-1">
+            <ETACalculator
+              fromLocation={startCoords}
+              toLocation={{
+                latitude: parseFloat(optimizedRoute[0].latitude),
+                longitude: parseFloat(optimizedRoute[0].longitude),
+                address: optimizedRoute[0].customer_address,
+              }}
+              onETAUpdate={handleETAUpdate}
+            />
+          </div>
+        )}
+
+        {/* Route Sharing */}
+        {routeCalculated && routeData && (
+          <div className="lg:col-span-1">
+            <RouteSharing routeData={routeData} routeId={routeData.routeId} />
+          </div>
+        )}
+
+        {/* Technician Tracker */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-700">
+                Technician Tracker
+              </h3>
+              <button
+                onClick={() => setShowTechnicianTracker(!showTechnicianTracker)}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                {showTechnicianTracker ? "Hide" : "Show"} Tracker
+              </button>
+            </div>
+
+            {showTechnicianTracker ? (
+              <TechnicianTracker />
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>
+                  Click "Show Tracker" to view real-time technician locations
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Offline Status and Controls */}
+      <div className="mt-6 bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <div
+              className={`flex items-center space-x-2 ${
+                isOffline ? "text-orange-600" : "text-green-600"
+              }`}
+            >
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isOffline ? "bg-orange-500" : "bg-green-500"
+                }`}
+              ></div>
+              <span className="text-sm font-medium">
+                {isOffline ? "Offline Mode" : "Online Mode"}
+              </span>
+            </div>
+
+            {isOffline && (
+              <div className="text-sm text-orange-600">
+                Working with cached data
+              </div>
+            )}
+          </div>
+
+          <div className="flex space-x-2">
+            <button
+              onClick={loadOfflineRoutes}
+              className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+            >
+              Load Offline Routes
+            </button>
+
+            {routeCalculated && (
+              <button
+                onClick={() => {
+                  if (routeData) {
+                    const result = offlineRouteManager.saveRoute(routeData);
+                    if (result.success) {
+                      alert("Route saved for offline access!");
+                    } else {
+                      alert("Failed to save route: " + result.error);
+                    }
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                Save for Offline
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Offline Storage Info */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-gray-700">Offline Routes:</span>
+              <span className="ml-2 text-gray-600">
+                {offlineRouteManager.getOfflineRoutes().length}
+              </span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-700">Storage Used:</span>
+              <span className="ml-2 text-gray-600">
+                {(() => {
+                  const info = offlineRouteManager.getStorageInfo();
+                  return info ? `${Math.round(info.usagePercentage)}%` : "N/A";
+                })()}
+              </span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-700">Last Sync:</span>
+              <span className="ml-2 text-gray-600">
+                {isOffline ? "Offline" : new Date().toLocaleTimeString()}
+              </span>
             </div>
           </div>
         </div>
