@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import NotificationCenter from "./NotificationCenter";
 
 const Layout = ({ children }) => {
   const { user, logout, hasPermission } = useAuth();
@@ -70,6 +71,7 @@ const Layout = ({ children }) => {
                 Logout
               </button>
             </div>
+            <NotificationCenter />
           </div>
         </div>
       </header>
