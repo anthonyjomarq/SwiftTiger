@@ -43,6 +43,30 @@ class SocketService {
       return this.handlers.logActivity(userId, type, details);
     }
   }
+
+  logActivityWithTransaction(client, userId, type, details) {
+    if (this.handlers) {
+      return this.handlers.logActivityWithTransaction(
+        client,
+        userId,
+        type,
+        details
+      );
+    }
+  }
+
+  sendNotificationWithTransaction(client, userId, title, message, type, data) {
+    if (this.handlers) {
+      return this.handlers.sendNotificationWithTransaction(
+        client,
+        userId,
+        title,
+        message,
+        type,
+        data
+      );
+    }
+  }
 }
 
 // Create singleton instance

@@ -1,4 +1,10 @@
 const { pool } = require("../database");
+const {
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+  handleError,
+} = require("../utils/errors");
 
 /**
  * Customer Repository - Handles all database operations for customers
@@ -149,11 +155,7 @@ class CustomerRepository {
         count: result.rows.length,
       };
     } catch (error) {
-      console.error("Find all customers error:", error);
-      return {
-        success: false,
-        error: "Failed to retrieve customers",
-      };
+      throw error;
     }
   }
 
@@ -166,10 +168,7 @@ class CustomerRepository {
       const result = await pool.query(query, [id]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Customer not found",
-        };
+        throw new NotFoundError("Customer not found", "customer");
       }
 
       return {
@@ -177,11 +176,10 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Find customer by ID error:", error);
-      return {
-        success: false,
-        error: "Failed to retrieve customer",
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
     }
   }
 
@@ -191,6 +189,11 @@ class CustomerRepository {
   async create(data) {
     try {
       const { name, email, phone, address } = data;
+
+      // Validation
+      if (!name || !email) {
+        throw new ValidationError("Name and email are required", "name/email");
+      }
 
       const query = `
         INSERT INTO ${this.tableName} (name, email, phone, address, created_at, updated_at)
@@ -205,11 +208,14 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Create customer error:", error);
-      return {
-        success: false,
-        error: "Failed to create customer",
-      };
+      if (error.code === "23505") {
+        // Unique constraint violation
+        throw new ConflictError(
+          "Customer with this email already exists",
+          "email"
+        );
+      }
+      throw error;
     }
   }
 
@@ -219,6 +225,11 @@ class CustomerRepository {
   async update(id, data) {
     try {
       const { name, email, phone, address } = data;
+
+      // Validation
+      if (!name || !email) {
+        throw new ValidationError("Name and email are required", "name/email");
+      }
 
       const query = `
         UPDATE ${this.tableName}
@@ -230,10 +241,7 @@ class CustomerRepository {
       const result = await pool.query(query, [name, email, phone, address, id]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Customer not found",
-        };
+        throw new NotFoundError("Customer not found", "customer");
       }
 
       return {
@@ -241,11 +249,17 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Update customer error:", error);
-      return {
-        success: false,
-        error: "Failed to update customer",
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      if (error.code === "23505") {
+        // Unique constraint violation
+        throw new ConflictError(
+          "Customer with this email already exists",
+          "email"
+        );
+      }
+      throw error;
     }
   }
 
@@ -261,20 +275,17 @@ class CustomerRepository {
       );
 
       if (parseInt(jobsCheck.rows[0].job_count) > 0) {
-        return {
-          success: false,
-          error: "Cannot delete customer with associated jobs",
-        };
+        throw new ConflictError(
+          "Cannot delete customer with associated jobs",
+          "jobs"
+        );
       }
 
       const query = `DELETE FROM ${this.tableName} WHERE id = $1 RETURNING *`;
       const result = await pool.query(query, [id]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Customer not found",
-        };
+        throw new NotFoundError("Customer not found", "customer");
       }
 
       return {
@@ -282,11 +293,10 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Delete customer error:", error);
-      return {
-        success: false,
-        error: "Failed to delete customer",
-      };
+      if (error instanceof NotFoundError || error instanceof ConflictError) {
+        throw error;
+      }
+      throw error;
     }
   }
 
@@ -299,10 +309,7 @@ class CustomerRepository {
       const result = await pool.query(query, [email]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Customer not found",
-        };
+        throw new NotFoundError("Customer not found", "customer");
       }
 
       return {
@@ -310,11 +317,10 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Find customer by email error:", error);
-      return {
-        success: false,
-        error: "Failed to retrieve customer",
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
     }
   }
 
@@ -333,10 +339,7 @@ class CustomerRepository {
       const result = await pool.query(query, [lat, lng, id]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Customer not found",
-        };
+        throw new NotFoundError("Customer not found", "customer");
       }
 
       return {
@@ -344,11 +347,10 @@ class CustomerRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Update customer coordinates error:", error);
-      return {
-        success: false,
-        error: "Failed to update customer coordinates",
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
     }
   }
 

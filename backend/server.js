@@ -6,6 +6,25 @@ const { body, validationResult } = require("express-validator");
 const { pool, initializeDatabase } = require("./database");
 const { requirePermission } = require("./middleware/permissions");
 const {
+  handleValidationErrors,
+  sanitizeRequest,
+} = require("./middleware/validation");
+const {
+  validateCreateJob,
+  validateUpdateJob,
+  validateJobStatus,
+  validateJobId,
+  validateJobUpdate,
+  validateRouteOptimization,
+  validateEtaCalculation,
+} = require("./validators/jobValidator");
+const {
+  validateCreateCustomer,
+  validateUpdateCustomer,
+  validateCustomerId,
+  validateCustomerGeocoding,
+} = require("./validators/customerValidator");
+const {
   geocodeAddress,
   updateCustomerCoordinates,
   validateAddress,
@@ -72,7 +91,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Validation middleware
+// Validation middleware for authentication
 const validateRegistration = [
   body("email").isEmail().normalizeEmail(),
   body("password").isLength({ min: 6 }),
@@ -87,59 +106,65 @@ const validateLogin = [
 // Routes
 
 // Register user (first user becomes admin)
-app.post("/api/auth/register", validateRegistration, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json(validationErrorResponse(errors.array()));
+app.post(
+  "/api/auth/register",
+  sanitizeRequest,
+  validateRegistration,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const result = await userService.createUser(req.body);
+
+      if (!result.success) {
+        return sendResponse(res, result);
+      }
+
+      // Generate JWT token for the new user
+      const token = jwt.sign(
+        {
+          id: result.data.id,
+          email: result.data.email,
+          role: result.data.role,
+        },
+        JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+
+      // Create a new response with token included
+      const responseWithToken = {
+        ...result,
+        data: {
+          token,
+          user: result.data,
+        },
+      };
+
+      sendResponse(res, responseWithToken);
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json(internalServerErrorResponse());
     }
-
-    const result = await userService.createUser(req.body);
-
-    if (!result.success) {
-      return sendResponse(res, result);
-    }
-
-    // Generate JWT token for the new user
-    const token = jwt.sign(
-      { id: result.data.id, email: result.data.email, role: result.data.role },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    // Create a new response with token included
-    const responseWithToken = {
-      ...result,
-      data: {
-        token,
-        user: result.data,
-      },
-    };
-
-    sendResponse(res, responseWithToken);
-  } catch (error) {
-    console.error("Registration error:", error);
-    res.status(500).json(internalServerErrorResponse());
   }
-});
+);
 
 // Login user
-app.post("/api/auth/login", validateLogin, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json(validationErrorResponse(errors.array()));
+app.post(
+  "/api/auth/login",
+  sanitizeRequest,
+  validateLogin,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const result = await userService.authenticateUser(email, password);
+
+      sendResponse(res, result);
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json(internalServerErrorResponse());
     }
-
-    const { email, password } = req.body;
-    const result = await userService.authenticateUser(email, password);
-
-    sendResponse(res, result);
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json(internalServerErrorResponse());
   }
-});
+);
 
 // Get current user
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
@@ -179,6 +204,9 @@ app.post(
   "/api/customers",
   authenticateToken,
   requirePermission("customers.create"),
+  sanitizeRequest,
+  validateCreateCustomer,
+  handleValidationErrors,
   async (req, res) => {
     const result = await customerService.createCustomer(req.body);
     sendResponse(res, result);
@@ -189,6 +217,9 @@ app.put(
   "/api/customers/:id",
   authenticateToken,
   requirePermission("customers.edit"),
+  sanitizeRequest,
+  validateUpdateCustomer,
+  handleValidationErrors,
   async (req, res) => {
     const result = await customerService.updateCustomer(
       req.params.id,
@@ -202,6 +233,8 @@ app.delete(
   "/api/customers/:id",
   authenticateToken,
   requirePermission("customers.delete"),
+  validateCustomerId,
+  handleValidationErrors,
   async (req, res) => {
     const result = await customerService.deleteCustomer(req.params.id);
     sendResponse(res, result);
@@ -213,6 +246,8 @@ app.post(
   "/api/customers/:id/geocode",
   authenticateToken,
   requirePermission("customers.edit"),
+  validateCustomerGeocoding,
+  handleValidationErrors,
   async (req, res) => {
     const result = await customerService.geocodeCustomer(req.params.id);
     sendResponse(res, result);
@@ -229,26 +264,38 @@ app.post(
   "/api/jobs",
   authenticateToken,
   requirePermission("jobs.create"),
+  sanitizeRequest,
+  validateCreateJob,
+  handleValidationErrors,
   async (req, res) => {
     const result = await jobService.createJob(req.body, req.user.id);
     sendResponse(res, result);
   }
 );
 
-app.put("/api/jobs/:id", authenticateToken, async (req, res) => {
-  const result = await jobService.updateJob(
-    req.params.id,
-    req.body,
-    req.user.id,
-    req.user.role
-  );
-  sendResponse(res, result);
-});
+app.put(
+  "/api/jobs/:id",
+  authenticateToken,
+  sanitizeRequest,
+  validateUpdateJob,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.updateJob(
+      req.params.id,
+      req.body,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
 
 app.delete(
   "/api/jobs/:id",
   authenticateToken,
   requirePermission("jobs.delete"),
+  validateJobId,
+  handleValidationErrors,
   async (req, res) => {
     const result = await jobService.deleteJob(req.params.id, req.user.id);
     sendResponse(res, result);
@@ -258,25 +305,38 @@ app.delete(
 // Job Updates API Routes
 
 // Get updates for a specific job
-app.get("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
-  const result = await jobService.getJobUpdates(
-    req.params.id,
-    req.user.id,
-    req.user.role
-  );
-  sendResponse(res, result);
-});
+app.get(
+  "/api/jobs/:id/updates",
+  authenticateToken,
+  validateJobId,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.getJobUpdates(
+      req.params.id,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
 
 // Create a new job update
-app.post("/api/jobs/:id/updates", authenticateToken, async (req, res) => {
-  const result = await jobService.createJobUpdate(
-    req.params.id,
-    req.body,
-    req.user.id,
-    req.user.role
-  );
-  sendResponse(res, result);
-});
+app.post(
+  "/api/jobs/:id/updates",
+  authenticateToken,
+  sanitizeRequest,
+  validateJobUpdate,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.createJobUpdate(
+      req.params.id,
+      req.body,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
 
 // Get recent activity feed for dashboard
 app.get("/api/activity-feed", authenticateToken, async (req, res) => {
@@ -299,6 +359,9 @@ app.post(
   "/api/jobs/optimize-route",
   authenticateToken,
   requirePermission("jobs.assign"),
+  sanitizeRequest,
+  validateRouteOptimization,
+  handleValidationErrors,
   async (req, res) => {
     const { job_ids, start_location, end_location } = req.body;
     const result = await jobService.optimizeRoute(
@@ -315,6 +378,9 @@ app.post(
   "/api/jobs/optimize-route-advanced",
   authenticateToken,
   requirePermission("jobs.assign"),
+  sanitizeRequest,
+  validateRouteOptimization,
+  handleValidationErrors,
   async (req, res) => {
     const {
       job_ids,
@@ -379,10 +445,17 @@ app.get("/api/routes/shared/:token", async (req, res) => {
 });
 
 // ETA calculation with traffic
-app.post("/api/eta/calculate", authenticateToken, async (req, res) => {
-  const result = await jobService.calculateEta(req.body);
-  sendResponse(res, result);
-});
+app.post(
+  "/api/eta/calculate",
+  authenticateToken,
+  sanitizeRequest,
+  validateEtaCalculation,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.calculateEta(req.body);
+    sendResponse(res, result);
+  }
+);
 
 // Enhanced Authentication Routes
 

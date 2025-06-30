@@ -1,6 +1,7 @@
 const { updateCustomerCoordinates } = require("./geocoding");
 const socketService = require("./socketService");
 const customerRepository = require("../repositories/customerRepository");
+const { handleError } = require("../utils/errors");
 const {
   successResponse,
   errorResponse,
@@ -17,18 +18,15 @@ class CustomerService {
   async getCustomers() {
     try {
       const result = await customerRepository.findAll();
-
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
       return successResponse(
         { customers: result.data },
         "Customers retrieved successfully"
       );
     } catch (error) {
-      console.error("Get customers error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -38,18 +36,17 @@ class CustomerService {
   async getCustomerById(customerId) {
     try {
       const result = await customerRepository.findById(customerId);
-
-      if (!result.success) {
-        return notFoundResponse("Customer");
-      }
-
       return successResponse(
         { customer: result.data },
         "Customer retrieved successfully"
       );
     } catch (error) {
-      console.error("Get customer by ID error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("Customer")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -60,11 +57,6 @@ class CustomerService {
     try {
       const { name, email, phone, address } = customerData;
 
-      // Validation
-      if (!name) {
-        return errorResponse("Customer name is required", 400);
-      }
-
       // Create customer using repository
       const result = await customerRepository.create({
         name,
@@ -72,10 +64,6 @@ class CustomerService {
         phone,
         address,
       });
-
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
 
       const customer = result.data;
 
@@ -95,8 +83,10 @@ class CustomerService {
 
       return successResponse(customer, "Customer created successfully", 201);
     } catch (error) {
-      console.error("Create customer error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -107,12 +97,8 @@ class CustomerService {
     try {
       const { name, email, phone, address } = updateData;
 
-      // Check if customer exists and update using repository
+      // Get existing customer to check if address changed
       const existingResult = await customerRepository.findById(customerId);
-      if (!existingResult.success) {
-        return notFoundResponse("Customer");
-      }
-
       const existingCustomer = existingResult.data;
 
       // Update customer using repository
@@ -123,14 +109,10 @@ class CustomerService {
         address,
       });
 
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
       const updatedCustomer = result.data;
 
       // Geocode address in background if provided and changed
-      if (address && address !== existingCustomer.rows[0].address) {
+      if (address && address !== existingCustomer.address) {
         updateCustomerCoordinates(customerId, address).catch(console.error);
       }
 
@@ -145,8 +127,12 @@ class CustomerService {
 
       return successResponse(updatedCustomer, "Customer updated successfully");
     } catch (error) {
-      console.error("Update customer error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("Customer")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -157,16 +143,6 @@ class CustomerService {
     try {
       // Delete customer using repository (includes job check)
       const result = await customerRepository.delete(customerId);
-
-      if (!result.success) {
-        if (result.error === "Cannot delete customer with associated jobs") {
-          return errorResponse(
-            "Cannot delete customer with associated jobs",
-            400
-          );
-        }
-        return notFoundResponse("Customer");
-      }
 
       // Emit WebSocket event for customer deletion
       if (socketService.getHandlers()) {
@@ -182,8 +158,14 @@ class CustomerService {
         "Customer deleted successfully"
       );
     } catch (error) {
-      console.error("Delete customer error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("Customer")
+        : errorResponse.statusCode === 409
+        ? errorResponse(errorResponse.error, errorResponse.statusCode)
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 

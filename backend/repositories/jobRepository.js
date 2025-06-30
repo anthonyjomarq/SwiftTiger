@@ -1,4 +1,10 @@
 const { pool } = require("../database");
+const {
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+  handleError,
+} = require("../utils/errors");
 
 /**
  * Job Repository - Handles all database operations for jobs
@@ -242,11 +248,7 @@ class JobRepository {
       const result = await pool.query(query, [id]);
 
       if (result.rows.length === 0) {
-        return {
-          success: false,
-          error: "Job not found",
-          statusCode: 404,
-        };
+        throw new NotFoundError("Job not found", "job");
       }
 
       return {
@@ -254,12 +256,10 @@ class JobRepository {
         data: result.rows[0],
       };
     } catch (error) {
-      console.error("Find job by ID with details error:", error);
-      return {
-        success: false,
-        error: "Failed to retrieve job",
-        details: error.message,
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
     }
   }
 
@@ -270,71 +270,78 @@ class JobRepository {
     const client = await this.beginTransaction();
 
     try {
-      const {
-        title,
-        description,
-        customer_id,
-        status = "pending",
-        assigned_to,
-        scheduled_date,
-        scheduled_time,
-        estimated_duration = 60,
-      } = data;
-
-      // Validate required fields
-      if (!title) {
-        throw new Error("Job title is required");
-      }
-
-      // Create the job
-      const jobQuery = `
-        INSERT INTO ${this.tableName} (
-          title, description, customer_id, status, assigned_to, 
-          scheduled_date, scheduled_time, estimated_duration
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-        RETURNING *
-      `;
-
-      const jobResult = await client.query(jobQuery, [
-        title,
-        description,
-        customer_id,
-        status,
-        assigned_to,
-        scheduled_date,
-        scheduled_time,
-        estimated_duration,
-      ]);
-
-      const newJob = jobResult.rows[0];
-
-      // Create initial job update
-      const updateQuery = `
-        INSERT INTO ${this.updatesTableName} (job_id, user_id, content, update_type) 
-        VALUES ($1, $2, $3, $4)
-      `;
-
-      await client.query(updateQuery, [
-        newJob.id,
-        userId,
-        "Job created",
-        "creation",
-      ]);
-
+      const result = await this.createWithTransaction(client, data, userId);
       await this.commitTransaction(client);
-
-      return {
-        success: true,
-        data: newJob,
-      };
+      return result;
     } catch (error) {
       await this.rollbackTransaction(client);
-      console.error("Create job error:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to create job",
-      };
+      throw error;
     }
+  }
+
+  /**
+   * Create a new job using an existing transaction
+   */
+  async createWithTransaction(client, data, userId) {
+    const {
+      title,
+      description,
+      customer_id,
+      status = "pending",
+      assigned_to,
+      scheduled_date,
+      scheduled_time,
+      estimated_duration = 60,
+    } = data;
+
+    // Validate required fields
+    if (!title) {
+      throw new ValidationError("Job title is required", "title");
+    }
+
+    if (!customer_id) {
+      throw new ValidationError("Customer ID is required", "customer_id");
+    }
+
+    // Create the job
+    const jobQuery = `
+      INSERT INTO ${this.tableName} (
+        title, description, customer_id, status, assigned_to, 
+        scheduled_date, scheduled_time, estimated_duration
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      RETURNING *
+    `;
+
+    const jobResult = await client.query(jobQuery, [
+      title,
+      description,
+      customer_id,
+      status,
+      assigned_to,
+      scheduled_date,
+      scheduled_time,
+      estimated_duration,
+    ]);
+
+    const newJob = jobResult.rows[0];
+
+    // Create initial job update
+    const updateQuery = `
+      INSERT INTO ${this.updatesTableName} (job_id, user_id, content, update_type) 
+      VALUES ($1, $2, $3, $4)
+    `;
+
+    await client.query(updateQuery, [
+      newJob.id,
+      userId,
+      "Job created",
+      "creation",
+    ]);
+
+    return {
+      success: true,
+      data: newJob,
+    };
   }
 
   /**
@@ -351,7 +358,7 @@ class JobRepository {
       );
 
       if (currentJobResult.rows.length === 0) {
-        throw new Error("Job not found");
+        throw new NotFoundError("Job not found", "job");
       }
 
       const oldJob = currentJobResult.rows[0];
@@ -482,7 +489,7 @@ class JobRepository {
       );
 
       if (result.rows.length === 0) {
-        throw new Error("Job not found");
+        throw new NotFoundError("Job not found", "job");
       }
 
       await this.commitTransaction(client);
@@ -493,11 +500,10 @@ class JobRepository {
       };
     } catch (error) {
       await this.rollbackTransaction(client);
-      console.error("Delete job error:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to delete job",
-      };
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
     }
   }
 
@@ -549,7 +555,7 @@ class JobRepository {
       const { content, update_type = "comment" } = data;
 
       if (!content) {
-        throw new Error("Update content is required");
+        throw new ValidationError("Update content is required", "content");
       }
 
       // Create the update
@@ -592,11 +598,14 @@ class JobRepository {
       };
     } catch (error) {
       await this.rollbackTransaction(client);
-      console.error("Create job update error:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to create job update",
-      };
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      if (error.code === "23503") {
+        // Foreign key constraint violation
+        throw new NotFoundError("Job not found", "job");
+      }
+      throw error;
     }
   }
 

@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const socketService = require("./socketService");
 const userRepository = require("../repositories/userRepository");
+const { handleError } = require("../utils/errors");
 const {
   successResponse,
   errorResponse,
@@ -21,18 +22,15 @@ class UserService {
   async getUsers() {
     try {
       const result = await userRepository.findAll();
-
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
       return successResponse(
         { users: result.data },
         "Users retrieved successfully"
       );
     } catch (error) {
-      console.error("Get users error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -42,18 +40,17 @@ class UserService {
   async getUserById(userId) {
     try {
       const result = await userRepository.findById(userId);
-
-      if (!result.success) {
-        return notFoundResponse("User");
-      }
-
       return successResponse(
         { user: result.data },
         "User retrieved successfully"
       );
     } catch (error) {
-      console.error("Get user by ID error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("User")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -63,18 +60,17 @@ class UserService {
   async getCurrentUser(userId) {
     try {
       const result = await userRepository.findById(userId);
-
-      if (!result.success) {
-        return notFoundResponse("User");
-      }
-
       return successResponse(
         { user: result.data },
         "Current user retrieved successfully"
       );
     } catch (error) {
-      console.error("Get current user error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("User")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -84,18 +80,17 @@ class UserService {
   async getUserPermissions(userId) {
     try {
       const result = await userRepository.getPermissions(userId);
-
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
       return successResponse(
         { permissions: result.data },
         "User permissions retrieved successfully"
       );
     } catch (error) {
-      console.error("Get permissions error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("User")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -106,11 +101,6 @@ class UserService {
     try {
       const { email, password, name, role = "technician" } = userData;
 
-      // Validation
-      if (!email || !password || !name) {
-        return errorResponse("Email, password, and name are required", 400);
-      }
-
       // Create user using repository (includes duplicate check and first user logic)
       const result = await userRepository.create({
         email,
@@ -118,13 +108,6 @@ class UserService {
         name,
         role,
       });
-
-      if (!result.success) {
-        if (result.error === "User already exists") {
-          return errorResponse("User already exists", 400);
-        }
-        return internalServerErrorResponse();
-      }
 
       const user = result.data;
 
@@ -139,8 +122,10 @@ class UserService {
 
       return successResponse(user, "User created successfully", 201);
     } catch (error) {
-      console.error("Create user error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 

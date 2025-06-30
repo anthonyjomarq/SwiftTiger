@@ -233,6 +233,21 @@ class SocketHandlers {
     }
   }
 
+  async logActivityWithTransaction(client, userId, type, details) {
+    try {
+      const result = await client.query(
+        `INSERT INTO activity_log (user_id, type, details, created_at)
+         VALUES ($1, $2, $3, NOW())
+         RETURNING *`,
+        [userId, type, JSON.stringify(details)]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error("Activity logging with transaction error:", error);
+      throw error;
+    }
+  }
+
   async sendNotification(userId, title, message, type = "info", data = {}) {
     try {
       const result = await pool.query(
@@ -253,6 +268,28 @@ class SocketHandlers {
       return notification;
     } catch (error) {
       console.error("Notification sending error:", error);
+    }
+  }
+
+  async sendNotificationWithTransaction(
+    client,
+    userId,
+    title,
+    message,
+    type = "info",
+    data = {}
+  ) {
+    try {
+      const result = await client.query(
+        `INSERT INTO notifications (user_id, title, message, type, data, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING *`,
+        [userId, title, message, type, JSON.stringify(data)]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error("Notification sending with transaction error:", error);
+      throw error;
     }
   }
 

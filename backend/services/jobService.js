@@ -2,6 +2,7 @@ const { pool } = require("../database");
 const socketService = require("./socketService");
 const { hasPermission } = require("../middleware/permissions");
 const jobRepository = require("../repositories/jobRepository");
+const { handleError } = require("../utils/errors");
 const {
   successResponse,
   errorResponse,
@@ -50,17 +51,15 @@ class JobService {
       // Use repository to get jobs
       const result = await jobRepository.findAllWithRelations(filters);
 
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
       return successResponse(
         { jobs: result.data },
         "Jobs retrieved successfully"
       );
     } catch (error) {
-      console.error("Get jobs error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -70,11 +69,6 @@ class JobService {
   async getJobById(jobId, userId, userRole) {
     try {
       const result = await jobRepository.findByIdWithDetails(jobId);
-
-      if (!result.success) {
-        return notFoundResponse("Job");
-      }
-
       const job = result.data;
 
       // Check permissions for technicians
@@ -84,8 +78,12 @@ class JobService {
 
       return successResponse({ job }, "Job retrieved successfully");
     } catch (error) {
-      console.error("Get job by ID error:", error);
-      return internalServerErrorResponse();
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 404
+        ? notFoundResponse("Job")
+        : errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
@@ -93,6 +91,8 @@ class JobService {
    * Create a new job with validation and WebSocket emissions
    */
   async createJob(jobData, userId) {
+    const client = await jobRepository.beginTransaction();
+
     try {
       const {
         title,
@@ -104,11 +104,6 @@ class JobService {
         scheduled_time,
         estimated_duration,
       } = jobData;
-
-      // Validation
-      if (!title) {
-        return errorResponse("Job title is required", 400);
-      }
 
       // Prepare job data for repository
       const jobDataForRepo = {
@@ -122,29 +117,30 @@ class JobService {
         estimated_duration: estimated_duration || 60,
       };
 
-      // Use repository to create job
-      const result = await jobRepository.create(jobDataForRepo, userId);
-
-      if (!result.success) {
-        return internalServerErrorResponse();
-      }
-
+      // Create job using repository (this handles the job creation and initial update)
+      const result = await jobRepository.createWithTransaction(
+        client,
+        jobDataForRepo,
+        userId
+      );
       const newJob = result.data;
 
-      // Emit WebSocket events
+      // Log activity in transaction
       if (socketService.getHandlers()) {
-        // Broadcast new job to all connected users
-        socketService.broadcastJobUpdate(newJob.id, newJob, userId);
+        await socketService.logActivityWithTransaction(
+          client,
+          userId,
+          "job_create",
+          {
+            jobId: newJob.id,
+            title: title,
+          }
+        );
 
-        // Log activity
-        await socketService.logActivity(userId, "job_create", {
-          jobId: newJob.id,
-          title: title,
-        });
-
-        // Send notification to assigned technician
+        // Send notification to assigned technician in transaction
         if (assigned_to) {
-          await socketService.sendNotification(
+          await socketService.sendNotificationWithTransaction(
+            client,
             assigned_to,
             "New Job Assignment",
             `You have been assigned to a new job: ${title}`,
@@ -154,10 +150,21 @@ class JobService {
         }
       }
 
+      await jobRepository.commitTransaction(client);
+
+      // Emit WebSocket events after successful commit (non-critical operations)
+      if (socketService.getHandlers()) {
+        // Broadcast new job to all connected users
+        socketService.broadcastJobUpdate(newJob.id, newJob, userId);
+      }
+
       return successResponse(newJob, "Job created successfully", 201);
     } catch (error) {
-      console.error("Create job error:", error);
-      return internalServerErrorResponse();
+      await jobRepository.rollbackTransaction(client);
+      const errorResponse = handleError(error);
+      return errorResponse.statusCode === 500
+        ? internalServerErrorResponse()
+        : errorResponse(errorResponse.error, errorResponse.statusCode);
     }
   }
 
