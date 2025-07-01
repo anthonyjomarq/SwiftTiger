@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSocketContext } from "../contexts/SocketContext";
 import { useAuth } from "../contexts/AuthContext";
 import apiService from "../services/api";
+import { UI_TEXT } from "../config/constants";
 
 const RealtimeJobList = () => {
   const [jobs, setJobs] = useState([]);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
+import { UI_TEXT } from "../config/constants";
 
 const JobEditForm = ({ job, onClose, onJobUpdate }) => {
   const [formData, setFormData] = useState({

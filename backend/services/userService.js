@@ -9,6 +9,7 @@ const {
   notFoundResponse,
   internalServerErrorResponse,
 } = require("../utils/apiResponse");
+const { USER_ROLES, DATABASE } = require("../config/constants");
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
@@ -99,7 +100,12 @@ class UserService {
    */
   async createUser(userData) {
     try {
-      const { email, password, name, role = "technician" } = userData;
+      const {
+        email,
+        password,
+        name,
+        role = DATABASE.DEFAULTS.USER_ROLE,
+      } = userData;
 
       // Create user using repository (includes duplicate check and first user logic)
       const result = await userRepository.create({

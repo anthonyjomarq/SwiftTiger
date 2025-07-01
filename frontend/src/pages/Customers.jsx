@@ -1,340 +1,121 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { useAuth } from "../contexts/AuthContext";
+import React, { useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import usePlacesAutocomplete, {
-  getGeocode,
-  getLatLng,
-} from "use-places-autocomplete";
+import { useCustomers } from "../hooks/useCustomers";
+import { usePermissions } from "../hooks/usePermissions";
+import CustomerList from "../components/CustomerList";
+import CustomerForm from "../components/CustomerForm";
+import CustomerDetail from "../components/CustomerDetail";
+import LoadingBoundary from "../components/LoadingBoundary";
+import Button from "../components/ui/Button";
 
 const Customers = () => {
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-  });
-  const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [addressInput, setAddressInput] = useState("");
 
-  // Places Autocomplete for address (Puerto Rico only)
   const {
-    ready: addressReady,
-    value: addressValue,
-    suggestions: { status: addressStatus, data: addressData },
-    setValue: setAddressValue,
-    clearSuggestions: clearAddressSuggestions,
-  } = usePlacesAutocomplete({
-    debounce: 300,
-    requestOptions: {
-      componentRestrictions: { country: "PR" },
-    },
-  });
+    customers,
+    loading,
+    error,
+    showAddForm,
+    editingCustomer,
+    formData,
+    customerCount,
+    fetchCustomers,
+    handleSubmit,
+    handleEdit,
+    handleDelete,
+    handleChange,
+    cancelForm,
+    showAddCustomerForm,
+    setShowAddForm,
+    setError,
+    canCreate,
+    canEdit,
+    canDelete,
+  } = useCustomers();
 
-  useEffect(() => {
-    fetchCustomers();
-    // Check if we should show the add form (coming from dashboard)
+  const { permissions } = usePermissions();
+
+  // Check if we should show the add form (coming from dashboard)
+  React.useEffect(() => {
     if (location.state?.showAddForm) {
       setShowAddForm(true);
     }
-  }, [location.state]);
+  }, [location.state, setShowAddForm]);
 
-  const fetchCustomers = async () => {
-    try {
-      const response = await axios.get("/api/customers");
-      setCustomers(response.data.customers);
-    } catch (error) {
-      setError("Failed to load customers");
-      console.error("Customers error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    try {
-      if (editingCustomer) {
-        await axios.put(`/api/customers/${editingCustomer.id}`, formData);
-      } else {
-        await axios.post("/api/customers", formData);
-      }
-
-      setFormData({ name: "", email: "", phone: "", address: "" });
-      setShowAddForm(false);
-      setEditingCustomer(null);
-      fetchCustomers();
-
+  // Handle form submission
+  const handleFormSubmit = useCallback(
+    (e) => {
+      handleSubmit(e);
       // If we came from dashboard, go back
       if (location.state?.showAddForm) {
         navigate("/dashboard");
       }
-    } catch (error) {
-      setError(error.response?.data?.error || "Failed to save customer");
-      console.error("Save customer error:", error);
-    }
-  };
+    },
+    [handleSubmit, location.state, navigate]
+  );
 
-  const handleEdit = (customer) => {
-    setEditingCustomer(customer);
-    setFormData({
-      name: customer.name,
-      email: customer.email || "",
-      phone: customer.phone || "",
-      address: customer.address || "",
-    });
-    setShowAddForm(true);
-  };
-
-  const handleDelete = async (customerId) => {
-    if (!window.confirm("Are you sure you want to delete this customer?")) {
-      return;
-    }
-
-    try {
-      await axios.delete(`/api/customers/${customerId}`);
-      fetchCustomers();
-    } catch (error) {
-      setError("Failed to delete customer");
-      console.error("Delete customer error:", error);
-    }
-  };
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const cancelForm = () => {
-    setFormData({ name: "", email: "", phone: "", address: "" });
-    setShowAddForm(false);
-    setEditingCustomer(null);
-
+  // Handle cancel form
+  const handleCancelForm = useCallback(() => {
+    cancelForm();
     // If we came from dashboard, go back
     if (location.state?.showAddForm) {
       navigate("/dashboard");
     }
-  };
+  }, [cancelForm, location.state, navigate]);
 
-  // Handle input change for address
-  const handleAddressInputChange = (e) => {
-    setAddressInput(e.target.value);
-    setAddressValue(e.target.value);
-    setFormData({ ...formData, address: e.target.value });
-  };
-
-  // Handle address selection
-  const handleAddressSelect = async (address) => {
-    setAddressInput(address);
-    setAddressValue(address, false);
-    clearAddressSuggestions();
-    setFormData({ ...formData, address });
-    // Optionally, geocode for coordinates here if you want to store them immediately
-    // const geo = await getGeocode({ address });
-    // const { lat, lng } = await getLatLng(geo[0]);
-    // setFormData({ ...formData, address, latitude: lat, longitude: lng });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  // Handle back to dashboard
+  const handleBackToDashboard = useCallback(() => {
+    navigate("/dashboard");
+  }, [navigate]);
 
   return (
     <div>
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-600">Manage your customer database</p>
+          <p className="text-gray-600">
+            Manage your customer database ({customerCount} customers)
+          </p>
         </div>
-        {hasPermission("customers.create") && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-          >
+        {canCreate && (
+          <Button variant="primary" onClick={showAddCustomerForm}>
             Add Customer
-          </button>
+          </Button>
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
+      <LoadingBoundary
+        loading={loading}
+        error={error}
+        onRetry={fetchCustomers}
+        loadingText="Loading customers..."
+        errorText="Failed to load customers"
+      >
+        {showAddForm && (
+          <CustomerForm
+            customer={editingCustomer}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancelForm}
+            showBackButton={location.state?.showAddForm}
+            onBackClick={handleBackToDashboard}
+          />
+        )}
 
-      {showAddForm && (
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              {editingCustomer ? "Edit Customer" : "Add New Customer"}
-            </h3>
-            {location.state?.showAddForm && (
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-              >
-                ← Back to Dashboard
-              </button>
-            )}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter customer name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  name="address"
-                  value={addressInput}
-                  onChange={handleAddressInputChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter address"
-                  list="address-places-suggestions"
-                  // disabled={!addressReady}
-                />
-                <datalist id="address-places-suggestions">
-                  {addressStatus === "OK" &&
-                    addressData.map(({ description }, idx) => (
-                      <option key={idx} value={description} />
-                    ))}
-                </datalist>
-                <ul className="mb-2">
-                  {addressStatus === "OK" &&
-                    addressData.map(({ description }, idx) => (
-                      <li
-                        key={idx}
-                        className="cursor-pointer hover:bg-gray-100 px-2 py-1"
-                        onClick={() => handleAddressSelect(description)}
-                      >
-                        {description}
-                      </li>
-                    ))}
-                </ul>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={cancelForm}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                {editingCustomer ? "Update Customer" : "Add Customer"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+        )}
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {customers.length === 0 ? (
-            <li className="px-6 py-4 text-center text-gray-500">
-              No customers found. Add your first customer to get started.
-            </li>
-          ) : (
-            customers.map((customer) => (
-              <li key={customer.id} className="px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {customer.name}
-                    </h3>
-                    <div className="mt-1 text-sm text-gray-500">
-                      {customer.email && <p>Email: {customer.email}</p>}
-                      {customer.phone && <p>Phone: {customer.phone}</p>}
-                      {customer.address && <p>Address: {customer.address}</p>}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Added:{" "}
-                      {new Date(customer.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex space-x-2">
-                    {hasPermission("customers.edit") && (
-                      <button
-                        onClick={() => handleEdit(customer)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {hasPermission("customers.delete") && (
-                      <button
-                        onClick={() => handleDelete(customer.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
+        <CustomerList
+          customers={customers}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEdit={canEdit}
+          canDelete={canDelete}
+        />
+      </LoadingBoundary>
     </div>
   );
 };

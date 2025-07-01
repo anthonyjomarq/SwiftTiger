@@ -1,4 +1,5 @@
 const { body, param, query } = require("express-validator");
+const { VALIDATION } = require("../config/constants");
 
 /**
  * Validation schema for creating a new customer
@@ -8,8 +9,13 @@ const validateCreateCustomer = [
     .trim()
     .notEmpty()
     .withMessage("Customer name is required")
-    .isLength({ min: 1, max: 255 })
-    .withMessage("Customer name must be between 1 and 255 characters"),
+    .isLength({
+      min: VALIDATION.CUSTOMER_NAME_MIN_LENGTH,
+      max: VALIDATION.CUSTOMER_NAME_MAX_LENGTH,
+    })
+    .withMessage(
+      `Customer name must be between ${VALIDATION.CUSTOMER_NAME_MIN_LENGTH} and ${VALIDATION.CUSTOMER_NAME_MAX_LENGTH} characters`
+    ),
 
   body("email")
     .optional()
@@ -27,8 +33,10 @@ const validateCreateCustomer = [
   body("address")
     .optional()
     .trim()
-    .isLength({ max: 1000 })
-    .withMessage("Address must not exceed 1000 characters"),
+    .isLength({ max: VALIDATION.CUSTOMER_ADDRESS_MAX_LENGTH })
+    .withMessage(
+      `Address must not exceed ${VALIDATION.CUSTOMER_ADDRESS_MAX_LENGTH} characters`
+    ),
 ];
 
 /**
@@ -44,8 +52,13 @@ const validateUpdateCustomer = [
     .trim()
     .notEmpty()
     .withMessage("Customer name cannot be empty")
-    .isLength({ min: 1, max: 255 })
-    .withMessage("Customer name must be between 1 and 255 characters"),
+    .isLength({
+      min: VALIDATION.CUSTOMER_NAME_MIN_LENGTH,
+      max: VALIDATION.CUSTOMER_NAME_MAX_LENGTH,
+    })
+    .withMessage(
+      `Customer name must be between ${VALIDATION.CUSTOMER_NAME_MIN_LENGTH} and ${VALIDATION.CUSTOMER_NAME_MAX_LENGTH} characters`
+    ),
 
   body("email")
     .optional()
@@ -63,8 +76,10 @@ const validateUpdateCustomer = [
   body("address")
     .optional()
     .trim()
-    .isLength({ max: 1000 })
-    .withMessage("Address must not exceed 1000 characters"),
+    .isLength({ max: VALIDATION.CUSTOMER_ADDRESS_MAX_LENGTH })
+    .withMessage(
+      `Address must not exceed ${VALIDATION.CUSTOMER_ADDRESS_MAX_LENGTH} characters`
+    ),
 ];
 
 /**
@@ -83,8 +98,13 @@ const validateCustomerSearch = [
   query("search")
     .optional()
     .trim()
-    .isLength({ min: 1, max: 100 })
-    .withMessage("Search term must be between 1 and 100 characters"),
+    .isLength({
+      min: VALIDATION.SEARCH_MIN_LENGTH,
+      max: VALIDATION.SEARCH_MAX_LENGTH,
+    })
+    .withMessage(
+      `Search term must be between ${VALIDATION.SEARCH_MIN_LENGTH} and ${VALIDATION.SEARCH_MAX_LENGTH} characters`
+    ),
 
   query("limit")
     .optional()

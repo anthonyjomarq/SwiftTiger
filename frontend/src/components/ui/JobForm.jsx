@@ -3,16 +3,17 @@ import { useForm, Controller } from "react-hook-form";
 import Input from "./Input";
 import Select from "./Select";
 import Button from "./Button";
+import { UI_TEXT, STORAGE_KEYS } from "../../config/constants";
 
 const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "pending", label: UI_TEXT.JOBS.STATUS.PENDING },
+  { value: "in_progress", label: UI_TEXT.JOBS.STATUS.IN_PROGRESS },
+  { value: "completed", label: UI_TEXT.JOBS.STATUS.COMPLETED },
+  { value: "cancelled", label: UI_TEXT.JOBS.STATUS.CANCELLED },
 ];
 
 const STEPS = ["Details", "Assignment", "Attachments"];
-const DRAFT_KEY = "jobform_draft";
+const DRAFT_KEY = STORAGE_KEYS.JOB_FORM_DRAFT;
 
 export default function JobForm({
   onSubmit,

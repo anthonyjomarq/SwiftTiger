@@ -10,6 +10,7 @@ const {
   forbiddenResponse,
   internalServerErrorResponse,
 } = require("../utils/apiResponse");
+const { JOB_STATUSES, USER_ROLES, DATABASE } = require("../config/constants");
 
 class JobService {
   constructor() {}
@@ -72,7 +73,7 @@ class JobService {
       const job = result.data;
 
       // Check permissions for technicians
-      if (userRole === "technician" && job.assigned_to !== userId) {
+      if (userRole === USER_ROLES.TECHNICIAN && job.assigned_to !== userId) {
         return forbiddenResponse();
       }
 
@@ -110,11 +111,12 @@ class JobService {
         title,
         description,
         customer_id,
-        status: status || "pending",
+        status: status || DATABASE.DEFAULTS.JOB_STATUS,
         assigned_to,
         scheduled_date,
         scheduled_time,
-        estimated_duration: estimated_duration || 60,
+        estimated_duration:
+          estimated_duration || DATABASE.DEFAULTS.JOB_ESTIMATED_DURATION,
       };
 
       // Create job using repository (this handles the job creation and initial update)
@@ -204,7 +206,7 @@ class JobService {
       const currentUserRole = userResult.rows[0].role;
 
       // Check permissions
-      if (currentUserRole === "technician") {
+      if (currentUserRole === USER_ROLES.TECHNICIAN) {
         if (oldJob.assigned_to !== userId) {
           return errorResponse("You can only edit jobs assigned to you", 403);
         }
@@ -326,7 +328,7 @@ class JobService {
       const job = jobCheck.data;
 
       // Technicians can only see updates for their assigned jobs
-      if (userRole === "technician" && job.assigned_to !== userId) {
+      if (userRole === USER_ROLES.TECHNICIAN && job.assigned_to !== userId) {
         return forbiddenResponse();
       }
 
@@ -367,7 +369,7 @@ class JobService {
       const job = jobCheck.data;
 
       // Technicians can only update their assigned jobs
-      if (userRole === "technician" && job.assigned_to !== userId) {
+      if (userRole === USER_ROLES.TECHNICIAN && job.assigned_to !== userId) {
         return forbiddenResponse();
       }
 
@@ -423,7 +425,7 @@ class JobService {
       }
 
       // For technicians, only show their jobs
-      if (userRole === "technician") {
+      if (userRole === USER_ROLES.TECHNICIAN) {
         repoFilters.assigned_to = userId;
       }
 

@@ -1,4 +1,5 @@
 const { body, param, query } = require("express-validator");
+const { JOB_STATUSES, VALIDATION } = require("../config/constants");
 
 /**
  * Validation schema for creating a new job
@@ -8,14 +9,21 @@ const validateCreateJob = [
     .trim()
     .notEmpty()
     .withMessage("Job title is required")
-    .isLength({ min: 1, max: 255 })
-    .withMessage("Job title must be between 1 and 255 characters"),
+    .isLength({
+      min: VALIDATION.JOB_TITLE_MIN_LENGTH,
+      max: VALIDATION.JOB_TITLE_MAX_LENGTH,
+    })
+    .withMessage(
+      `Job title must be between ${VALIDATION.JOB_TITLE_MIN_LENGTH} and ${VALIDATION.JOB_TITLE_MAX_LENGTH} characters`
+    ),
 
   body("description")
     .optional()
     .trim()
-    .isLength({ max: 1000 })
-    .withMessage("Description must not exceed 1000 characters"),
+    .isLength({ max: VALIDATION.JOB_DESCRIPTION_MAX_LENGTH })
+    .withMessage(
+      `Description must not exceed ${VALIDATION.JOB_DESCRIPTION_MAX_LENGTH} characters`
+    ),
 
   body("customer_id")
     .optional()
@@ -29,9 +37,9 @@ const validateCreateJob = [
 
   body("status")
     .optional()
-    .isIn(["pending", "in_progress", "completed", "cancelled", "on_hold"])
+    .isIn(Object.values(JOB_STATUSES))
     .withMessage(
-      "Status must be one of: pending, in_progress, completed, cancelled, on_hold"
+      `Status must be one of: ${Object.values(JOB_STATUSES).join(", ")}`
     ),
 
   body("scheduled_date")
@@ -46,8 +54,13 @@ const validateCreateJob = [
 
   body("estimated_duration")
     .optional()
-    .isInt({ min: 1, max: 1440 })
-    .withMessage("Estimated duration must be between 1 and 1440 minutes"),
+    .isInt({
+      min: VALIDATION.JOB_ESTIMATED_DURATION_MIN,
+      max: VALIDATION.JOB_ESTIMATED_DURATION_MAX,
+    })
+    .withMessage(
+      `Estimated duration must be between ${VALIDATION.JOB_ESTIMATED_DURATION_MIN} and ${VALIDATION.JOB_ESTIMATED_DURATION_MAX} minutes`
+    ),
 ];
 
 /**
@@ -63,14 +76,21 @@ const validateUpdateJob = [
     .trim()
     .notEmpty()
     .withMessage("Job title cannot be empty")
-    .isLength({ min: 1, max: 255 })
-    .withMessage("Job title must be between 1 and 255 characters"),
+    .isLength({
+      min: VALIDATION.JOB_TITLE_MIN_LENGTH,
+      max: VALIDATION.JOB_TITLE_MAX_LENGTH,
+    })
+    .withMessage(
+      `Job title must be between ${VALIDATION.JOB_TITLE_MIN_LENGTH} and ${VALIDATION.JOB_TITLE_MAX_LENGTH} characters`
+    ),
 
   body("description")
     .optional()
     .trim()
-    .isLength({ max: 1000 })
-    .withMessage("Description must not exceed 1000 characters"),
+    .isLength({ max: VALIDATION.JOB_DESCRIPTION_MAX_LENGTH })
+    .withMessage(
+      `Description must not exceed ${VALIDATION.JOB_DESCRIPTION_MAX_LENGTH} characters`
+    ),
 
   body("customer_id")
     .optional()
@@ -84,9 +104,9 @@ const validateUpdateJob = [
 
   body("status")
     .optional()
-    .isIn(["pending", "in_progress", "completed", "cancelled", "on_hold"])
+    .isIn(Object.values(JOB_STATUSES))
     .withMessage(
-      "Status must be one of: pending, in_progress, completed, cancelled, on_hold"
+      `Status must be one of: ${Object.values(JOB_STATUSES).join(", ")}`
     ),
 
   body("scheduled_date")
@@ -101,8 +121,13 @@ const validateUpdateJob = [
 
   body("estimated_duration")
     .optional()
-    .isInt({ min: 1, max: 1440 })
-    .withMessage("Estimated duration must be between 1 and 1440 minutes"),
+    .isInt({
+      min: VALIDATION.JOB_ESTIMATED_DURATION_MIN,
+      max: VALIDATION.JOB_ESTIMATED_DURATION_MAX,
+    })
+    .withMessage(
+      `Estimated duration must be between ${VALIDATION.JOB_ESTIMATED_DURATION_MIN} and ${VALIDATION.JOB_ESTIMATED_DURATION_MAX} minutes`
+    ),
 ];
 
 /**
@@ -116,9 +141,9 @@ const validateJobStatus = [
   body("status")
     .notEmpty()
     .withMessage("Status is required")
-    .isIn(["pending", "in_progress", "completed", "cancelled", "on_hold"])
+    .isIn(Object.values(JOB_STATUSES))
     .withMessage(
-      "Status must be one of: pending, in_progress, completed, cancelled, on_hold"
+      `Status must be one of: ${Object.values(JOB_STATUSES).join(", ")}`
     ),
 ];
 

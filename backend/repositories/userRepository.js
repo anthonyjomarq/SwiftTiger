@@ -6,6 +6,7 @@ const {
   ConflictError,
   handleError,
 } = require("../utils/errors");
+const { USER_ROLES, DATABASE, PERMISSIONS } = require("../config/constants");
 
 /**
  * User Repository - Handles all database operations for users
@@ -14,7 +15,7 @@ const {
  */
 class UserRepository {
   constructor() {
-    this.tableName = "users";
+    this.tableName = DATABASE.TABLES.USERS;
   }
 
   /**
@@ -130,7 +131,12 @@ class UserRepository {
     const client = await this.beginTransaction();
 
     try {
-      const { email, password, name, role = "technician" } = userData;
+      const {
+        email,
+        password,
+        name,
+        role = DATABASE.DEFAULTS.USER_ROLE,
+      } = userData;
 
       // Validation
       if (!email || !password || !name) {
@@ -159,7 +165,7 @@ class UserRepository {
         `SELECT COUNT(*) as count FROM ${this.tableName}`
       );
       const isFirstUser = parseInt(userCount.rows[0].count) === 0;
-      const finalRole = isFirstUser ? "admin" : role;
+      const finalRole = isFirstUser ? USER_ROLES.ADMIN : role;
 
       const query = `
         INSERT INTO ${this.tableName} (name, email, password, role, created_at, updated_at)
@@ -387,28 +393,39 @@ class UserRepository {
    */
   getPermissionsByRole(role) {
     const permissions = {
-      admin: [
-        "users:read",
-        "users:write",
-        "users:delete",
-        "customers:read",
-        "customers:write",
-        "customers:delete",
-        "jobs:read",
-        "jobs:write",
-        "jobs:delete",
-        "reports:read",
-        "settings:write",
+      [USER_ROLES.ADMIN]: [
+        PERMISSIONS.USERS_VIEW,
+        PERMISSIONS.USERS_CREATE,
+        PERMISSIONS.USERS_EDIT,
+        PERMISSIONS.USERS_DELETE,
+        PERMISSIONS.CUSTOMERS_VIEW,
+        PERMISSIONS.CUSTOMERS_CREATE,
+        PERMISSIONS.CUSTOMERS_EDIT,
+        PERMISSIONS.CUSTOMERS_DELETE,
+        PERMISSIONS.JOBS_VIEW,
+        PERMISSIONS.JOBS_CREATE,
+        PERMISSIONS.JOBS_EDIT,
+        PERMISSIONS.JOBS_DELETE,
+        PERMISSIONS.DASHBOARD_VIEW,
+        PERMISSIONS.ROUTES_VIEW,
       ],
-      manager: [
-        "users:read",
-        "customers:read",
-        "customers:write",
-        "jobs:read",
-        "jobs:write",
-        "reports:read",
+      [USER_ROLES.MANAGER]: [
+        PERMISSIONS.USERS_VIEW,
+        PERMISSIONS.CUSTOMERS_VIEW,
+        PERMISSIONS.CUSTOMERS_CREATE,
+        PERMISSIONS.CUSTOMERS_EDIT,
+        PERMISSIONS.JOBS_VIEW,
+        PERMISSIONS.JOBS_CREATE,
+        PERMISSIONS.JOBS_EDIT,
+        PERMISSIONS.DASHBOARD_VIEW,
+        PERMISSIONS.ROUTES_VIEW,
       ],
-      technician: ["customers:read", "jobs:read", "jobs:write"],
+      [USER_ROLES.TECHNICIAN]: [
+        PERMISSIONS.CUSTOMERS_VIEW,
+        PERMISSIONS.JOBS_VIEW_ASSIGNED,
+        PERMISSIONS.JOBS_EDIT,
+        PERMISSIONS.JOBS_UPDATE_STATUS,
+      ],
     };
 
     return permissions[role] || [];

@@ -5,6 +5,7 @@ const {
   ConflictError,
   handleError,
 } = require("../utils/errors");
+const { JOB_STATUSES, DATABASE, VALIDATION } = require("../config/constants");
 
 /**
  * Job Repository - Handles all database operations for jobs
@@ -13,11 +14,11 @@ const {
  */
 class JobRepository {
   constructor() {
-    this.tableName = "jobs";
-    this.updatesTableName = "job_updates";
-    this.customersTableName = "customers";
-    this.usersTableName = "users";
-    this.technicianLocationsTableName = "technician_locations";
+    this.tableName = DATABASE.TABLES.JOBS;
+    this.updatesTableName = DATABASE.TABLES.JOB_UPDATES;
+    this.customersTableName = DATABASE.TABLES.CUSTOMERS;
+    this.usersTableName = DATABASE.TABLES.USERS;
+    this.technicianLocationsTableName = DATABASE.TABLES.TECHNICIAN_LOCATIONS;
     this.sharedRoutesTableName = "shared_routes";
   }
 
@@ -287,11 +288,11 @@ class JobRepository {
       title,
       description,
       customer_id,
-      status = "pending",
+      status = DATABASE.DEFAULTS.JOB_STATUS,
       assigned_to,
       scheduled_date,
       scheduled_time,
-      estimated_duration = 60,
+      estimated_duration = DATABASE.DEFAULTS.JOB_ESTIMATED_DURATION,
     } = data;
 
     // Validate required fields
@@ -702,9 +703,9 @@ class JobRepository {
       const statsQuery = `
         SELECT 
           (SELECT COUNT(*) FROM ${this.tableName}) as total_jobs,
-          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = 'pending') as pending_jobs,
-          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = 'in_progress') as in_progress_jobs,
-          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = 'completed') as completed_jobs,
+          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = '${JOB_STATUSES.PENDING}') as pending_jobs,
+          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = '${JOB_STATUSES.IN_PROGRESS}') as in_progress_jobs,
+          (SELECT COUNT(*) FROM ${this.tableName} WHERE status = '${JOB_STATUSES.COMPLETED}') as completed_jobs,
           (SELECT COUNT(*) FROM ${this.customersTableName}) as total_customers,
           (SELECT COUNT(DISTINCT assigned_to) FROM ${this.tableName} WHERE assigned_to IS NOT NULL) as active_technicians
       `;
@@ -941,7 +942,7 @@ class JobRepository {
     try {
       const baseFilters = {
         ...filters,
-        statuses: ["pending", "in_progress"],
+        statuses: [JOB_STATUSES.PENDING, JOB_STATUSES.IN_PROGRESS],
         has_coordinates: true,
       };
 
