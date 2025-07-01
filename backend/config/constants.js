@@ -12,6 +12,15 @@ const JOB_STATUSES = {
   ON_HOLD: "on_hold",
 };
 
+// Job Priority Levels
+const JOB_PRIORITIES = {
+  LOW: "low",
+  NORMAL: "normal",
+  HIGH: "high",
+  URGENT: "urgent",
+  EMERGENCY: "emergency",
+};
+
 // User Roles
 const USER_ROLES = {
   ADMIN: "admin",
@@ -122,6 +131,7 @@ const DATABASE = {
   // Default values
   DEFAULTS: {
     JOB_STATUS: JOB_STATUSES.PENDING,
+    JOB_PRIORITY: JOB_PRIORITIES.NORMAL,
     USER_ROLE: USER_ROLES.TECHNICIAN,
     JOB_ESTIMATED_DURATION: 60, // 1 hour in minutes
   },
@@ -249,6 +259,7 @@ const ROUTE_OPTIMIZATION = {
 
 module.exports = {
   JOB_STATUSES,
+  JOB_PRIORITIES,
   USER_ROLES,
   PERMISSIONS,
   PAGINATION,

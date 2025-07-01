@@ -13,6 +13,14 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: UI_TEXT.JOBS.STATUS.CANCELLED },
 ];
 
+const PRIORITY_OPTIONS = [
+  { value: "low", label: UI_TEXT.JOBS.PRIORITY.LOW },
+  { value: "normal", label: UI_TEXT.JOBS.PRIORITY.NORMAL },
+  { value: "high", label: UI_TEXT.JOBS.PRIORITY.HIGH },
+  { value: "urgent", label: UI_TEXT.JOBS.PRIORITY.URGENT },
+  { value: "emergency", label: UI_TEXT.JOBS.PRIORITY.EMERGENCY },
+];
+
 const STEPS = ["Details", "Assignment", "Attachments"];
 const DRAFT_KEY = STORAGE_KEYS.JOB_FORM_DRAFT;
 
@@ -49,6 +57,7 @@ export default function JobForm({
       description: "",
       customer_id: "",
       status: "pending",
+      priority: "normal",
       assigned_to: "",
       due_date: "",
       ...initialData,
@@ -175,6 +184,13 @@ export default function JobForm({
             control={control}
             render={({ field }) => (
               <Input label="Due Date" type="date" {...field} />
+            )}
+          />
+          <Controller
+            name="priority"
+            control={control}
+            render={({ field }) => (
+              <Select label="Priority" options={PRIORITY_OPTIONS} {...field} />
             )}
           />
         </>

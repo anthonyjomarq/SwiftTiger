@@ -9,6 +9,7 @@
 // External libraries
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
@@ -17,6 +18,9 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
+// Validate environment variables before starting server
+const { validateAndExit } = require("./utils/envValidator");
+
 // Database and middleware
 const { pool, initializeDatabase } = require("./database");
 const { requirePermission } = require("./middleware/permissions");
@@ -24,6 +28,10 @@ const {
   handleValidationErrors,
   sanitizeRequest,
 } = require("./middleware/validation");
+const {
+  validateJobWorkflow,
+  validateJobAssignment,
+} = require("./middleware/jobWorkflow");
 
 // Validators
 const {
@@ -108,20 +116,87 @@ const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
 /**
+ * Rate limiting configuration
+ */
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    error: "Too many requests from this IP, please try again later",
+    code: 429
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 auth requests per windowMs
+  message: {
+    error: "Too many authentication attempts, please try again later",
+    code: 429
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 requests per minute
+  message: {
+    error: "Rate limit exceeded, please slow down",
+    code: 429
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * CORS configuration with environment-based origins
+ */
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.FRONTEND_URL].filter(Boolean)
+  : [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'http://localhost:5173',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-ID'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']
+};
+
+/**
  * Global middleware configuration
  */
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  })
-);
-app.use(express.json());
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
 
 // Add request logging middleware
 app.use(requestLogger);
+
+/**
+ * Validate environment variables before starting
+ */
+validateAndExit();
 
 /**
  * Initialize database connection and tables
@@ -173,6 +248,38 @@ const validateLogin = [
 ];
 
 /**
+ * Health Check Endpoint
+ * GET /api/health
+ */
+app.get("/api/health", async (req, res) => {
+  try {
+    // Check database connectivity
+    const dbResult = await pool.query("SELECT 1 as healthy");
+    const dbHealthy = dbResult.rows[0]?.healthy === 1;
+    
+    const health = {
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      environment: process.env.NODE_ENV || "development",
+      checks: {
+        database: dbHealthy ? "healthy" : "unhealthy",
+        server: "healthy"
+      }
+    };
+    
+    res.status(200).json(health);
+  } catch (error) {
+    log.error("Health check failed", error);
+    res.status(503).json({
+      status: "unhealthy",
+      timestamp: new Date().toISOString(),
+      error: "Health check failed"
+    });
+  }
+});
+
+/**
  * API Routes
  */
 
@@ -182,6 +289,7 @@ const validateLogin = [
  */
 app.post(
   "/api/auth/register",
+  authLimiter,
   sanitizeRequest,
   validateRegistration,
   handleValidationErrors,
@@ -227,6 +335,7 @@ app.post(
  */
 app.post(
   "/api/auth/login",
+  authLimiter,
   sanitizeRequest,
   validateLogin,
   handleValidationErrors,
@@ -359,7 +468,11 @@ app.post(
  * GET /api/jobs
  */
 app.get("/api/jobs", authenticateToken, async (req, res) => {
-  const result = await jobService.getJobs(req.user.id, req.user.role);
+  const filters = {};
+  if (req.query.status) filters.status = req.query.status;
+  if (req.query.priority) filters.priority = req.query.priority;
+  
+  const result = await jobService.getJobs(req.user.id, req.user.role, filters);
   sendResponse(res, result);
 });
 
@@ -382,6 +495,8 @@ app.put(
   sanitizeRequest,
   validateUpdateJob,
   handleValidationErrors,
+  validateJobWorkflow,
+  validateJobAssignment,
   async (req, res) => {
     const result = await jobService.updateJob(
       req.params.id,
@@ -402,6 +517,55 @@ app.delete(
   async (req, res) => {
     const result = await jobService.deleteJob(req.params.id, req.user.id);
     sendResponse(res, result);
+  }
+);
+
+/**
+ * Get available status transitions for a job
+ * GET /api/jobs/:id/transitions
+ */
+app.get(
+  "/api/jobs/:id/transitions",
+  authenticateToken,
+  validateJobId,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      const userRole = req.user.role;
+
+      // Get current job data
+      const jobResult = await pool.query(
+        'SELECT status FROM jobs WHERE id = $1',
+        [jobId]
+      );
+
+      if (jobResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Job not found'
+        });
+      }
+
+      const currentStatus = jobResult.rows[0].status;
+      const { getAvailableTransitions } = require('./middleware/jobWorkflow');
+      const availableTransitions = getAvailableTransitions(currentStatus, userRole);
+
+      res.json({
+        success: true,
+        data: {
+          currentStatus,
+          availableTransitions,
+          userRole
+        }
+      });
+    } catch (error) {
+      log.error('Get job transitions error', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get available transitions'
+      });
+    }
   }
 );
 
@@ -619,7 +783,7 @@ app.post("/api/auth/refresh", async (req, res) => {
  * Password reset request
  * POST /api/auth/forgot-password
  */
-app.post("/api/auth/forgot-password", async (req, res) => {
+app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -656,7 +820,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
  * Password reset
  * POST /api/auth/reset-password
  */
-app.post("/api/auth/reset-password", async (req, res) => {
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
   try {
     const { email, resetToken, newPassword } = req.body;
 

@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "echo 'Add frontend tests here'",
+    "optimize": "npm run analyze",
+    "analyze": "vite build --analyze",
+    "serve": "vite preview --port 3000"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.0.0",

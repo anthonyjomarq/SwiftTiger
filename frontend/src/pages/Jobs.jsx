@@ -16,10 +16,12 @@ export default function Jobs() {
     error,
     search,
     status,
+    priority,
     selected,
     deleting,
     setSearch,
     setStatus,
+    setPriority,
     setSelected,
     handleBulkDelete,
     clearError,
@@ -71,6 +73,8 @@ export default function Jobs() {
           onSearch={setSearch}
           status={status}
           onStatusChange={setStatus}
+          priority={priority}
+          onPriorityChange={setPriority}
           selected={selected}
           onExport={handleExport}
           onBulkDelete={handleBulkDelete}

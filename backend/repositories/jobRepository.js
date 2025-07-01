@@ -85,6 +85,11 @@ class JobRepository {
       params.push(filters.customer_id);
     }
 
+    if (filters.priority) {
+      conditions.push(`j.priority = $${++paramIndex}`);
+      params.push(filters.priority);
+    }
+
     if (filters.scheduled_date) {
       conditions.push(
         `(j.scheduled_date = $${++paramIndex} OR j.scheduled_date IS NULL)`
@@ -952,6 +957,104 @@ class JobRepository {
       return {
         success: false,
         error: "Failed to retrieve jobs for route optimization",
+        details: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get jobs scheduled for today
+   * @returns {Promise<Object>} Response object with today's jobs
+   */
+  async getTodaysJobs() {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      const query = `
+        SELECT 
+          j.*,
+          c.name as customer_name,
+          c.phone as customer_phone,
+          c.email as customer_email,
+          c.address as customer_address,
+          u.name as technician_name,
+          u.email as technician_email
+        FROM ${this.tableName} j
+        LEFT JOIN ${this.customersTableName} c ON j.customer_id = c.id
+        LEFT JOIN ${this.usersTableName} u ON j.assigned_to = u.id
+        WHERE j.scheduled_date = $1
+        ORDER BY j.scheduled_time ASC, j.created_at ASC
+      `;
+
+      const result = await pool.query(query, [today]);
+
+      return {
+        success: true,
+        data: result.rows,
+      };
+    } catch (error) {
+      console.error("Get today's jobs error:", error);
+      return {
+        success: false,
+        error: "Failed to retrieve today's jobs",
+        details: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get technician availability status
+   * @returns {Promise<Object>} Response object with technician availability
+   */
+  async getTechnicianAvailability() {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const query = `
+        SELECT 
+          u.id,
+          u.name,
+          u.email,
+          u.role,
+          COALESCE(job_stats.active_jobs, 0) as active_jobs,
+          COALESCE(job_stats.today_jobs, 0) as today_jobs,
+          CASE 
+            WHEN COALESCE(job_stats.active_jobs, 0) = 0 THEN 'available'
+            WHEN COALESCE(job_stats.active_jobs, 0) >= 3 THEN 'busy'
+            ELSE 'partially_available'
+          END as status,
+          job_stats.current_job_id,
+          job_stats.current_job_title,
+          job_stats.next_scheduled_time
+        FROM ${this.usersTableName} u
+        LEFT JOIN (
+          SELECT 
+            assigned_to,
+            COUNT(CASE WHEN status IN ('${JOB_STATUSES.PENDING}', '${JOB_STATUSES.IN_PROGRESS}') THEN 1 END) as active_jobs,
+            COUNT(CASE WHEN scheduled_date = '${today}' THEN 1 END) as today_jobs,
+            MIN(CASE WHEN status = '${JOB_STATUSES.IN_PROGRESS}' THEN id END) as current_job_id,
+            MIN(CASE WHEN status = '${JOB_STATUSES.IN_PROGRESS}' THEN title END) as current_job_title,
+            MIN(CASE WHEN scheduled_date = '${today}' AND status = '${JOB_STATUSES.PENDING}' 
+                THEN scheduled_time END) as next_scheduled_time
+          FROM ${this.tableName}
+          WHERE assigned_to IS NOT NULL
+          GROUP BY assigned_to
+        ) job_stats ON u.id = job_stats.assigned_to
+        WHERE u.role = 'technician'
+        ORDER BY u.name ASC
+      `;
+
+      const result = await pool.query(query);
+
+      return {
+        success: true,
+        data: result.rows,
+      };
+    } catch (error) {
+      console.error("Get technician availability error:", error);
+      return {
+        success: false,
+        error: "Failed to retrieve technician availability",
         details: error.message,
       };
     }

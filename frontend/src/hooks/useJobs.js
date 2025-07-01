@@ -7,6 +7,7 @@ export const useJobs = () => {
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
   const [selected, setSelected] = useState([]);
   const [deleting, setDeleting] = useState(false);
 
@@ -15,12 +16,13 @@ export const useJobs = () => {
     try {
       const params = {};
       if (status) params.status = status;
+      if (priority) params.priority = priority;
       const data = await callApi(() => apiService.jobs.getAll(params));
       setJobs(data.jobs || data || []);
     } catch (e) {
       // Error is handled by useApi
     }
-  }, [callApi, status]);
+  }, [callApi, status, priority]);
 
   // Filtered jobs with memoization
   const filteredJobs = useMemo(() => {
@@ -32,14 +34,18 @@ export const useJobs = () => {
           j.title?.toLowerCase().includes(s) ||
           j.customer_name?.toLowerCase().includes(s) ||
           j.technician_name?.toLowerCase().includes(s) ||
-          j.status?.toLowerCase().includes(s)
+          j.status?.toLowerCase().includes(s) ||
+          j.priority?.toLowerCase().includes(s)
       );
     }
     if (status) {
       filtered = filtered.filter((j) => j.status === status);
     }
+    if (priority) {
+      filtered = filtered.filter((j) => j.priority === priority);
+    }
     return filtered;
-  }, [jobs, search, status]);
+  }, [jobs, search, status, priority]);
 
   // Bulk delete
   const handleBulkDelete = useCallback(async () => {
@@ -112,6 +118,7 @@ export const useJobs = () => {
   const clearFilters = useCallback(() => {
     setSearch("");
     setStatus("");
+    setPriority("");
   }, []);
 
   // Select all jobs
@@ -146,6 +153,7 @@ export const useJobs = () => {
     error,
     search,
     status,
+    priority,
     selected,
     deleting,
 
@@ -153,6 +161,7 @@ export const useJobs = () => {
     fetchJobs,
     setSearch,
     setStatus,
+    setPriority,
     setSelected,
     handleBulkDelete,
     deleteJob,

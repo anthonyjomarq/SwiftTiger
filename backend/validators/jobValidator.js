@@ -1,5 +1,5 @@
 const { body, param, query } = require("express-validator");
-const { JOB_STATUSES, VALIDATION } = require("../config/constants");
+const { JOB_STATUSES, JOB_PRIORITIES, VALIDATION } = require("../config/constants");
 
 /**
  * Validation schema for creating a new job
@@ -40,6 +40,13 @@ const validateCreateJob = [
     .isIn(Object.values(JOB_STATUSES))
     .withMessage(
       `Status must be one of: ${Object.values(JOB_STATUSES).join(", ")}`
+    ),
+
+  body("priority")
+    .optional()
+    .isIn(Object.values(JOB_PRIORITIES))
+    .withMessage(
+      `Priority must be one of: ${Object.values(JOB_PRIORITIES).join(", ")}`
     ),
 
   body("scheduled_date")
@@ -107,6 +114,13 @@ const validateUpdateJob = [
     .isIn(Object.values(JOB_STATUSES))
     .withMessage(
       `Status must be one of: ${Object.values(JOB_STATUSES).join(", ")}`
+    ),
+
+  body("priority")
+    .optional()
+    .isIn(Object.values(JOB_PRIORITIES))
+    .withMessage(
+      `Priority must be one of: ${Object.values(JOB_PRIORITIES).join(", ")}`
     ),
 
   body("scheduled_date")

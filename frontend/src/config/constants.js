@@ -173,12 +173,20 @@ export const UI_TEXT = {
       CANCELLED: "Cancelled",
       ON_HOLD: "On Hold",
     },
+    PRIORITY: {
+      LOW: "Low",
+      NORMAL: "Normal",
+      HIGH: "High",
+      URGENT: "Urgent",
+      EMERGENCY: "Emergency",
+    },
     FIELDS: {
       TITLE: "Job Title",
       DESCRIPTION: "Description",
       CUSTOMER: "Customer",
       ASSIGNED_TO: "Assigned To",
       STATUS: "Status",
+      PRIORITY: "Priority",
       SCHEDULED_DATE: "Scheduled Date",
       SCHEDULED_TIME: "Scheduled Time",
       ESTIMATED_DURATION: "Estimated Duration",
@@ -433,6 +441,14 @@ export const DATE_FORMATS = {
   ISO: "yyyy-MM-ddTHH:mm:ss.SSSxxx",
 };
 
+// User Roles (matching backend constants)
+export const USER_ROLES = {
+  ADMIN: "admin",
+  MANAGER: "manager",
+  TECHNICIAN: "technician",
+  DISPATCHER: "dispatcher",
+};
+
 // Export all constants
 export default {
   ROUTES,
@@ -444,4 +460,5 @@ export default {
   STORAGE_KEYS,
   THEME,
   DATE_FORMATS,
+  USER_ROLES,
 };

@@ -44,9 +44,12 @@ class JobService {
    *
    * @param {number} userId - ID of the requesting user
    * @param {string} userRole - Role of the requesting user
+   * @param {Object} filters - Optional filters for jobs
+   * @param {string} filters.status - Filter by job status
+   * @param {string} filters.priority - Filter by job priority
    * @returns {Promise<Object>} Response object with jobs data
    */
-  async getJobs(userId, userRole) {
+  async getJobs(userId, userRole, filters = {}) {
     try {
       // Validate user exists and get current role
       const userResult = await pool.query(
@@ -72,13 +75,13 @@ class JobService {
       }
 
       // Build filters based on user role
-      const filters = {};
+      const repoFilters = { ...filters };
       if (currentUserRole === "technician") {
-        filters.assigned_to = userId;
+        repoFilters.assigned_to = userId;
       }
 
       // Use repository to get jobs
-      const result = await jobRepository.findAllWithRelations(filters);
+      const result = await jobRepository.findAllWithRelations(repoFilters);
 
       return successResponse(
         { jobs: result.data },
@@ -129,6 +132,7 @@ class JobService {
    * @param {string} jobData.description - Job description
    * @param {number} jobData.customer_id - Customer ID
    * @param {string} jobData.status - Job status
+   * @param {string} jobData.priority - Job priority
    * @param {number} jobData.assigned_to - Assigned technician ID
    * @param {string} jobData.scheduled_date - Scheduled date
    * @param {string} jobData.scheduled_time - Scheduled time
@@ -145,6 +149,7 @@ class JobService {
         description,
         customer_id,
         status,
+        priority,
         assigned_to,
         scheduled_date,
         scheduled_time,
@@ -157,6 +162,7 @@ class JobService {
         description,
         customer_id,
         status: status || DATABASE.DEFAULTS.JOB_STATUS,
+        priority: priority || DATABASE.DEFAULTS.JOB_PRIORITY,
         assigned_to,
         scheduled_date,
         scheduled_time,
@@ -231,6 +237,7 @@ class JobService {
         description,
         customer_id,
         status,
+        priority,
         assigned_to,
         scheduled_date,
         scheduled_time,
@@ -276,6 +283,7 @@ class JobService {
         description,
         customer_id,
         status,
+        priority,
         assigned_to,
         scheduled_date,
         scheduled_time,
@@ -533,6 +541,112 @@ class JobService {
       );
     } catch (error) {
       console.error("Get map data error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Get comprehensive dashboard statistics
+   *
+   * @returns {Promise<Object>} Response object with dashboard statistics
+   */
+  async getDashboardStats() {
+    try {
+      const result = await jobRepository.getDashboardStats();
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      // Get today's schedule
+      const todayResult = await jobRepository.getTodaysJobs();
+      const todaysJobs = todayResult.success ? todayResult.data : [];
+
+      // Get technician availability
+      const technicianResult = await jobRepository.getTechnicianAvailability();
+      const technicians = technicianResult.success ? technicianResult.data : [];
+
+      // Enhanced dashboard data
+      const dashboardData = {
+        ...result.data,
+        todaysJobs: todaysJobs.length,
+        todaysSchedule: todaysJobs,
+        technicianAvailability: technicians,
+        availableTechnicians: technicians.filter(t => t.status === 'available').length,
+        busyTechnicians: technicians.filter(t => t.status === 'busy').length,
+      };
+
+      return successResponse(
+        { stats: dashboardData },
+        "Dashboard statistics retrieved successfully"
+      );
+    } catch (error) {
+      console.error("Get dashboard stats error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Get activity feed for dashboard
+   *
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object with activity feed
+   */
+  async getActivityFeed(userId, userRole) {
+    try {
+      const limit = userRole === USER_ROLES.TECHNICIAN ? 10 : 20;
+      const result = await jobRepository.getRecentActivity(limit);
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      // Filter activities for technicians
+      let activities = result.data;
+      if (userRole === USER_ROLES.TECHNICIAN) {
+        activities = activities.filter(activity => 
+          activity.user_id === userId || 
+          activity.job_assigned_to === userId
+        );
+      }
+
+      return successResponse(
+        { activities },
+        "Activity feed retrieved successfully"
+      );
+    } catch (error) {
+      console.error("Get activity feed error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Get debug jobs information (admin only)
+   *
+   * @returns {Promise<Object>} Response object with debug job data
+   */
+  async getDebugJobs() {
+    try {
+      const result = await jobRepository.findAllWithRelations({});
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      return successResponse(
+        { 
+          jobs: result.data,
+          total: result.data.length,
+          debug_info: {
+            timestamp: new Date().toISOString(),
+            query_success: true
+          }
+        },
+        "Debug jobs retrieved successfully"
+      );
+    } catch (error) {
+      console.error("Get debug jobs error:", error);
       return internalServerErrorResponse();
     }
   }

@@ -119,6 +119,7 @@ const initializeDatabase = async () => {
         customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
         assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
         status VARCHAR(50) DEFAULT 'pending',
+        priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent', 'emergency')),
         scheduled_date DATE,
         scheduled_time TIME,
         estimated_duration INTEGER DEFAULT 60,

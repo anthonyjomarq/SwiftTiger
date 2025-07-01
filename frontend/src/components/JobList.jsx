@@ -86,6 +86,28 @@ const JobList = React.memo(
           ),
         },
         {
+          Header: UI_TEXT.JOBS.FIELDS.PRIORITY,
+          accessor: "priority",
+          sortable: true,
+          Cell: (row) => (
+            <Badge
+              color={
+                row.priority === "emergency"
+                  ? "error"
+                  : row.priority === "urgent"
+                  ? "warning"
+                  : row.priority === "high"
+                  ? "info"
+                  : row.priority === "normal"
+                  ? "secondary"
+                  : "gray"
+              }
+            >
+              {row.priority || "normal"}
+            </Badge>
+          ),
+        },
+        {
           Header: UI_TEXT.JOBS.FIELDS.SCHEDULED_DATE,
           accessor: "due_date",
           sortable: true,
