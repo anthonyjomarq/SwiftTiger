@@ -15,6 +15,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [sessionTimeoutId, setSessionTimeoutId] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -25,6 +27,72 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   }, []);
+
+  // Session timeout management
+  useEffect(() => {
+    if (!user) return;
+
+    const isRememberMe = localStorage.getItem("rememberMe") === "true";
+    const SESSION_TIMEOUT = isRememberMe 
+      ? 7 * 24 * 60 * 60 * 1000 // 7 days for remember me
+      : 30 * 60 * 1000; // 30 minutes for regular session
+    const WARNING_TIME = isRememberMe 
+      ? 60 * 60 * 1000 // 1 hour warning for remember me
+      : 5 * 60 * 1000; // 5 minutes for regular session
+
+    const resetSessionTimeout = () => {
+      if (sessionTimeoutId) {
+        clearTimeout(sessionTimeoutId);
+      }
+
+      // Set timeout for session expiration
+      const timeoutId = setTimeout(() => {
+        // Show warning dialog 5 minutes before logout
+        const shouldExtend = window.confirm(
+          "Your session will expire in 5 minutes due to inactivity. Would you like to extend your session?"
+        );
+
+        if (shouldExtend) {
+          setLastActivity(Date.now());
+          // Reset the timeout
+          resetSessionTimeout();
+        } else {
+          // Set final timeout for logout
+          setTimeout(() => {
+            logout();
+            alert("You have been logged out due to inactivity.");
+          }, WARNING_TIME);
+        }
+      }, SESSION_TIMEOUT - WARNING_TIME);
+
+      setSessionTimeoutId(timeoutId);
+    };
+
+    // Initialize session timeout
+    resetSessionTimeout();
+
+    // Track user activity
+    const updateActivity = () => {
+      setLastActivity(Date.now());
+      resetSessionTimeout();
+    };
+
+    // Add event listeners for user activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, updateActivity, true);
+    });
+
+    // Cleanup
+    return () => {
+      if (sessionTimeoutId) {
+        clearTimeout(sessionTimeoutId);
+      }
+      events.forEach(event => {
+        document.removeEventListener(event, updateActivity, true);
+      });
+    };
+  }, [user, sessionTimeoutId]);
 
   const checkAuth = async () => {
     try {
@@ -43,12 +111,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
       const response = await axios.post("/api/auth/login", { email, password });
       const { token, user } = response.data;
 
-      localStorage.setItem("token", token);
+      // Store token based on remember me preference
+      if (rememberMe) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("rememberMe", "true");
+        // Set longer session timeout for remember me
+        localStorage.setItem("loginTime", Date.now().toString());
+      } else {
+        localStorage.setItem("token", token);
+        localStorage.removeItem("rememberMe");
+      }
+
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       setUser(user);
 
