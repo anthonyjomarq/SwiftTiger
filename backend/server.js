@@ -1,14 +1,31 @@
+/**
+ * SwiftTiger Backend Server
+ * Main Express.js server with authentication, job management, and real-time features
+ *
+ * @author SwiftTiger Team
+ * @version 1.0.0
+ */
+
+// External libraries
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
+const crypto = require("crypto");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
+require("dotenv").config();
+
+// Database and middleware
 const { pool, initializeDatabase } = require("./database");
 const { requirePermission } = require("./middleware/permissions");
 const {
   handleValidationErrors,
   sanitizeRequest,
 } = require("./middleware/validation");
+
+// Validators
 const {
   validateCreateJob,
   validateUpdateJob,
@@ -24,6 +41,8 @@ const {
   validateCustomerId,
   validateCustomerGeocoding,
 } = require("./validators/customerValidator");
+
+// Services
 const {
   geocodeAddress,
   updateCustomerCoordinates,
@@ -31,14 +50,13 @@ const {
   addKnownAddress,
   KNOWN_ADDRESSES,
 } = require("./services/geocoding");
-const crypto = require("crypto");
-const { createServer } = require("http");
-const { Server } = require("socket.io");
 const authService = require("./services/authService");
 const socketService = require("./services/socketService");
 const jobService = require("./services/jobService");
 const customerService = require("./services/customerService");
 const userService = require("./services/userService");
+
+// Utilities
 const {
   successResponse,
   errorResponse,
@@ -49,31 +67,77 @@ const {
   internalServerErrorResponse,
   sendResponse,
 } = require("./utils/apiResponse");
-require("dotenv").config();
+const {
+  log,
+  requestLogger,
+  errorLogger,
+  socketLogger,
+} = require("./utils/logger");
 
+/**
+ * Express application instance
+ */
 const app = express();
+
+/**
+ * HTTP server instance
+ */
 const server = createServer(app);
+
+/**
+ * Socket.IO server instance with CORS configuration
+ */
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
+/**
+ * Socket handlers reference for real-time communication
+ */
 let socketHandlers;
 
+/**
+ * Server configuration constants
+ */
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
-// Middleware
-app.use(cors());
+/**
+ * Global middleware configuration
+ */
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
 app.use(express.json());
 
-// Initialize database
-initializeDatabase().catch(console.error);
+// Add request logging middleware
+app.use(requestLogger);
 
-// Authentication middleware
+/**
+ * Initialize database connection and tables
+ */
+initializeDatabase().catch((error) => {
+  log.error("Database initialization failed", error);
+});
+
+/**
+ * JWT authentication middleware
+ * Validates JWT tokens from Authorization header
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -91,21 +155,31 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Validation middleware for authentication
+/**
+ * Validation middleware for user registration
+ */
 const validateRegistration = [
   body("email").isEmail().normalizeEmail(),
   body("password").isLength({ min: 6 }),
   body("name").notEmpty().trim(),
 ];
 
+/**
+ * Validation middleware for user login
+ */
 const validateLogin = [
   body("email").isEmail().normalizeEmail(),
   body("password").notEmpty(),
 ];
 
-// Routes
+/**
+ * API Routes
+ */
 
-// Register user (first user becomes admin)
+/**
+ * Register new user (first user becomes admin)
+ * POST /api/auth/register
+ */
 app.post(
   "/api/auth/register",
   sanitizeRequest,
@@ -141,13 +215,16 @@ app.post(
 
       sendResponse(res, responseWithToken);
     } catch (error) {
-      console.error("Registration error:", error);
+      log.error("Registration error", error);
       res.status(500).json(internalServerErrorResponse());
     }
   }
 );
 
-// Login user
+/**
+ * Login user
+ * POST /api/auth/login
+ */
 app.post(
   "/api/auth/login",
   sanitizeRequest,
@@ -160,25 +237,34 @@ app.post(
 
       sendResponse(res, result);
     } catch (error) {
-      console.error("Login error:", error);
+      log.error("Login error", error);
       res.status(500).json(internalServerErrorResponse());
     }
   }
 );
 
-// Get current user
+/**
+ * Get current user information
+ * GET /api/auth/me
+ */
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   const result = await userService.getCurrentUser(req.user.id);
   sendResponse(res, result);
 });
 
-// Get user permissions
+/**
+ * Get user permissions
+ * GET /api/auth/permissions
+ */
 app.get("/api/auth/permissions", authenticateToken, async (req, res) => {
   const result = await userService.getUserPermissions(req.user.id);
   sendResponse(res, result);
 });
 
-// Get all users (for technician assignment)
+/**
+ * Get all users (for technician assignment)
+ * GET /api/users
+ */
 app.get(
   "/api/users",
   authenticateToken,
@@ -189,7 +275,14 @@ app.get(
   }
 );
 
-// Customer routes
+/**
+ * Customer Routes
+ */
+
+/**
+ * Get all customers
+ * GET /api/customers
+ */
 app.get(
   "/api/customers",
   authenticateToken,
@@ -241,7 +334,10 @@ app.delete(
   }
 );
 
-// Manual geocoding endpoint for customer
+/**
+ * Manual geocoding endpoint for customer
+ * POST /api/customers/:id/geocode
+ */
 app.post(
   "/api/customers/:id/geocode",
   authenticateToken,
@@ -254,7 +350,14 @@ app.post(
   }
 );
 
-// Job routes
+/**
+ * Job Routes
+ */
+
+/**
+ * Get all jobs (filtered by user role)
+ * GET /api/jobs
+ */
 app.get("/api/jobs", authenticateToken, async (req, res) => {
   const result = await jobService.getJobs(req.user.id, req.user.role);
   sendResponse(res, result);
@@ -302,9 +405,14 @@ app.delete(
   }
 );
 
-// Job Updates API Routes
+/**
+ * Job Updates API Routes
+ */
 
-// Get updates for a specific job
+/**
+ * Get updates for a specific job
+ * GET /api/jobs/:id/updates
+ */
 app.get(
   "/api/jobs/:id/updates",
   authenticateToken,
@@ -320,7 +428,10 @@ app.get(
   }
 );
 
-// Create a new job update
+/**
+ * Create a new job update
+ * POST /api/jobs/:id/updates
+ */
 app.post(
   "/api/jobs/:id/updates",
   authenticateToken,
@@ -338,13 +449,19 @@ app.post(
   }
 );
 
-// Get recent activity feed for dashboard
+/**
+ * Get recent activity feed for dashboard
+ * GET /api/activity-feed
+ */
 app.get("/api/activity-feed", authenticateToken, async (req, res) => {
   const result = await jobService.getActivityFeed(req.user.id, req.user.role);
   sendResponse(res, result);
 });
 
-// Get jobs with location data for mapping
+/**
+ * Get jobs with location data for mapping
+ * GET /api/jobs/map-data
+ */
 app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
   const result = await jobService.getJobsMapData(
     req.user.id,
@@ -354,7 +471,10 @@ app.get("/api/jobs/map-data", authenticateToken, async (req, res) => {
   sendResponse(res, result);
 });
 
-// Original Route optimization endpoint (kept for backward compatibility)
+/**
+ * Original Route optimization endpoint (kept for backward compatibility)
+ * POST /api/jobs/optimize-route
+ */
 app.post(
   "/api/jobs/optimize-route",
   authenticateToken,
@@ -373,7 +493,10 @@ app.post(
   }
 );
 
-// Advanced Route Optimization endpoint with 2-opt improvement
+/**
+ * Advanced Route Optimization endpoint with 2-opt improvement
+ * POST /api/jobs/optimize-route-advanced
+ */
 app.post(
   "/api/jobs/optimize-route-advanced",
   authenticateToken,
@@ -487,12 +610,15 @@ app.post("/api/auth/refresh", async (req, res) => {
       )
     );
   } catch (error) {
-    console.error("Token refresh error:", error);
+    log.error("Token refresh error", error);
     res.status(401).json(errorResponse("Token refresh failed", 401));
   }
 });
 
-// Password reset request
+/**
+ * Password reset request
+ * POST /api/auth/forgot-password
+ */
 app.post("/api/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -515,7 +641,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       )
     );
   } catch (error) {
-    console.error("Password reset request error:", error);
+    log.error("Password reset request error", error);
     // Don't reveal if user exists or not
     res.json(
       successResponse(
@@ -526,7 +652,10 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
 });
 
-// Password reset
+/**
+ * Password reset
+ * POST /api/auth/reset-password
+ */
 app.post("/api/auth/reset-password", async (req, res) => {
   try {
     const { email, resetToken, newPassword } = req.body;
@@ -541,12 +670,15 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     res.json(successResponse(null, "Password reset successfully"));
   } catch (error) {
-    console.error("Password reset error:", error);
+    log.error("Password reset error", error);
     res.status(400).json(errorResponse(error.message, 400));
   }
 });
 
-// Email verification request
+/**
+ * Email verification request
+ * POST /api/auth/send-verification
+ */
 app.post("/api/auth/send-verification", authenticateToken, async (req, res) => {
   try {
     const verificationToken = await authService.generateEmailVerificationToken(
@@ -556,14 +688,17 @@ app.post("/api/auth/send-verification", authenticateToken, async (req, res) => {
 
     res.json(successResponse(null, "Verification email sent"));
   } catch (error) {
-    console.error("Email verification request error:", error);
+    log.error("Email verification request error", error);
     res
       .status(500)
       .json(errorResponse("Failed to send verification email", 500));
   }
 });
 
-// Email verification
+/**
+ * Email verification
+ * POST /api/auth/verify-email
+ */
 app.post("/api/auth/verify-email", async (req, res) => {
   try {
     const { userId, verificationToken } = req.body;
@@ -578,12 +713,15 @@ app.post("/api/auth/verify-email", async (req, res) => {
 
     res.json(successResponse(null, "Email verified successfully"));
   } catch (error) {
-    console.error("Email verification error:", error);
+    log.error("Email verification error", error);
     res.status(400).json(errorResponse(error.message, 400));
   }
 });
 
-// Logout (invalidate session)
+/**
+ * Logout (invalidate session)
+ * POST /api/auth/logout
+ */
 app.post("/api/auth/logout", authenticateToken, async (req, res) => {
   try {
     const sessionId = req.headers["x-session-id"];
@@ -594,23 +732,29 @@ app.post("/api/auth/logout", authenticateToken, async (req, res) => {
 
     res.json(successResponse(null, "Logged out successfully"));
   } catch (error) {
-    console.error("Logout error:", error);
+    log.error("Logout error", error);
     res.status(500).json(errorResponse("Logout failed", 500));
   }
 });
 
-// Get user sessions
+/**
+ * Get user sessions
+ * GET /api/auth/sessions
+ */
 app.get("/api/auth/sessions", authenticateToken, async (req, res) => {
   try {
     const sessions = await authService.getUserSessions(req.user.id);
     res.json(successResponse({ sessions }, "Sessions retrieved successfully"));
   } catch (error) {
-    console.error("Get sessions error:", error);
+    log.error("Get sessions error", error);
     res.status(500).json(errorResponse("Failed to get sessions", 500));
   }
 });
 
-// Invalidate specific session
+/**
+ * Invalidate specific session
+ * DELETE /api/auth/sessions/:sessionId
+ */
 app.delete(
   "/api/auth/sessions/:sessionId",
   authenticateToken,
@@ -619,62 +763,91 @@ app.delete(
       await authService.invalidateSession(req.params.sessionId);
       res.json(successResponse(null, "Session invalidated"));
     } catch (error) {
-      console.error("Session invalidation error:", error);
+      log.error("Session invalidation error", error);
       res.status(500).json(errorResponse("Failed to invalidate session", 500));
     }
   }
 );
 
-// Invalidate all user sessions
+/**
+ * Invalidate all user sessions
+ * DELETE /api/auth/sessions
+ */
 app.delete("/api/auth/sessions", authenticateToken, async (req, res) => {
   try {
     await authService.invalidateAllUserSessions(req.user.id);
     res.json(successResponse(null, "All sessions invalidated"));
   } catch (error) {
-    console.error("Sessions invalidation error:", error);
+    log.error("Sessions invalidation error", error);
     res.status(500).json(errorResponse("Failed to invalidate sessions", 500));
   }
 });
 
-// WebSocket connection handling
+/**
+ * WebSocket connection handling
+ * Manages real-time communication for job updates and location tracking
+ */
 io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id);
+  // Apply socket logging middleware
+  socketLogger(socket, () => {
+    // Initialize handlers if not already done
+    if (!socketService.getHandlers()) {
+      socketService.initialize(io);
+    }
 
-  // Initialize handlers if not already done
-  if (!socketService.getHandlers()) {
-    socketService.initialize(io);
-  }
+    // Join technician room for location updates
+    socket.on("join_technician_room", (technicianId) => {
+      socket.join(`technician_${technicianId}`);
+      log.info(`Client joined technician room`, {
+        socketId: socket.id,
+        technicianId,
+        userId: socket.userId || "anonymous",
+      });
+    });
 
-  // Join technician room for location updates
-  socket.on("join_technician_room", (technicianId) => {
-    socket.join(`technician_${technicianId}`);
-    console.log(`Client ${socket.id} joined technician room: ${technicianId}`);
-  });
+    // Join route room for real-time updates
+    socket.on("join_route_room", (routeId) => {
+      socket.join(`route_${routeId}`);
+      log.info(`Client joined route room`, {
+        socketId: socket.id,
+        routeId,
+        userId: socket.userId || "anonymous",
+      });
+    });
 
-  // Join route room for real-time updates
-  socket.on("join_route_room", (routeId) => {
-    socket.join(`route_${routeId}`);
-    console.log(`Client ${socket.id} joined route room: ${routeId}`);
-  });
-
-  // Handle route updates
-  socket.on("route_update", (data) => {
-    io.to(`route_${data.routeId}`).emit("route_updated", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    // Handle route updates
+    socket.on("route_update", (data) => {
+      io.to(`route_${data.routeId}`).emit("route_updated", data);
+    });
   });
 });
 
-// Get notifications
+/**
+ * Get notifications
+ * GET /api/notifications
+ */
 app.get("/api/notifications", authenticateToken, async (req, res) => {
   const result = await userService.getNotifications(req.user.id);
   sendResponse(res, result);
 });
 
+/**
+ * Error handling middleware (must be last)
+ */
+app.use(errorLogger);
+
+/**
+ * Start the server and listen on specified port
+ */
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  log.info(`Server started successfully`, {
+    port: PORT,
+    environment: process.env.NODE_ENV || "development",
+    timestamp: new Date().toISOString(),
+  });
 });
 
+/**
+ * Export server components for testing and external use
+ */
 module.exports = { app, server, io, socketService };

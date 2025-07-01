@@ -1,5 +1,9 @@
 import React from "react";
 import Button from "./ui/Button";
+import {
+  ErrorBoundary as GlobalErrorBoundary,
+  errorReportingService,
+} from "../utils/errorHandler";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -15,6 +19,21 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     // Log the error to console and any error reporting service
     console.error("Error caught by boundary:", error, errorInfo);
+
+    // Report error to error reporting service
+    errorReportingService.reportError(
+      {
+        message: error.message,
+        stack: error.stack,
+        type: "react_boundary",
+        severity: "high",
+      },
+      {
+        componentStack: errorInfo.componentStack,
+        type: "react_boundary",
+      }
+    );
+
     this.setState({
       error: error,
       errorInfo: errorInfo,

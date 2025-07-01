@@ -1,6 +1,19 @@
+/**
+ * Database configuration and connection management
+ * Handles PostgreSQL connection pool and database initialization
+ *
+ * @author SwiftTiger Team
+ * @version 1.0.0
+ */
+
 const { Pool } = require("pg");
+const { log, dbLogger } = require("./utils/logger");
 require("dotenv").config();
 
+/**
+ * PostgreSQL connection pool configuration
+ * Uses environment variables for database connection settings
+ */
 const pool = new Pool({
   host: process.env.DB_HOST || "localhost",
   port: process.env.DB_PORT || 5432,
@@ -9,17 +22,64 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || "your_password",
 });
 
-// Test the connection
+/**
+ * Store the original query method for logging wrapper
+ */
+const originalQuery = pool.query.bind(pool);
+
+/**
+ * Enhanced query method with logging and performance monitoring
+ *
+ * @param {string} text - SQL query text
+ * @param {Array} params - Query parameters
+ * @returns {Promise<Object>} Query result
+ */
+const queryWithLogging = async (text, params) => {
+  const startTime = Date.now();
+  try {
+    const result = await originalQuery(text, params);
+    const duration = Date.now() - startTime;
+
+    // Log successful queries (only in debug mode or if duration > 1000ms)
+    if (process.env.LOG_LEVEL === "debug" || duration > 1000) {
+      dbLogger.query(text, params, duration);
+    }
+
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    dbLogger.error(error, text, params);
+    throw error;
+  }
+};
+
+/**
+ * Replace the original query method with enhanced logging version
+ */
+pool.query = queryWithLogging;
+
+/**
+ * Database connection event handlers
+ */
 pool.on("connect", () => {
-  console.log("Connected to PostgreSQL database");
+  log.info("Connected to PostgreSQL database", {
+    host: process.env.DB_HOST || "localhost",
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || "swifttiger",
+  });
 });
 
 pool.on("error", (err) => {
-  console.error("Unexpected error on idle client", err);
+  log.error("Unexpected error on idle client", err);
   process.exit(-1);
 });
 
-// Initialize database tables
+/**
+ * Initialize database tables with proper schema
+ * Creates all necessary tables if they don't exist
+ *
+ * @returns {Promise<void>}
+ */
 const initializeDatabase = async () => {
   try {
     // Users table with role
@@ -30,7 +90,8 @@ const initializeDatabase = async () => {
         password VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'technician',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -309,6 +370,10 @@ const initializeDatabase = async () => {
   }
 };
 
+/**
+ * Export database utilities
+ * @exports {Object} Database utilities including pool and initialization function
+ */
 module.exports = {
   pool,
   initializeDatabase,

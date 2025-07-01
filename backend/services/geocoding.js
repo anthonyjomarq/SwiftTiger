@@ -1,6 +1,7 @@
 require("dotenv").config();
 const axios = require("axios");
 const { pool } = require("../database");
+const { log } = require("../utils/logger");
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -32,10 +33,10 @@ const KNOWN_ADDRESSES = {
 // Enhanced geocoding with multiple search strategies
 async function geocodeAddress(address) {
   try {
-    console.log("Checking manual override for:", address);
+    log.debug("Checking manual override for address", { address });
     const manualOverride = checkManualOverride(address);
     if (manualOverride) {
-      console.log(`Using manual override for: ${address}`);
+      log.debug("Using manual override for address", { address });
       return {
         latitude: manualOverride.latitude,
         longitude: manualOverride.longitude,
@@ -45,12 +46,12 @@ async function geocodeAddress(address) {
       };
     }
 
-    console.log(`Geocoding address: ${address}`);
+    log.debug("Geocoding address", { address });
 
     // Check if this is a known address with manual coordinates
     const knownAddress = KNOWN_ADDRESSES[address.trim()];
     if (knownAddress) {
-      console.log(`Using known coordinates for: ${address}`);
+      log.debug("Using known coordinates for address", { address });
       return {
         latitude: knownAddress.latitude,
         longitude: knownAddress.longitude,
@@ -84,7 +85,7 @@ async function geocodeAddress(address) {
 
     for (const strategy of strategies) {
       try {
-        console.log(`Trying strategy: ${strategy.address}`);
+        log.debug("Trying geocoding strategy", { strategy: strategy.address });
 
         const response = await axios.get(
           "https://maps.googleapis.com/maps/api/geocode/json",
@@ -106,9 +107,10 @@ async function geocodeAddress(address) {
           );
           const score = calculateGeocodeScore(result, address);
 
-          console.log(
-            `Strategy result: ${result.formatted_address} (score: ${score})`
-          );
+          log.debug("Strategy result", {
+            formattedAddress: result.formatted_address,
+            score,
+          });
 
           if (score > bestScore) {
             bestResult = result;
@@ -116,16 +118,17 @@ async function geocodeAddress(address) {
           }
         }
       } catch (error) {
-        console.log(`Strategy failed: ${error.message}`);
+        log.debug("Strategy failed", { error: error.message });
         continue;
       }
     }
 
     if (bestResult) {
       const location = bestResult.geometry.location;
-      console.log(
-        `Best result: ${bestResult.formatted_address} (score: ${bestScore})`
-      );
+      log.debug("Best geocoding result", {
+        formattedAddress: bestResult.formatted_address,
+        score: bestScore,
+      });
 
       return {
         latitude: location.lat,
@@ -139,7 +142,7 @@ async function geocodeAddress(address) {
       throw new Error("No results found for this address");
     }
   } catch (error) {
-    console.error("Geocoding error:", error.response?.data || error.message);
+    log.error("Geocoding error", error, { address });
     throw error;
   }
 }
@@ -242,7 +245,7 @@ async function validateAddress(address) {
 
     return { valid: false, suggestions: [] };
   } catch (error) {
-    console.error("Address validation error:", error);
+    log.error("Address validation error", error, { address });
     return { valid: false, suggestions: [] };
   }
 }
@@ -255,7 +258,7 @@ function addKnownAddress(address, latitude, longitude, name = null) {
     name: name || address,
     verified: true,
   };
-  console.log(`Added known address: ${address} -> ${latitude}, ${longitude}`);
+  log.info("Added known address", { address, latitude, longitude });
 }
 
 const updateCustomerCoordinates = async (customerId, address) => {
@@ -284,13 +287,18 @@ function normalizeAddress(address) {
 // Check if address matches any manual override
 function checkManualOverride(address) {
   const normalized = normalizeAddress(address);
-  console.log(`Normalized input: '${normalized}'`);
-  console.log("Manual override keys:", Object.keys(MANUAL_OVERRIDES));
+  log.debug("Checking manual override", {
+    originalAddress: address,
+    normalizedAddress: normalized,
+    availableKeys: Object.keys(MANUAL_OVERRIDES),
+  });
+
   // Check for exact match
   if (MANUAL_OVERRIDES[normalized]) {
-    console.log(`Found manual override for: ${address}`);
+    log.debug("Found exact manual override match", { address });
     return MANUAL_OVERRIDES[normalized];
   }
+
   // Check partial matches (70% threshold)
   const addressParts = normalized.split(" ");
   for (const [key, value] of Object.entries(MANUAL_OVERRIDES)) {
@@ -302,7 +310,7 @@ function checkManualOverride(address) {
       )
     );
     if (matchingParts.length >= keyParts.length * 0.7) {
-      console.log(`Found partial manual override match for: ${address}`);
+      log.debug("Found partial manual override match", { address, key });
       return value;
     }
   }
@@ -325,10 +333,12 @@ async function loadManualOverrides() {
         verified: true,
       };
     });
-    console.log(`Loaded ${result.rows.length} manual geocoding overrides`);
+    log.info("Loaded manual geocoding overrides", {
+      count: result.rows.length,
+    });
   } catch (error) {
     // Table might not exist yet
-    console.log("Geocoding overrides table not found, using defaults only");
+    log.info("Geocoding overrides table not found, using defaults only");
   }
 }
 

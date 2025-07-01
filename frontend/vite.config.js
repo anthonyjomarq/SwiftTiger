@@ -5,10 +5,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: true, // Allow external connections
     proxy: {
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
+        secure: false,
+        ws: true, // Enable WebSocket proxy
       },
     },
   },

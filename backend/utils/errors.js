@@ -1,3 +1,5 @@
+const { log } = require("./logger");
+
 /**
  * Custom Error Classes for SwiftTiger Backend
  * Provides specific error types for better error handling and client responses
@@ -42,7 +44,7 @@ class ConflictError extends Error {
  * Error handler utility to convert custom errors to API responses
  */
 const handleError = (error) => {
-  console.error(`${error.name}:`, error.message);
+  log.error(`${error.name}: ${error.message}`, error);
 
   // Handle custom errors
   if (error instanceof ValidationError) {

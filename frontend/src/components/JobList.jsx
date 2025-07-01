@@ -1,9 +1,36 @@
+/**
+ * Job List Component
+ * Displays a table of jobs with filtering, sorting, and selection capabilities
+ *
+ * @author SwiftTiger Team
+ * @version 1.0.0
+ */
+
+// React
 import React, { useMemo } from "react";
+
+// UI Components
 import Table from "./ui/Table";
 import Badge from "./ui/Badge";
 import Spinner from "./ui/Spinner";
+
+// Configuration
 import { UI_TEXT } from "../config/constants";
 
+/**
+ * JobList component for displaying jobs in a table format
+ *
+ * @param {Object} props - Component props
+ * @param {Array} props.jobs - Array of job objects to display
+ * @param {boolean} props.loading - Loading state indicator
+ * @param {Array} props.selected - Array of selected job IDs
+ * @param {Function} props.onSelectedRowsChange - Callback for selection changes
+ * @param {Function} props.onRowClick - Callback for row click events
+ * @param {boolean} props.virtualized - Whether to use virtualized rendering
+ * @param {number} props.height - Table height in pixels
+ * @param {number} props.rowHeight - Height of each row in pixels
+ * @returns {JSX.Element} JobList component
+ */
 const JobList = React.memo(
   ({
     jobs,
@@ -15,7 +42,10 @@ const JobList = React.memo(
     height = 500,
     rowHeight = 52,
   }) => {
-    // Memoized table columns
+    /**
+     * Memoized table columns configuration
+     * Defines the structure and rendering of each column
+     */
     const columns = useMemo(
       () => [
         {
@@ -66,7 +96,10 @@ const JobList = React.memo(
       []
     );
 
-    // Memoized virtualized setting
+    /**
+     * Memoized virtualized setting
+     * Determines whether to use virtualized rendering based on job count
+     */
     const shouldVirtualize = useMemo(() => {
       return virtualized && jobs.length > 20;
     }, [virtualized, jobs.length]);

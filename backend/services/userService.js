@@ -10,6 +10,7 @@ const {
   internalServerErrorResponse,
 } = require("../utils/apiResponse");
 const { USER_ROLES, DATABASE } = require("../config/constants");
+const { log } = require("../utils/logger");
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
@@ -192,7 +193,7 @@ class UserService {
 
       return successResponse(updatedUser, "User updated successfully");
     } catch (error) {
-      console.error("Update user error:", error);
+      log.error("Update user error", error, { userId });
       return internalServerErrorResponse();
     }
   }
@@ -226,7 +227,7 @@ class UserService {
         "User deleted successfully"
       );
     } catch (error) {
-      console.error("Delete user error:", error);
+      log.error("Delete user error", error, { userId });
       return internalServerErrorResponse();
     }
   }
@@ -269,7 +270,7 @@ class UserService {
         "Authentication successful"
       );
     } catch (error) {
-      console.error("Authentication error:", error);
+      log.error("Authentication error", error, { email });
       return internalServerErrorResponse();
     }
   }
@@ -309,7 +310,7 @@ class UserService {
         "Password changed successfully"
       );
     } catch (error) {
-      console.error("Change password error:", error);
+      log.error("Change password error", error, { userId });
       return internalServerErrorResponse();
     }
   }
@@ -330,7 +331,7 @@ class UserService {
         "Users by role retrieved successfully"
       );
     } catch (error) {
-      console.error("Get users by role error:", error);
+      log.error("Get users by role error", error, { role });
       return internalServerErrorResponse();
     }
   }
@@ -351,7 +352,7 @@ class UserService {
         "Users search completed successfully"
       );
     } catch (error) {
-      console.error("Search users error:", error);
+      log.error("Search users error", error, { searchTerm });
       return internalServerErrorResponse();
     }
   }
@@ -372,7 +373,7 @@ class UserService {
         "User statistics retrieved successfully"
       );
     } catch (error) {
-      console.error("Get user stats error:", error);
+      log.error("Get user stats error", error);
       return internalServerErrorResponse();
     }
   }

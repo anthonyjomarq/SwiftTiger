@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { pool } = require("./database");
+const { log } = require("./utils/logger");
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "your-secret-key-change-in-production";
@@ -41,7 +42,11 @@ class SocketHandlers {
 
   setupEventHandlers() {
     this.io.on("connection", (socket) => {
-      console.log(`User ${socket.userId} connected`);
+      log.info(`User connected via socket`, {
+        userId: socket.userId,
+        socketId: socket.id,
+        userRole: socket.userRole,
+      });
 
       this.handleConnection(socket);
       this.handleDisconnection(socket);
@@ -95,7 +100,10 @@ class SocketHandlers {
       lastSeen: new Date(),
     });
 
-    console.log(`User ${userId} disconnected`);
+    log.info(`User disconnected`, {
+      userId,
+      socketId: socket.id,
+    });
   }
 
   handleJobUpdates(socket) {
@@ -131,7 +139,11 @@ class SocketHandlers {
           });
         }
       } catch (error) {
-        console.error("Job update error:", error);
+        log.error("Job update error", error, {
+          jobId: data.jobId,
+          userId: socket.userId,
+          socketId: socket.id,
+        });
         socket.emit("error", { message: "Failed to update job" });
       }
     });
@@ -149,7 +161,10 @@ class SocketHandlers {
 
         socket.emit("notification:updated", { notificationId, read: true });
       } catch (error) {
-        console.error("Notification update error:", error);
+        log.error("Notification update error", error, {
+          notificationId: data.notificationId,
+          userId: socket.userId,
+        });
       }
     });
   }
@@ -200,7 +215,11 @@ class SocketHandlers {
           },
         });
       } catch (error) {
-        console.error("Activity creation error:", error);
+        log.error("Activity creation error", error, {
+          type: data.type,
+          userId: socket.userId,
+          relatedId: data.relatedId,
+        });
       }
     });
   }
@@ -229,7 +248,11 @@ class SocketHandlers {
         [userId, type, JSON.stringify(details)]
       );
     } catch (error) {
-      console.error("Activity logging error:", error);
+      log.error("Activity logging error", error, {
+        userId,
+        type,
+        details,
+      });
     }
   }
 
@@ -243,7 +266,11 @@ class SocketHandlers {
       );
       return result.rows[0];
     } catch (error) {
-      console.error("Activity logging with transaction error:", error);
+      log.error("Activity logging with transaction error", error, {
+        userId,
+        type,
+        details,
+      });
       throw error;
     }
   }
@@ -267,7 +294,12 @@ class SocketHandlers {
 
       return notification;
     } catch (error) {
-      console.error("Notification sending error:", error);
+      log.error("Notification sending error", error, {
+        userId,
+        title,
+        message,
+        type,
+      });
     }
   }
 
@@ -288,7 +320,12 @@ class SocketHandlers {
       );
       return result.rows[0];
     } catch (error) {
-      console.error("Notification sending with transaction error:", error);
+      log.error("Notification sending with transaction error", error, {
+        userId,
+        title,
+        message,
+        type,
+      });
       throw error;
     }
   }

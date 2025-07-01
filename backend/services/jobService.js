@@ -1,7 +1,23 @@
+/**
+ * Job Service
+ * Handles business logic for job management, including CRUD operations,
+ * permissions, and real-time updates
+ *
+ * @author SwiftTiger Team
+ * @version 1.0.0
+ */
+
+// Database and middleware
 const { pool } = require("../database");
-const socketService = require("./socketService");
 const { hasPermission } = require("../middleware/permissions");
+
+// Repositories
 const jobRepository = require("../repositories/jobRepository");
+
+// Services
+const socketService = require("./socketService");
+
+// Utilities
 const { handleError } = require("../utils/errors");
 const {
   successResponse,
@@ -10,13 +26,25 @@ const {
   forbiddenResponse,
   internalServerErrorResponse,
 } = require("../utils/apiResponse");
+
+// Configuration
 const { JOB_STATUSES, USER_ROLES, DATABASE } = require("../config/constants");
 
+/**
+ * JobService class for managing job operations
+ */
 class JobService {
+  /**
+   * Initialize JobService instance
+   */
   constructor() {}
 
   /**
    * Get all jobs with proper permissions and role-based filtering
+   *
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object with jobs data
    */
   async getJobs(userId, userRole) {
     try {
@@ -66,6 +94,11 @@ class JobService {
 
   /**
    * Get a specific job by ID with proper permissions
+   *
+   * @param {number} jobId - ID of the job to retrieve
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object with job data
    */
   async getJobById(jobId, userId, userRole) {
     try {
@@ -90,6 +123,18 @@ class JobService {
 
   /**
    * Create a new job with validation and WebSocket emissions
+   *
+   * @param {Object} jobData - Job data object
+   * @param {string} jobData.title - Job title
+   * @param {string} jobData.description - Job description
+   * @param {number} jobData.customer_id - Customer ID
+   * @param {string} jobData.status - Job status
+   * @param {number} jobData.assigned_to - Assigned technician ID
+   * @param {string} jobData.scheduled_date - Scheduled date
+   * @param {string} jobData.scheduled_time - Scheduled time
+   * @param {number} jobData.estimated_duration - Estimated duration in minutes
+   * @param {number} userId - ID of the user creating the job
+   * @returns {Promise<Object>} Response object with created job data
    */
   async createJob(jobData, userId) {
     const client = await jobRepository.beginTransaction();
@@ -172,6 +217,12 @@ class JobService {
 
   /**
    * Update an existing job with validation and WebSocket emissions
+   *
+   * @param {number} jobId - ID of the job to update
+   * @param {Object} updateData - Job update data
+   * @param {number} userId - ID of the user updating the job
+   * @param {string} userRole - Role of the user updating the job
+   * @returns {Promise<Object>} Response object with updated job data
    */
   async updateJob(jobId, updateData, userId, userRole) {
     try {
@@ -285,6 +336,10 @@ class JobService {
 
   /**
    * Delete a job with proper permissions
+   *
+   * @param {number} jobId - ID of the job to delete
+   * @param {number} userId - ID of the user deleting the job
+   * @returns {Promise<Object>} Response object with deletion confirmation
    */
   async deleteJob(jobId, userId) {
     try {
@@ -315,6 +370,11 @@ class JobService {
 
   /**
    * Get job updates with proper permissions
+   *
+   * @param {number} jobId - ID of the job to get updates for
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object with job updates
    */
   async getJobUpdates(jobId, userId, userRole) {
     try {
@@ -350,6 +410,14 @@ class JobService {
 
   /**
    * Create a job update with proper permissions
+   *
+   * @param {number} jobId - ID of the job to create update for
+   * @param {Object} updateData - Update data object
+   * @param {string} updateData.content - Update content
+   * @param {string} updateData.update_type - Type of update (default: "comment")
+   * @param {number} userId - ID of the user creating the update
+   * @param {string} userRole - Role of the user creating the update
+   * @returns {Promise<Object>} Response object with created update data
    */
   async createJobUpdate(jobId, updateData, userId, userRole) {
     try {
@@ -406,6 +474,13 @@ class JobService {
 
   /**
    * Get jobs with location data for mapping
+   *
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @param {Object} filters - Optional filters for job data
+   * @param {string} filters.date - Filter by scheduled date
+   * @param {number} filters.technician_id - Filter by assigned technician
+   * @returns {Promise<Object>} Response object with map data
    */
   async getJobsMapData(userId, userRole, filters = {}) {
     try {
@@ -463,6 +538,12 @@ class JobService {
   }
 }
 
-// Create singleton instance
+/**
+ * Create singleton instance of JobService
+ */
 const jobService = new JobService();
+
+/**
+ * Export JobService singleton instance
+ */
 module.exports = jobService;

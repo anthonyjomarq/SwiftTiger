@@ -4,6 +4,7 @@ import Input from "./Input";
 import Select from "./Select";
 import Button from "./Button";
 import { UI_TEXT, STORAGE_KEYS } from "../../config/constants";
+import { useErrorHandler } from "../../hooks/useErrorHandler";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: UI_TEXT.JOBS.STATUS.PENDING },
@@ -24,6 +25,15 @@ export default function JobForm({
   const [step, setStep] = useState(0);
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+
+  // Error handling
+  const {
+    handleSubmit: handleFormSubmit,
+    isLoading,
+    error,
+  } = useErrorHandler({
+    context: { type: "job_form" },
+  });
 
   const {
     control,
@@ -83,11 +93,17 @@ export default function JobForm({
   const nextStep = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const prevStep = () => setStep((s) => Math.max(s - 1, 0));
 
-  // Final submit
-  const submitForm = (data) => {
-    localStorage.removeItem(DRAFT_KEY);
-    onSubmit?.({ ...data, file });
-  };
+  // Final submit with error handling
+  const submitForm = handleFormSubmit(
+    async (data) => {
+      localStorage.removeItem(DRAFT_KEY);
+      return await onSubmit?.({ ...data, file });
+    },
+    {
+      successMessage: "Job saved successfully",
+      errorContext: { action: "submit_job_form" },
+    }
+  );
 
   return (
     <form
