@@ -82,17 +82,46 @@ pool.on("error", (err) => {
  */
 const initializeDatabase = async () => {
   try {
-    // Users table with role
+    // Users table with role and profile fields
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        phone VARCHAR(50),
+        address TEXT,
+        city VARCHAR(100),
+        state VARCHAR(50),
+        zip_code VARCHAR(20),
+        company VARCHAR(255),
+        notes TEXT,
         role VARCHAR(50) DEFAULT 'technician',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add profile columns if they don't exist (for existing databases)
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS state VARCHAR(50);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS zip_code VARCHAR(20);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR(255);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS notes TEXT;
+        EXCEPTION
+          WHEN duplicate_column THEN NULL;
+        END;
+      END $$;
     `);
 
     // Customers table
@@ -167,6 +196,36 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Support tickets table for customer support
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id SERIAL PRIMARY KEY,
+        customer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        subject VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        category VARCHAR(50) DEFAULT 'general',
+        priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+        status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
+        assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Support ticket responses/messages
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_ticket_messages (
+        id SERIAL PRIMARY KEY,
+        ticket_id INTEGER REFERENCES support_tickets(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        is_internal BOOLEAN DEFAULT false,
+        attachments JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Add indexes for performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_job_updates_job_id ON job_updates(job_id);
@@ -174,6 +233,11 @@ const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_technician_locations_user_id ON technician_locations(user_id);
       CREATE INDEX IF NOT EXISTS idx_shared_routes_token ON shared_routes(share_token);
       CREATE INDEX IF NOT EXISTS idx_shared_routes_expires_at ON shared_routes(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_customer_id ON support_tickets(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_created_at ON support_tickets(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket_id ON support_ticket_messages(ticket_id);
+      CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_created_at ON support_ticket_messages(created_at DESC);
     `);
 
     // Permissions table

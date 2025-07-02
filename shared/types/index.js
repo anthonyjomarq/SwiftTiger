@@ -215,6 +215,18 @@ export const API_ENDPOINTS = {
     GET: (id) => `/api/users/${id}`,
   },
   
+  // User Profile (Customer specific)
+  USER: {
+    UPDATE: '/api/auth/profile',
+    CHANGE_PASSWORD: '/api/auth/change-password',
+  },
+  
+  // Support System
+  SUPPORT: {
+    TICKETS: '/api/support/tickets',
+    CREATE_TICKET: '/api/support/tickets',
+  },
+  
   // Notifications
   NOTIFICATIONS: {
     LIST: '/api/notifications',

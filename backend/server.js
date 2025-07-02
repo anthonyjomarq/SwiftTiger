@@ -364,6 +364,149 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
 });
 
 /**
+ * Update user profile
+ * PUT /api/auth/profile
+ */
+app.put(
+  "/api/auth/profile",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("first_name").optional().trim().isLength({ min: 1, max: 100 }),
+    body("last_name").optional().trim().isLength({ min: 1, max: 100 }),
+    body("email").optional().isEmail().normalizeEmail(),
+    body("phone").optional().trim(),
+    body("address").optional().trim(),
+    body("city").optional().trim(),
+    body("state").optional().trim(),
+    body("zip_code").optional().trim(),
+    body("company").optional().trim(),
+    body("notes").optional().trim(),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const updateData = req.body;
+
+      // Check if email is being changed and if it's already taken
+      if (updateData.email) {
+        const existingUser = await pool.query(
+          "SELECT id FROM users WHERE email = $1 AND id != $2",
+          [updateData.email, userId]
+        );
+        
+        if (existingUser.rows.length > 0) {
+          return res.status(400).json(
+            errorResponse("Email is already in use", 400)
+          );
+        }
+      }
+
+      // Update user profile
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] !== undefined) {
+          updateFields.push(`${key} = $${paramIndex}`);
+          updateValues.push(updateData[key]);
+          paramIndex++;
+        }
+      });
+
+      if (updateFields.length === 0) {
+        return res.status(400).json(
+          errorResponse("No valid fields to update", 400)
+        );
+      }
+
+      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      updateValues.push(userId);
+
+      const query = `
+        UPDATE users 
+        SET ${updateFields.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING id, email, name, first_name, last_name, phone, address, city, state, zip_code, company, notes, role, created_at, updated_at
+      `;
+
+      const result = await pool.query(query, updateValues);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("User not found"));
+      }
+
+      res.json(successResponse(result.rows[0], "Profile updated successfully"));
+    } catch (error) {
+      log.error("Profile update error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Change user password
+ * POST /api/auth/change-password
+ */
+app.post(
+  "/api/auth/change-password",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("current_password").notEmpty().withMessage("Current password is required"),
+    body("new_password")
+      .isLength({ min: 8 })
+      .withMessage("New password must be at least 8 characters long"),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { current_password, new_password } = req.body;
+      const userId = req.user.id;
+
+      // Get current user password
+      const userResult = await pool.query(
+        "SELECT password FROM users WHERE id = $1",
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("User not found"));
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(
+        current_password,
+        userResult.rows[0].password
+      );
+
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json(
+          errorResponse("Current password is incorrect", 400)
+        );
+      }
+
+      // Hash new password
+      const saltRounds = 12;
+      const hashedNewPassword = await bcrypt.hash(new_password, saltRounds);
+
+      // Update password
+      await pool.query(
+        "UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        [hashedNewPassword, userId]
+      );
+
+      res.json(successResponse(null, "Password changed successfully"));
+    } catch (error) {
+      log.error("Password change error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
  * Get user permissions
  * GET /api/auth/permissions
  */
@@ -477,6 +620,96 @@ app.get("/api/jobs", authenticateToken, async (req, res) => {
   const result = await jobService.getJobs(req.user.id, req.user.role, filters);
   sendResponse(res, result);
 });
+
+/**
+ * Get individual job by ID
+ * GET /api/jobs/:id
+ */
+app.get(
+  "/api/jobs/:id",
+  authenticateToken,
+  validateJobId,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      // Build query based on user role
+      let query;
+      let params;
+
+      if (userRole === 'admin' || userRole === 'dispatcher' || userRole === 'manager') {
+        // Admin/dispatcher can see all jobs
+        query = `
+          SELECT 
+            j.*,
+            c.name as customer_name,
+            c.email as customer_email,
+            c.phone as customer_phone,
+            c.address as customer_address,
+            u.name as technician_name,
+            u.email as technician_email,
+            u.phone as technician_phone
+          FROM jobs j
+          LEFT JOIN customers c ON j.customer_id = c.id
+          LEFT JOIN users u ON j.assigned_to = u.id
+          WHERE j.id = $1
+        `;
+        params = [jobId];
+      } else if (userRole === 'technician') {
+        // Technicians can only see jobs assigned to them
+        query = `
+          SELECT 
+            j.*,
+            c.name as customer_name,
+            c.email as customer_email,
+            c.phone as customer_phone,
+            c.address as customer_address,
+            u.name as technician_name,
+            u.email as technician_email,
+            u.phone as technician_phone
+          FROM jobs j
+          LEFT JOIN customers c ON j.customer_id = c.id
+          LEFT JOIN users u ON j.assigned_to = u.id
+          WHERE j.id = $1 AND j.assigned_to = $2
+        `;
+        params = [jobId, userId];
+      } else if (userRole === 'customer') {
+        // Customers can only see their own jobs
+        query = `
+          SELECT 
+            j.*,
+            c.name as customer_name,
+            c.email as customer_email,
+            c.phone as customer_phone,
+            c.address as customer_address,
+            u.name as technician_name,
+            u.phone as technician_phone
+          FROM jobs j
+          LEFT JOIN customers c ON j.customer_id = c.id
+          LEFT JOIN users u ON j.assigned_to = u.id
+          WHERE j.id = $1 AND j.customer_id = $2
+        `;
+        params = [jobId, userId];
+      } else {
+        return res.status(403).json(forbiddenResponse());
+      }
+
+      const result = await pool.query(query, params);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("Job not found"));
+      }
+
+      res.json(successResponse(result.rows[0], "Job retrieved successfully"));
+    } catch (error) {
+      log.error("Get job error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
 
 app.post(
   "/api/jobs",
@@ -1121,6 +1354,235 @@ io.on("connection", (socket) => {
     });
   });
 });
+
+/**
+ * Support Ticket Routes
+ */
+
+/**
+ * Get support tickets for current user
+ * GET /api/support/tickets
+ */
+app.get("/api/support/tickets", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    let query;
+    let params;
+
+    if (userRole === 'admin' || userRole === 'manager' || userRole === 'dispatcher') {
+      // Admin/staff can see all tickets
+      query = `
+        SELECT 
+          st.*,
+          u.name as customer_name,
+          u.email as customer_email,
+          assigned.name as assigned_to_name
+        FROM support_tickets st
+        LEFT JOIN users u ON st.customer_id = u.id
+        LEFT JOIN users assigned ON st.assigned_to = assigned.id
+        ORDER BY st.created_at DESC
+      `;
+      params = [];
+    } else {
+      // Customers can only see their own tickets
+      query = `
+        SELECT 
+          st.*,
+          u.name as customer_name,
+          u.email as customer_email,
+          assigned.name as assigned_to_name
+        FROM support_tickets st
+        LEFT JOIN users u ON st.customer_id = u.id
+        LEFT JOIN users assigned ON st.assigned_to = assigned.id
+        WHERE st.customer_id = $1
+        ORDER BY st.created_at DESC
+      `;
+      params = [userId];
+    }
+
+    // Add filters if provided
+    if (req.query.status) {
+      query = query.replace('ORDER BY', 'AND st.status = $' + (params.length + 1) + ' ORDER BY');
+      params.push(req.query.status);
+    }
+
+    if (req.query.category) {
+      query = query.replace('ORDER BY', 'AND st.category = $' + (params.length + 1) + ' ORDER BY');
+      params.push(req.query.category);
+    }
+
+    const result = await pool.query(query, params);
+
+    res.json(successResponse(result.rows, "Support tickets retrieved successfully"));
+  } catch (error) {
+    log.error("Get support tickets error", error);
+    res.status(500).json(internalServerErrorResponse());
+  }
+});
+
+/**
+ * Create new support ticket
+ * POST /api/support/tickets
+ */
+app.post(
+  "/api/support/tickets",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("subject").notEmpty().trim().isLength({ min: 1, max: 255 }),
+    body("description").notEmpty().trim().isLength({ min: 1, max: 2000 }),
+    body("category").optional().isIn(['general', 'billing', 'technical', 'scheduling', 'service', 'account', 'emergency']),
+    body("priority").optional().isIn(['low', 'normal', 'high', 'urgent']),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { subject, description, category = 'general', priority = 'normal' } = req.body;
+      const customerId = req.user.id;
+
+      const result = await pool.query(
+        `
+        INSERT INTO support_tickets (customer_id, subject, description, category, priority)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+        `,
+        [customerId, subject, description, category, priority]
+      );
+
+      // Create initial message
+      await pool.query(
+        `
+        INSERT INTO support_ticket_messages (ticket_id, user_id, message, is_internal)
+        VALUES ($1, $2, $3, false)
+        `,
+        [result.rows[0].id, customerId, description]
+      );
+
+      res.json(successResponse(result.rows[0], "Support ticket created successfully"));
+    } catch (error) {
+      log.error("Create support ticket error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get support ticket messages
+ * GET /api/support/tickets/:id/messages
+ */
+app.get(
+  "/api/support/tickets/:id/messages",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const ticketId = req.params.id;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      // First check if user has access to this ticket
+      let accessQuery;
+      let accessParams;
+
+      if (userRole === 'admin' || userRole === 'manager' || userRole === 'dispatcher') {
+        accessQuery = 'SELECT id FROM support_tickets WHERE id = $1';
+        accessParams = [ticketId];
+      } else {
+        accessQuery = 'SELECT id FROM support_tickets WHERE id = $1 AND customer_id = $2';
+        accessParams = [ticketId, userId];
+      }
+
+      const ticketCheck = await pool.query(accessQuery, accessParams);
+
+      if (ticketCheck.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("Support ticket not found"));
+      }
+
+      // Get messages
+      const query = `
+        SELECT 
+          stm.*,
+          u.name as user_name,
+          u.role as user_role
+        FROM support_ticket_messages stm
+        LEFT JOIN users u ON stm.user_id = u.id
+        WHERE stm.ticket_id = $1
+        AND (stm.is_internal = false OR $2 IN ('admin', 'manager', 'dispatcher'))
+        ORDER BY stm.created_at ASC
+      `;
+
+      const result = await pool.query(query, [ticketId, userRole]);
+
+      res.json(successResponse(result.rows, "Ticket messages retrieved successfully"));
+    } catch (error) {
+      log.error("Get ticket messages error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Add message to support ticket
+ * POST /api/support/tickets/:id/messages
+ */
+app.post(
+  "/api/support/tickets/:id/messages",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("message").notEmpty().trim().isLength({ min: 1, max: 2000 }),
+    body("is_internal").optional().isBoolean(),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const ticketId = req.params.id;
+      const { message, is_internal = false } = req.body;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      // Check access to ticket
+      let accessQuery;
+      let accessParams;
+
+      if (userRole === 'admin' || userRole === 'manager' || userRole === 'dispatcher') {
+        accessQuery = 'SELECT id FROM support_tickets WHERE id = $1';
+        accessParams = [ticketId];
+      } else {
+        accessQuery = 'SELECT id FROM support_tickets WHERE id = $1 AND customer_id = $2';
+        accessParams = [ticketId, userId];
+      }
+
+      const ticketCheck = await pool.query(accessQuery, accessParams);
+
+      if (ticketCheck.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("Support ticket not found"));
+      }
+
+      // Add message
+      const result = await pool.query(
+        `
+        INSERT INTO support_ticket_messages (ticket_id, user_id, message, is_internal)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        `,
+        [ticketId, userId, message, is_internal && userRole !== 'customer']
+      );
+
+      // Update ticket timestamp
+      await pool.query(
+        'UPDATE support_tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+        [ticketId]
+      );
+
+      res.json(successResponse(result.rows[0], "Message added successfully"));
+    } catch (error) {
+      log.error("Add ticket message error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
 
 /**
  * Get notifications
