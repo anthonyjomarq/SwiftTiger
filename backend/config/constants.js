@@ -21,6 +21,15 @@ const JOB_PRIORITIES = {
   EMERGENCY: "emergency",
 };
 
+// Job Note Types
+const NOTE_TYPES = {
+  GENERAL: "general",
+  TECHNICAL: "technical",
+  CUSTOMER: "customer",
+  INTERNAL: "internal",
+  STATUS_CHANGE: "status_change",
+};
+
 // User Roles
 const USER_ROLES = {
   ADMIN: "admin",
@@ -260,6 +269,7 @@ const ROUTE_OPTIMIZATION = {
 module.exports = {
   JOB_STATUSES,
   JOB_PRIORITIES,
+  NOTE_TYPES,
   USER_ROLES,
   PERMISSIONS,
   PAGINATION,

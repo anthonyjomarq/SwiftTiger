@@ -40,6 +40,8 @@ const {
   validateJobStatus,
   validateJobId,
   validateJobUpdate,
+  validateJobNoteUpdate,
+  validateNotePinToggle,
   validateRouteOptimization,
   validateEtaCalculation,
 } = require("./validators/jobValidator");
@@ -502,7 +504,8 @@ app.put(
       req.params.id,
       req.body,
       req.user.id,
-      req.user.role
+      req.user.role,
+      req.workflowContext // Pass workflow context from middleware
     );
     sendResponse(res, result);
   }
@@ -548,7 +551,7 @@ app.get(
       }
 
       const currentStatus = jobResult.rows[0].status;
-      const { getAvailableTransitions } = require('./middleware/jobWorkflow');
+      const { getAvailableTransitions, WORKFLOW_CONFIG } = require('./middleware/jobWorkflow');
       const availableTransitions = getAvailableTransitions(currentStatus, userRole);
 
       res.json({
@@ -556,7 +559,9 @@ app.get(
         data: {
           currentStatus,
           availableTransitions,
-          userRole
+          userRole,
+          requiresComment: WORKFLOW_CONFIG.REQUIRES_COMMENT,
+          requiresAssignment: WORKFLOW_CONFIG.REQUIRES_ASSIGNMENT
         }
       });
     } catch (error) {
@@ -564,6 +569,76 @@ app.get(
       res.status(500).json({
         success: false,
         error: 'Failed to get available transitions'
+      });
+    }
+  }
+);
+
+/**
+ * Get workflow analytics for a job
+ * GET /api/jobs/:id/workflow
+ */
+app.get(
+  "/api/jobs/:id/workflow",
+  authenticateToken,
+  validateJobId,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { getJobWorkflowAnalytics } = require('./middleware/jobWorkflow');
+      const result = await getJobWorkflowAnalytics(req.params.id);
+      
+      if (!result.success) {
+        return res.status(404).json(result);
+      }
+      
+      res.json({
+        success: true,
+        data: result.data
+      });
+    } catch (error) {
+      log.error('Get workflow analytics error', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get workflow analytics'
+      });
+    }
+  }
+);
+
+/**
+ * Get job status history
+ * GET /api/jobs/:id/history
+ */
+app.get(
+  "/api/jobs/:id/history",
+  authenticateToken,
+  validateJobId,
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      
+      const historyResult = await pool.query(`
+        SELECT 
+          jsh.*,
+          u.name as changed_by_name,
+          u.role as changed_by_role
+        FROM job_status_history jsh
+        LEFT JOIN users u ON jsh.changed_by = u.id
+        WHERE job_id = $1
+        ORDER BY changed_at DESC
+      `, [jobId]);
+      
+      res.json({
+        success: true,
+        data: historyResult.rows
+      });
+    } catch (error) {
+      log.error('Get job history error', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get job history'
       });
     }
   }
@@ -606,6 +681,67 @@ app.post(
     const result = await jobService.createJobUpdate(
       req.params.id,
       req.body,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
+
+/**
+ * Update a job note/comment
+ * PUT /api/jobs/:id/updates/:updateId
+ */
+app.put(
+  "/api/jobs/:id/updates/:updateId",
+  authenticateToken,
+  sanitizeRequest,
+  validateJobNoteUpdate,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.updateJobNote(
+      req.params.id,
+      req.params.updateId,
+      req.body,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
+
+/**
+ * Delete a job note/comment
+ * DELETE /api/jobs/:id/updates/:updateId
+ */
+app.delete(
+  "/api/jobs/:id/updates/:updateId",
+  authenticateToken,
+  async (req, res) => {
+    const result = await jobService.deleteJobNote(
+      req.params.id,
+      req.params.updateId,
+      req.user.id,
+      req.user.role
+    );
+    sendResponse(res, result);
+  }
+);
+
+/**
+ * Pin/unpin a job note
+ * PATCH /api/jobs/:id/updates/:updateId/pin
+ */
+app.patch(
+  "/api/jobs/:id/updates/:updateId/pin",
+  authenticateToken,
+  validateNotePinToggle,
+  handleValidationErrors,
+  async (req, res) => {
+    const result = await jobService.toggleNotePin(
+      req.params.id,
+      req.params.updateId,
+      req.body.is_pinned,
       req.user.id,
       req.user.role
     );

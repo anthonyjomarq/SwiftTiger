@@ -230,7 +230,7 @@ class JobService {
    * @param {string} userRole - Role of the user updating the job
    * @returns {Promise<Object>} Response object with updated job data
    */
-  async updateJob(jobId, updateData, userId, userRole) {
+  async updateJob(jobId, updateData, userId, userRole, workflowContext = null) {
     try {
       const {
         title,
@@ -242,6 +242,7 @@ class JobService {
         scheduled_date,
         scheduled_time,
         estimated_duration,
+        comment, // For status change comments
       } = updateData;
 
       // Get current job state
@@ -277,7 +278,7 @@ class JobService {
         }
       }
 
-      // Prepare update data for repository
+      // Prepare update data for repository, including workflow tracking
       const updateDataForRepo = {
         title,
         description,
@@ -288,7 +289,18 @@ class JobService {
         scheduled_date,
         scheduled_time,
         estimated_duration,
+        // Add workflow-specific fields
+        ...(workflowContext?.timeTrackingData || {}),
+        status_changed_at: workflowContext?.isStatusChange ? new Date() : undefined,
+        status_changed_by: workflowContext?.isStatusChange ? userId : undefined,
       };
+
+      // Filter undefined values
+      Object.keys(updateDataForRepo).forEach(key => {
+        if (updateDataForRepo[key] === undefined) {
+          delete updateDataForRepo[key];
+        }
+      });
 
       // Use repository to update job
       const result = await jobRepository.updateAndLog(
@@ -302,6 +314,43 @@ class JobService {
       }
 
       const updatedJob = result.data;
+
+      // Handle workflow-specific operations
+      if (workflowContext?.isStatusChange) {
+        // Import workflow functions
+        const { logStatusChange } = require('../middleware/jobWorkflow');
+        
+        // Calculate duration in previous status
+        let durationInStatus = null;
+        if (oldJob.status_changed_at) {
+          const previousChangeTime = new Date(oldJob.status_changed_at);
+          const now = new Date();
+          durationInStatus = Math.round((now - previousChangeTime) / (1000 * 60)); // minutes
+        }
+        
+        // Log status change to workflow history
+        await logStatusChange(
+          jobId,
+          workflowContext.currentStatus,
+          workflowContext.newStatus,
+          userId,
+          comment,
+          durationInStatus
+        );
+        
+        // Create a status change note if comment provided
+        if (comment?.trim()) {
+          await jobRepository.createJobUpdate(
+            jobId,
+            {
+              content: comment,
+              update_type: 'status_change',
+              note_type: 'status_change'
+            },
+            userId
+          );
+        }
+      }
 
       // Emit WebSocket events
       if (socketService.getHandlers()) {
@@ -323,7 +372,30 @@ class JobService {
           },
         });
 
-        // Send notifications
+        // Enhanced notifications for status changes
+        if (workflowContext?.isStatusChange) {
+          const statusMessages = {
+            'in_progress': 'Job has been started',
+            'completed': 'Job has been completed',
+            'cancelled': 'Job has been cancelled',
+            'on_hold': 'Job has been put on hold'
+          };
+          
+          const message = statusMessages[status] || `Job status changed to ${status}`;
+          
+          // Notify assigned technician
+          if (oldJob.assigned_to) {
+            await socketService.sendNotification(
+              oldJob.assigned_to,
+              "Job Status Update",
+              `${updatedJob.title}: ${message}`,
+              "job_status_change",
+              { jobId: jobId, newStatus: status }
+            );
+          }
+        }
+
+        // Send notifications for assignment changes
         if (assigned_to && assigned_to !== oldJob.assigned_to) {
           await socketService.sendNotification(
             assigned_to,
@@ -449,10 +521,18 @@ class JobService {
         return forbiddenResponse();
       }
 
-      // Use repository to create job update
+      // Use repository to create job update with enhanced note data
+      const noteData = {
+        content,
+        update_type,
+        note_type: updateData.note_type || 'general',
+        is_private: updateData.is_private || false,
+        is_pinned: updateData.is_pinned || false
+      };
+
       const result = await jobRepository.createJobUpdate(
         jobId,
-        { content, update_type },
+        noteData,
         userId
       );
 
@@ -476,6 +556,150 @@ class JobService {
       );
     } catch (error) {
       console.error("Create job update error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Update a job note/comment
+   *
+   * @param {number} jobId - ID of the job
+   * @param {number} updateId - ID of the update/note to modify
+   * @param {Object} updateData - Data to update
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object
+   */
+  async updateJobNote(jobId, updateId, updateData, userId, userRole) {
+    try {
+      // Check if job exists and user has permission
+      const job = await jobRepository.findByIdWithDetails(jobId);
+      if (!job.success || !job.data) {
+        return notFoundResponse();
+      }
+
+      // Check permissions
+      if (userRole === USER_ROLES.TECHNICIAN && job.data.assigned_to !== userId) {
+        return forbiddenResponse();
+      }
+
+      // Check if the note exists and user can edit it
+      const noteResult = await jobRepository.getJobUpdateById(updateId);
+      if (!noteResult.success || !noteResult.data) {
+        return notFoundResponse("Note not found");
+      }
+
+      // Only the author or admin/manager can edit notes
+      if (noteResult.data.user_id !== userId && !['admin', 'manager'].includes(userRole)) {
+        return forbiddenResponse("You can only edit your own notes");
+      }
+
+      const result = await jobRepository.updateJobNote(updateId, updateData, userId);
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      // Emit WebSocket event for updated note
+      if (socketService.getHandlers()) {
+        socketService.broadcastJobUpdate(jobId, null, userId);
+      }
+
+      return successResponse(result.data, "Note updated successfully");
+    } catch (error) {
+      console.error("Update job note error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Delete a job note/comment
+   *
+   * @param {number} jobId - ID of the job
+   * @param {number} updateId - ID of the update/note to delete
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object
+   */
+  async deleteJobNote(jobId, updateId, userId, userRole) {
+    try {
+      // Check if job exists and user has permission
+      const job = await jobRepository.findByIdWithDetails(jobId);
+      if (!job.success || !job.data) {
+        return notFoundResponse();
+      }
+
+      // Check permissions
+      if (userRole === USER_ROLES.TECHNICIAN && job.data.assigned_to !== userId) {
+        return forbiddenResponse();
+      }
+
+      // Check if the note exists and user can delete it
+      const noteResult = await jobRepository.getJobUpdateById(updateId);
+      if (!noteResult.success || !noteResult.data) {
+        return notFoundResponse("Note not found");
+      }
+
+      // Only the author or admin/manager can delete notes
+      if (noteResult.data.user_id !== userId && !['admin', 'manager'].includes(userRole)) {
+        return forbiddenResponse("You can only delete your own notes");
+      }
+
+      const result = await jobRepository.deleteJobNote(updateId);
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      // Emit WebSocket event for deleted note
+      if (socketService.getHandlers()) {
+        socketService.broadcastJobUpdate(jobId, null, userId);
+      }
+
+      return successResponse(null, "Note deleted successfully");
+    } catch (error) {
+      console.error("Delete job note error:", error);
+      return internalServerErrorResponse();
+    }
+  }
+
+  /**
+   * Toggle pin status of a job note
+   *
+   * @param {number} jobId - ID of the job
+   * @param {number} updateId - ID of the update/note
+   * @param {boolean} isPinned - Pin status to set
+   * @param {number} userId - ID of the requesting user
+   * @param {string} userRole - Role of the requesting user
+   * @returns {Promise<Object>} Response object
+   */
+  async toggleNotePin(jobId, updateId, isPinned, userId, userRole) {
+    try {
+      // Check if job exists and user has permission
+      const job = await jobRepository.findByIdWithDetails(jobId);
+      if (!job.success || !job.data) {
+        return notFoundResponse();
+      }
+
+      // Check permissions - only admin/manager can pin notes
+      if (!['admin', 'manager'].includes(userRole)) {
+        return forbiddenResponse("Only administrators and managers can pin notes");
+      }
+
+      const result = await jobRepository.toggleNotePin(updateId, isPinned);
+      
+      if (!result.success) {
+        return internalServerErrorResponse();
+      }
+
+      // Emit WebSocket event for pinned note
+      if (socketService.getHandlers()) {
+        socketService.broadcastJobUpdate(jobId, null, userId);
+      }
+
+      return successResponse(result.data, `Note ${isPinned ? 'pinned' : 'unpinned'} successfully`);
+    } catch (error) {
+      console.error("Toggle note pin error:", error);
       return internalServerErrorResponse();
     }
   }

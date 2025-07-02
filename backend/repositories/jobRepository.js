@@ -558,16 +558,23 @@ class JobRepository {
     const client = await this.beginTransaction();
 
     try {
-      const { content, update_type = "comment" } = data;
+      const { 
+        content, 
+        update_type = "comment", 
+        note_type = "general",
+        is_private = false,
+        is_pinned = false
+      } = data;
 
       if (!content) {
         throw new ValidationError("Update content is required", "content");
       }
 
-      // Create the update
+      // Create the update with enhanced note fields
       const updateQuery = `
-        INSERT INTO ${this.updatesTableName} (job_id, user_id, content, update_type)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO ${this.updatesTableName} 
+        (job_id, user_id, content, update_type, note_type, is_private, is_pinned)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `;
 
@@ -576,6 +583,9 @@ class JobRepository {
         userId,
         content,
         update_type,
+        note_type,
+        is_private,
+        is_pinned,
       ]);
 
       // Update job's last_activity timestamp
@@ -612,6 +622,180 @@ class JobRepository {
         throw new NotFoundError("Job not found", "job");
       }
       throw error;
+    }
+  }
+
+  /**
+   * Get single job update by ID
+   */
+  async getJobUpdateById(updateId) {
+    try {
+      const query = `
+        SELECT ju.*, u.name as user_name, u.role as user_role
+        FROM ${this.updatesTableName} ju
+        JOIN ${this.usersTableName} u ON ju.user_id = u.id
+        WHERE ju.id = $1
+      `;
+
+      const result = await pool.query(query, [updateId]);
+
+      if (result.rows.length === 0) {
+        return {
+          success: false,
+          data: null,
+        };
+      }
+
+      return {
+        success: true,
+        data: result.rows[0],
+      };
+    } catch (error) {
+      console.error("Get job update by ID error:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Update job note
+   */
+  async updateJobNote(updateId, data, userId) {
+    const client = await this.beginTransaction();
+
+    try {
+      const { content, note_type, is_private } = data;
+      const fields = [];
+      const values = [];
+      let paramIndex = 1;
+
+      if (content !== undefined) {
+        fields.push(`content = $${paramIndex++}`);
+        values.push(content);
+      }
+
+      if (note_type !== undefined) {
+        fields.push(`note_type = $${paramIndex++}`);
+        values.push(note_type);
+      }
+
+      if (is_private !== undefined) {
+        fields.push(`is_private = $${paramIndex++}`);
+        values.push(is_private);
+      }
+
+      fields.push(`edited_at = CURRENT_TIMESTAMP`);
+      fields.push(`edited_by = $${paramIndex++}`);
+      values.push(userId);
+
+      values.push(updateId);
+
+      const updateQuery = `
+        UPDATE ${this.updatesTableName}
+        SET ${fields.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING *
+      `;
+
+      const result = await client.query(updateQuery, values);
+
+      if (result.rows.length === 0) {
+        throw new NotFoundError("Job update not found", "update");
+      }
+
+      // Get user info for the response
+      const userResult = await client.query(
+        `SELECT name, role FROM ${this.usersTableName} WHERE id = $1`,
+        [result.rows[0].user_id]
+      );
+
+      const updateWithUser = {
+        ...result.rows[0],
+        user_name: userResult.rows[0].name,
+        user_role: userResult.rows[0].role,
+      };
+
+      await this.commitTransaction(client);
+
+      return {
+        success: true,
+        data: updateWithUser,
+      };
+    } catch (error) {
+      await this.rollbackTransaction(client);
+      if (error instanceof ValidationError || error instanceof NotFoundError) {
+        throw error;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Delete job note
+   */
+  async deleteJobNote(updateId) {
+    try {
+      const query = `
+        DELETE FROM ${this.updatesTableName}
+        WHERE id = $1
+        RETURNING id
+      `;
+
+      const result = await pool.query(query, [updateId]);
+
+      if (result.rows.length === 0) {
+        return {
+          success: false,
+          error: "Job update not found",
+        };
+      }
+
+      return {
+        success: true,
+        data: { id: result.rows[0].id },
+      };
+    } catch (error) {
+      console.error("Delete job note error:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Toggle note pin status
+   */
+  async toggleNotePin(updateId, isPinned) {
+    try {
+      const query = `
+        UPDATE ${this.updatesTableName}
+        SET is_pinned = $1
+        WHERE id = $2
+        RETURNING *
+      `;
+
+      const result = await pool.query(query, [isPinned, updateId]);
+
+      if (result.rows.length === 0) {
+        return {
+          success: false,
+          error: "Job update not found",
+        };
+      }
+
+      return {
+        success: true,
+        data: result.rows[0],
+      };
+    } catch (error) {
+      console.error("Toggle note pin error:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
     }
   }
 

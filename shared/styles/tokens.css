@@ -1,0 +1,383 @@
+/**
+ * SwiftTiger Design System Tokens
+ * Universal design tokens for all interfaces
+ */
+
+:root {
+  /* ========================================
+     COLOR SYSTEM
+     ======================================== */
+  
+  /* Primary Brand Colors */
+  --st-primary-50: #f0f9fb;
+  --st-primary-100: #d9f0f4;
+  --st-primary-200: #b8e1ea;
+  --st-primary-300: #86cbda;
+  --st-primary-400: #4ba9c3;
+  --st-primary-500: #00809d;    /* Primary Brand */
+  --st-primary-600: #007085;
+  --st-primary-700: #005c6e;
+  --st-primary-800: #004a5b;
+  --st-primary-900: #003d4d;
+
+  /* Secondary Brand Colors */
+  --st-secondary-50: #fefcf9;
+  --st-secondary-100: #fcecdd;   /* Secondary Brand */
+  --st-secondary-200: #f9d8bb;
+  --st-secondary-300: #f5bf89;
+  --st-secondary-400: #f0a055;
+  --st-secondary-500: #eb7f21;
+  --st-secondary-600: #d66a0d;
+  --st-secondary-700: #b3570b;
+  --st-secondary-800: #924609;
+  --st-secondary-900: #783b07;
+
+  /* Accent Colors */
+  --st-accent-50: #fff7ed;
+  --st-accent-100: #ffedd5;
+  --st-accent-200: #fed7aa;
+  --st-accent-300: #fdba74;
+  --st-accent-400: #fb923c;
+  --st-accent-500: #ff7601;     /* Accent Orange */
+  --st-accent-600: #ea580c;
+  --st-accent-700: #c2410c;
+  --st-accent-800: #9a3412;
+  --st-accent-900: #7c2d12;
+
+  /* Warm Colors */
+  --st-warm-50: #fef7f0;
+  --st-warm-100: #fdede0;
+  --st-warm-200: #fad8be;
+  --st-warm-300: #f7bb92;
+  --st-warm-400: #f3a26d;     /* Warm Orange */
+  --st-warm-500: #ee7c47;
+  --st-warm-600: #e05a2b;
+  --st-warm-700: #bc4420;
+  --st-warm-800: #95371e;
+  --st-warm-900: #78301d;
+
+  /* Semantic Colors */
+  --st-success-50: #ecfdf5;
+  --st-success-100: #d1fae5;
+  --st-success-200: #a7f3d0;
+  --st-success-300: #6ee7b7;
+  --st-success-400: #34d399;
+  --st-success-500: #10b981;
+  --st-success-600: #059669;
+  --st-success-700: #047857;
+  --st-success-800: #065f46;
+  --st-success-900: #064e3b;
+
+  --st-warning-50: #fffbeb;
+  --st-warning-100: #fef3c7;
+  --st-warning-200: #fde68a;
+  --st-warning-300: #fcd34d;
+  --st-warning-400: #fbbf24;
+  --st-warning-500: #f59e0b;
+  --st-warning-600: #d97706;
+  --st-warning-700: #b45309;
+  --st-warning-800: #92400e;
+  --st-warning-900: #78350f;
+
+  --st-error-50: #fef2f2;
+  --st-error-100: #fee2e2;
+  --st-error-200: #fecaca;
+  --st-error-300: #fca5a5;
+  --st-error-400: #f87171;
+  --st-error-500: #ef4444;
+  --st-error-600: #dc2626;
+  --st-error-700: #b91c1c;
+  --st-error-800: #991b1b;
+  --st-error-900: #7f1d1d;
+
+  --st-info-50: #eff6ff;
+  --st-info-100: #dbeafe;
+  --st-info-200: #bfdbfe;
+  --st-info-300: #93c5fd;
+  --st-info-400: #60a5fa;
+  --st-info-500: #3b82f6;
+  --st-info-600: #2563eb;
+  --st-info-700: #1d4ed8;
+  --st-info-800: #1e40af;
+  --st-info-900: #1e3a8a;
+
+  /* Neutral Colors */
+  --st-gray-50: #f9fafb;
+  --st-gray-100: #f3f4f6;
+  --st-gray-200: #e5e7eb;
+  --st-gray-300: #d1d5db;
+  --st-gray-400: #9ca3af;
+  --st-gray-500: #6b7280;
+  --st-gray-600: #4b5563;
+  --st-gray-700: #374151;
+  --st-gray-800: #1f2937;
+  --st-gray-900: #111827;
+
+  /* ========================================
+     TYPOGRAPHY SYSTEM
+     ======================================== */
+  
+  /* Font Families */
+  --st-font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --st-font-mono: 'Fira Code', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+
+  /* Font Sizes */
+  --st-text-xs: 0.75rem;        /* 12px */
+  --st-text-sm: 0.875rem;       /* 14px */
+  --st-text-base: 1rem;         /* 16px */
+  --st-text-lg: 1.125rem;       /* 18px */
+  --st-text-xl: 1.25rem;        /* 20px */
+  --st-text-2xl: 1.5rem;        /* 24px */
+  --st-text-3xl: 1.875rem;      /* 30px */
+  --st-text-4xl: 2.25rem;       /* 36px */
+  --st-text-5xl: 3rem;          /* 48px */
+  --st-text-6xl: 3.75rem;       /* 60px */
+
+  /* Line Heights */
+  --st-leading-none: 1;
+  --st-leading-tight: 1.25;
+  --st-leading-snug: 1.375;
+  --st-leading-normal: 1.5;
+  --st-leading-relaxed: 1.625;
+  --st-leading-loose: 2;
+
+  /* Font Weights */
+  --st-font-thin: 100;
+  --st-font-extralight: 200;
+  --st-font-light: 300;
+  --st-font-normal: 400;
+  --st-font-medium: 500;
+  --st-font-semibold: 600;
+  --st-font-bold: 700;
+  --st-font-extrabold: 800;
+  --st-font-black: 900;
+
+  /* ========================================
+     SPACING SYSTEM
+     ======================================== */
+  
+  --st-space-0: 0;
+  --st-space-px: 1px;
+  --st-space-0_5: 0.125rem;     /* 2px */
+  --st-space-1: 0.25rem;        /* 4px */
+  --st-space-1_5: 0.375rem;     /* 6px */
+  --st-space-2: 0.5rem;         /* 8px */
+  --st-space-2_5: 0.625rem;     /* 10px */
+  --st-space-3: 0.75rem;        /* 12px */
+  --st-space-3_5: 0.875rem;     /* 14px */
+  --st-space-4: 1rem;           /* 16px */
+  --st-space-5: 1.25rem;        /* 20px */
+  --st-space-6: 1.5rem;         /* 24px */
+  --st-space-7: 1.75rem;        /* 28px */
+  --st-space-8: 2rem;           /* 32px */
+  --st-space-9: 2.25rem;        /* 36px */
+  --st-space-10: 2.5rem;        /* 40px */
+  --st-space-11: 2.75rem;       /* 44px */
+  --st-space-12: 3rem;          /* 48px */
+  --st-space-14: 3.5rem;        /* 56px */
+  --st-space-16: 4rem;          /* 64px */
+  --st-space-20: 5rem;          /* 80px */
+  --st-space-24: 6rem;          /* 96px */
+  --st-space-28: 7rem;          /* 112px */
+  --st-space-32: 8rem;          /* 128px */
+
+  /* ========================================
+     SIZING SYSTEM
+     ======================================== */
+  
+  /* Border Radius */
+  --st-radius-none: 0;
+  --st-radius-sm: 0.125rem;      /* 2px */
+  --st-radius-base: 0.25rem;     /* 4px */
+  --st-radius-md: 0.375rem;      /* 6px */
+  --st-radius-lg: 0.5rem;        /* 8px */
+  --st-radius-xl: 0.75rem;       /* 12px */
+  --st-radius-2xl: 1rem;         /* 16px */
+  --st-radius-3xl: 1.5rem;       /* 24px */
+  --st-radius-full: 9999px;
+
+  /* Border Widths */
+  --st-border-0: 0;
+  --st-border-1: 1px;
+  --st-border-2: 2px;
+  --st-border-4: 4px;
+  --st-border-8: 8px;
+
+  /* ========================================
+     SHADOW SYSTEM
+     ======================================== */
+  
+  --st-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --st-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --st-shadow-base: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --st-shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --st-shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --st-shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --st-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --st-shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+
+  /* ========================================
+     ANIMATION SYSTEM
+     ======================================== */
+  
+  /* Transitions */
+  --st-transition-none: none;
+  --st-transition-all: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --st-transition-default: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --st-transition-colors: color 150ms cubic-bezier(0.4, 0, 0.2, 1), 
+                          background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                          border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --st-transition-opacity: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --st-transition-shadow: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --st-transition-transform: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Animation Durations */
+  --st-duration-75: 75ms;
+  --st-duration-100: 100ms;
+  --st-duration-150: 150ms;
+  --st-duration-200: 200ms;
+  --st-duration-300: 300ms;
+  --st-duration-500: 500ms;
+  --st-duration-700: 700ms;
+  --st-duration-1000: 1000ms;
+
+  /* Easing Curves */
+  --st-ease-linear: linear;
+  --st-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --st-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --st-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ========================================
+     Z-INDEX SYSTEM
+     ======================================== */
+  
+  --st-z-auto: auto;
+  --st-z-0: 0;
+  --st-z-10: 10;
+  --st-z-20: 20;
+  --st-z-30: 30;
+  --st-z-40: 40;
+  --st-z-50: 50;
+  --st-z-dropdown: 1000;
+  --st-z-sticky: 1020;
+  --st-z-fixed: 1030;
+  --st-z-modal-backdrop: 1040;
+  --st-z-modal: 1050;
+  --st-z-popover: 1060;
+  --st-z-tooltip: 1070;
+  --st-z-toast: 1080;
+
+  /* ========================================
+     BREAKPOINT SYSTEM
+     ======================================== */
+  
+  --st-screen-xs: 480px;
+  --st-screen-sm: 640px;
+  --st-screen-md: 768px;
+  --st-screen-lg: 1024px;
+  --st-screen-xl: 1280px;
+  --st-screen-2xl: 1536px;
+}
+
+/* ========================================
+   SEMANTIC COLOR ALIASES
+   ======================================== */
+
+:root {
+  /* Interface Colors */
+  --st-bg-primary: var(--st-gray-50);
+  --st-bg-secondary: var(--st-white);
+  --st-bg-tertiary: var(--st-gray-100);
+  
+  --st-text-primary: var(--st-gray-900);
+  --st-text-secondary: var(--st-gray-600);
+  --st-text-tertiary: var(--st-gray-400);
+  --st-text-inverse: var(--st-white);
+  
+  --st-border-primary: var(--st-gray-200);
+  --st-border-secondary: var(--st-gray-300);
+  --st-border-focus: var(--st-primary-500);
+  
+  /* Interactive Colors */
+  --st-interactive-primary: var(--st-primary-500);
+  --st-interactive-primary-hover: var(--st-primary-600);
+  --st-interactive-primary-active: var(--st-primary-700);
+  
+  --st-interactive-secondary: var(--st-gray-100);
+  --st-interactive-secondary-hover: var(--st-gray-200);
+  --st-interactive-secondary-active: var(--st-gray-300);
+  
+  /* Status Colors */
+  --st-status-success: var(--st-success-500);
+  --st-status-warning: var(--st-warning-500);
+  --st-status-error: var(--st-error-500);
+  --st-status-info: var(--st-info-500);
+  
+  /* Job Status Colors */
+  --st-job-pending: var(--st-warning-500);
+  --st-job-in-progress: var(--st-info-500);
+  --st-job-completed: var(--st-success-500);
+  --st-job-cancelled: var(--st-error-500);
+  --st-job-on-hold: var(--st-warm-500);
+}
+
+/* ========================================
+   DARK MODE OVERRIDES
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --st-bg-primary: var(--st-gray-900);
+    --st-bg-secondary: var(--st-gray-800);
+    --st-bg-tertiary: var(--st-gray-700);
+    
+    --st-text-primary: var(--st-gray-50);
+    --st-text-secondary: var(--st-gray-300);
+    --st-text-tertiary: var(--st-gray-400);
+    
+    --st-border-primary: var(--st-gray-700);
+    --st-border-secondary: var(--st-gray-600);
+  }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.st-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.st-focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.st-focus-ring:focus {
+  outline: 2px solid var(--st-border-focus);
+  outline-offset: 2px;
+}
+
+.st-transition {
+  transition: var(--st-transition-default);
+}
+
+.st-transition-colors {
+  transition: var(--st-transition-colors);
+}
+
+.st-transition-opacity {
+  transition: var(--st-transition-opacity);
+}
+
+.st-transition-transform {
+  transition: var(--st-transition-transform);
+}

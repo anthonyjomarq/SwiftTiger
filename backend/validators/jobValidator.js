@@ -1,5 +1,5 @@
 const { body, param, query } = require("express-validator");
-const { JOB_STATUSES, JOB_PRIORITIES, VALIDATION } = require("../config/constants");
+const { JOB_STATUSES, JOB_PRIORITIES, NOTE_TYPES, VALIDATION } = require("../config/constants");
 
 /**
  * Validation schema for creating a new job
@@ -191,6 +191,71 @@ const validateJobUpdate = [
     .withMessage(
       "Update type must be one of: comment, status_update, location_update, photo, document"
     ),
+
+  body("note_type")
+    .optional()
+    .isIn(Object.values(NOTE_TYPES))
+    .withMessage(
+      `Note type must be one of: ${Object.values(NOTE_TYPES).join(", ")}`
+    ),
+
+  body("is_private")
+    .optional()
+    .isBoolean()
+    .withMessage("is_private must be a boolean"),
+
+  body("is_pinned")
+    .optional()
+    .isBoolean()
+    .withMessage("is_pinned must be a boolean"),
+];
+
+/**
+ * Validation schema for updating job notes
+ */
+const validateJobNoteUpdate = [
+  param("id")
+    .isInt({ min: 1 })
+    .withMessage("Job ID must be a positive integer"),
+
+  param("updateId")
+    .isInt({ min: 1 })
+    .withMessage("Update ID must be a positive integer"),
+
+  body("content")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 2000 })
+    .withMessage("Content must be between 1 and 2000 characters"),
+
+  body("note_type")
+    .optional()
+    .isIn(Object.values(NOTE_TYPES))
+    .withMessage(
+      `Note type must be one of: ${Object.values(NOTE_TYPES).join(", ")}`
+    ),
+
+  body("is_private")
+    .optional()
+    .isBoolean()
+    .withMessage("is_private must be a boolean"),
+];
+
+/**
+ * Validation schema for pinning notes
+ */
+const validateNotePinToggle = [
+  param("id")
+    .isInt({ min: 1 })
+    .withMessage("Job ID must be a positive integer"),
+
+  param("updateId")
+    .isInt({ min: 1 })
+    .withMessage("Update ID must be a positive integer"),
+
+  body("is_pinned")
+    .isBoolean()
+    .withMessage("is_pinned must be a boolean"),
 ];
 
 /**
@@ -274,6 +339,8 @@ module.exports = {
   validateJobStatus,
   validateJobId,
   validateJobUpdate,
+  validateJobNoteUpdate,
+  validateNotePinToggle,
   validateRouteOptimization,
   validateEtaCalculation,
 };

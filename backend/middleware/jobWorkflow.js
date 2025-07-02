@@ -68,6 +68,31 @@ const ROLE_RESTRICTIONS = {
 };
 
 /**
+ * Enhanced workflow configuration
+ */
+const WORKFLOW_CONFIG = {
+  // Statuses that require mandatory comments
+  REQUIRES_COMMENT: [
+    JOB_STATUSES.COMPLETED,
+    JOB_STATUSES.CANCELLED,
+    JOB_STATUSES.ON_HOLD
+  ],
+  
+  // Statuses that trigger time tracking
+  TIME_TRACKED_STATUSES: [
+    JOB_STATUSES.IN_PROGRESS,
+    JOB_STATUSES.COMPLETED,
+    JOB_STATUSES.ON_HOLD
+  ],
+  
+  // Statuses that require assignment
+  REQUIRES_ASSIGNMENT: [
+    JOB_STATUSES.IN_PROGRESS,
+    JOB_STATUSES.COMPLETED
+  ]
+};
+
+/**
  * Business rules for status transitions
  */
 const BUSINESS_RULES = {
@@ -137,7 +162,7 @@ const BUSINESS_RULES = {
 };
 
 /**
- * Validates job status workflow transitions
+ * Enhanced workflow validation with time tracking and mandatory comments
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
@@ -146,6 +171,7 @@ async function validateJobWorkflow(req, res, next) {
   try {
     const jobId = req.params.id;
     const newStatus = req.body.status;
+    const comment = req.body.comment;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -205,6 +231,22 @@ async function validateJobWorkflow(req, res, next) {
       });
     }
 
+    // Check for mandatory comment requirement
+    if (WORKFLOW_CONFIG.REQUIRES_COMMENT.includes(newStatus) && !comment?.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: `A comment is required when changing status to '${newStatus}'`
+      });
+    }
+
+    // Check for assignment requirement
+    if (WORKFLOW_CONFIG.REQUIRES_ASSIGNMENT.includes(newStatus) && !currentJob.assigned_to) {
+      return res.status(400).json({
+        success: false,
+        error: `Job must be assigned to a technician before changing status to '${newStatus}'`
+      });
+    }
+
     // Apply business rules
     const businessRule = BUSINESS_RULES[newStatus];
     if (businessRule) {
@@ -227,12 +269,33 @@ async function validateJobWorkflow(req, res, next) {
       assignedTo: currentJob.assigned_to
     });
 
+    // Calculate time tracking data
+    const now = new Date();
+    const timeTrackingData = {};
+    
+    if (newStatus === JOB_STATUSES.IN_PROGRESS && currentStatus === JOB_STATUSES.PENDING) {
+      timeTrackingData.started_at = now;
+    }
+    
+    if (newStatus === JOB_STATUSES.COMPLETED) {
+      timeTrackingData.completed_at = now;
+      
+      // Calculate actual duration if job was started
+      if (currentJob.started_at) {
+        const startTime = new Date(currentJob.started_at);
+        timeTrackingData.actual_duration = Math.round((now - startTime) / (1000 * 60)); // minutes
+      }
+    }
+
     // Add workflow context to request for use in the job service
     req.workflowContext = {
       currentStatus,
       newStatus,
+      comment,
       isStatusChange: true,
-      validatedAt: new Date().toISOString()
+      validatedAt: now.toISOString(),
+      timeTrackingData,
+      requiresHistoryLog: true
     };
 
     next();
@@ -349,11 +412,140 @@ function getAvailableTransitions(currentStatus, userRole) {
   });
 }
 
+/**
+ * Log status change to history table
+ * @param {number} jobId - Job ID
+ * @param {string} fromStatus - Previous status
+ * @param {string} toStatus - New status
+ * @param {number} userId - User making the change
+ * @param {string} comment - Optional comment
+ * @param {number} durationInStatus - Time spent in previous status (minutes)
+ */
+async function logStatusChange(jobId, fromStatus, toStatus, userId, comment = null, durationInStatus = null) {
+  try {
+    await pool.query(`
+      INSERT INTO job_status_history 
+      (job_id, from_status, to_status, changed_by, comment, duration_in_status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [jobId, fromStatus, toStatus, userId, comment, durationInStatus]);
+    
+    log.info('Status change logged to history', {
+      jobId,
+      fromStatus,
+      toStatus,
+      userId,
+      durationInStatus
+    });
+  } catch (error) {
+    log.error('Failed to log status change', { error, jobId, fromStatus, toStatus });
+  }
+}
+
+/**
+ * Get workflow analytics for a job
+ * @param {number} jobId - Job ID
+ * @returns {Object} Workflow analytics data
+ */
+async function getJobWorkflowAnalytics(jobId) {
+  try {
+    const historyResult = await pool.query(`
+      SELECT 
+        from_status,
+        to_status,
+        duration_in_status,
+        changed_at,
+        changed_by,
+        u.name as changed_by_name
+      FROM job_status_history jsh
+      LEFT JOIN users u ON jsh.changed_by = u.id
+      WHERE job_id = $1
+      ORDER BY changed_at ASC
+    `, [jobId]);
+    
+    const jobResult = await pool.query(`
+      SELECT 
+        status,
+        estimated_duration,
+        actual_duration,
+        started_at,
+        completed_at,
+        created_at
+      FROM jobs
+      WHERE id = $1
+    `, [jobId]);
+    
+    if (jobResult.rows.length === 0) {
+      return { success: false, error: 'Job not found' };
+    }
+    
+    const job = jobResult.rows[0];
+    const history = historyResult.rows;
+    
+    // Calculate analytics
+    const totalTimeInStatuses = history.reduce((sum, entry) => 
+      sum + (entry.duration_in_status || 0), 0
+    );
+    
+    const statusBreakdown = history.reduce((breakdown, entry) => {
+      if (entry.from_status) {
+        breakdown[entry.from_status] = (breakdown[entry.from_status] || 0) + (entry.duration_in_status || 0);
+      }
+      return breakdown;
+    }, {});
+    
+    return {
+      success: true,
+      data: {
+        currentStatus: job.status,
+        estimatedDuration: job.estimated_duration,
+        actualDuration: job.actual_duration,
+        totalTimeTracked: totalTimeInStatuses,
+        statusBreakdown,
+        statusHistory: history,
+        timeline: {
+          created: job.created_at,
+          started: job.started_at,
+          completed: job.completed_at
+        }
+      }
+    };
+  } catch (error) {
+    log.error('Failed to get workflow analytics', { error, jobId });
+    return { success: false, error: 'Failed to retrieve analytics' };
+  }
+}
+
+/**
+ * Get workflow rules from database
+ * @param {string} fromStatus - Source status (optional)
+ * @param {string} toStatus - Target status
+ * @returns {Object} Workflow rules
+ */
+async function getWorkflowRules(fromStatus = null, toStatus) {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM workflow_rules 
+      WHERE (from_status = $1 OR from_status IS NULL) 
+      AND to_status = $2 
+      AND is_active = true
+    `, [fromStatus, toStatus]);
+    
+    return result.rows;
+  } catch (error) {
+    log.error('Failed to get workflow rules', { error, fromStatus, toStatus });
+    return [];
+  }
+}
+
 module.exports = {
   validateJobWorkflow,
   validateJobAssignment,
   getAvailableTransitions,
+  logStatusChange,
+  getJobWorkflowAnalytics,
+  getWorkflowRules,
   ALLOWED_TRANSITIONS,
   ROLE_RESTRICTIONS,
-  BUSINESS_RULES
+  BUSINESS_RULES,
+  WORKFLOW_CONFIG
 };
