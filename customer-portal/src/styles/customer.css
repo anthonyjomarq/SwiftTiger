@@ -1,0 +1,400 @@
+/**
+ * Customer Portal Specific Styles
+ * Builds on Universal Foundation with customer-focused styling
+ */
+
+/* Customer Portal Theme Variables */
+:root {
+  /* Customer-specific color overrides */
+  --customer-primary: var(--st-primary-500);
+  --customer-secondary: var(--st-secondary-500);
+  --customer-accent: var(--st-accent-500);
+  
+  /* Customer portal specific colors */
+  --customer-bg-primary: #fafbfc;
+  --customer-bg-secondary: #f5f6f8;
+  --customer-text-primary: var(--st-text-primary);
+  --customer-text-secondary: var(--st-text-secondary);
+  
+  /* Customer interface spacing */
+  --customer-container-padding: 1.5rem;
+  --customer-section-spacing: 2rem;
+  --customer-card-spacing: 1rem;
+}
+
+/* Customer Portal Layout */
+.customer-portal {
+  background: var(--customer-bg-primary);
+  min-height: 100vh;
+}
+
+.customer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--customer-container-padding);
+}
+
+.customer-page {
+  padding: var(--customer-section-spacing) 0;
+}
+
+/* Customer Cards - Simplified styling */
+.customer-card {
+  background: white;
+  border: 1px solid var(--st-border-primary);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.customer-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.customer-card-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--st-border-primary);
+}
+
+.customer-card-content {
+  padding: 1.5rem;
+}
+
+.customer-card-footer {
+  padding: 1rem 1.5rem;
+  background: var(--customer-bg-secondary);
+  border-top: 1px solid var(--st-border-primary);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* Customer Navigation */
+.customer-nav {
+  background: white;
+  border-bottom: 1px solid var(--st-border-primary);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.customer-nav-item {
+  padding: 0.75rem 1rem;
+  color: var(--customer-text-secondary);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.customer-nav-item:hover {
+  background: var(--st-primary-50);
+  color: var(--st-primary-600);
+}
+
+.customer-nav-item.active {
+  background: var(--st-primary-100);
+  color: var(--st-primary-700);
+}
+
+/* Customer Buttons */
+.customer-btn-primary {
+  background: var(--customer-primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.customer-btn-primary:hover {
+  background: var(--st-primary-600);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.customer-btn-secondary {
+  background: transparent;
+  color: var(--customer-primary);
+  border: 2px solid var(--customer-primary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.customer-btn-secondary:hover {
+  background: var(--customer-primary);
+  color: white;
+}
+
+/* Customer Forms */
+.customer-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.customer-form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--customer-text-primary);
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.customer-form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--st-border-primary);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+  background: white;
+}
+
+.customer-form-input:focus {
+  outline: none;
+  border-color: var(--customer-primary);
+  box-shadow: 0 0 0 3px rgba(0, 128, 157, 0.1);
+}
+
+.customer-form-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.customer-form-error {
+  color: var(--st-error-600);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Customer Status Indicators */
+.customer-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.customer-status.pending {
+  background: var(--st-warning-100);
+  color: var(--st-warning-800);
+}
+
+.customer-status.in-progress {
+  background: var(--st-info-100);
+  color: var(--st-info-800);
+}
+
+.customer-status.completed {
+  background: var(--st-success-100);
+  color: var(--st-success-800);
+}
+
+.customer-status.cancelled {
+  background: var(--st-error-100);
+  color: var(--st-error-800);
+}
+
+/* Customer Job Cards */
+.customer-job-card {
+  background: white;
+  border: 1px solid var(--st-border-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.customer-job-card:hover {
+  border-color: var(--customer-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.customer-job-card-header {
+  display: flex;
+  justify-content: between;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.customer-job-card-title {
+  font-weight: 600;
+  color: var(--customer-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.customer-job-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--customer-text-secondary);
+}
+
+.customer-job-card-description {
+  color: var(--customer-text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* Customer Dashboard Stats */
+.customer-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.customer-stat-card {
+  background: white;
+  border: 1px solid var(--st-border-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.customer-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.customer-stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--customer-primary);
+  margin-bottom: 0.5rem;
+}
+
+.customer-stat-label {
+  font-size: 0.875rem;
+  color: var(--customer-text-secondary);
+  font-weight: 500;
+}
+
+/* Customer Mobile Optimizations */
+@media (max-width: 640px) {
+  :root {
+    --customer-container-padding: 1rem;
+    --customer-section-spacing: 1.5rem;
+  }
+  
+  .customer-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .customer-stat-card {
+    padding: 1rem;
+  }
+  
+  .customer-stat-number {
+    font-size: 1.5rem;
+  }
+  
+  .customer-job-card {
+    padding: 1rem;
+  }
+  
+  .customer-job-card-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .customer-form-input,
+  .customer-btn-primary,
+  .customer-btn-secondary {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+}
+
+/* Customer Loading States */
+.customer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.customer-loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--st-border-primary);
+  border-top-color: var(--customer-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Customer Empty States */
+.customer-empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.customer-empty-state-icon {
+  width: 4rem;
+  height: 4rem;
+  background: var(--st-gray-100);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.customer-empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--customer-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.customer-empty-state-description {
+  color: var(--customer-text-secondary);
+  margin-bottom: 1.5rem;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Customer Accessibility */
+.customer-portal * {
+  focus-visible: {
+    outline: 2px solid var(--customer-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Customer Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --customer-bg-primary: #1a1a1a;
+    --customer-bg-secondary: #2a2a2a;
+    --customer-text-primary: #ffffff;
+    --customer-text-secondary: #a0a0a0;
+  }
+  
+  .customer-card,
+  .customer-nav,
+  .customer-form-input {
+    background: #2a2a2a;
+    border-color: #404040;
+    color: var(--customer-text-primary);
+  }
+}
