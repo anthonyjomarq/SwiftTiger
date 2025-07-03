@@ -6,8 +6,8 @@ import App from './App.jsx';
 import './styles/index.css';
 
 // Import shared components and styles
-import '../shared/styles/tokens.css';
-import '../shared/styles/mobile.css';
+import '../../shared/styles/tokens.css';
+import '../../shared/styles/mobile.css';
 
 // Configure React Query for offline-first data management
 const queryClient = new QueryClient({

@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 // Shared components
-import { ResponsiveProvider } from '../shared/components/ResponsiveProvider';
-import { NotificationHub } from '../shared/components/NotificationHub';
-import { MobileAppShell, MobileBottomNav } from '../shared/components/MobileLayout';
+import { ResponsiveProvider } from '../../shared/components/ResponsiveProvider';
+import { NotificationHub } from '../../shared/components/NotificationHub';
+import { MobileAppShell, MobileBottomNav } from '../../shared/components/MobileLayout';
 
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';

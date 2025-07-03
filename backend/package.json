@@ -8,7 +8,7 @@
     "start": "node server.js",
     "build": "npm run validate",
     "validate": "node -e \"require('./utils/envValidator').validateAndExit()\"",
-    "test": "echo 'Add backend tests here'",
+    "test": "jest --testTimeout=30000 --detectOpenHandles",
     "optimize": "echo 'Backend optimization completed'",
     "migrate": "node migrate.js",
     "reset-db": "node reset-database.js",
@@ -37,6 +37,8 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "jest": "^30.0.4",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.1.1"
   }
 }

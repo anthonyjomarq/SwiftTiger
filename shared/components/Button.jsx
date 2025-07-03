@@ -225,4 +225,5 @@ export const FloatingActionButton = React.forwardRef(({
 
 FloatingActionButton.displayName = 'FloatingActionButton';
 
+export { Button };
 export default Button;

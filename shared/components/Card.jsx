@@ -292,4 +292,5 @@ export const JobCard = React.forwardRef(({
 
 JobCard.displayName = 'JobCard';
 
+export { Card };
 export default Card;

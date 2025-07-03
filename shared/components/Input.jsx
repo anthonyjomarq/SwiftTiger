@@ -323,4 +323,5 @@ export const FormGroup = ({
   );
 };
 
+export { Input };
 export default Input;

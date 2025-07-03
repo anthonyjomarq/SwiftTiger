@@ -1,0 +1,121 @@
+@import url('../../../shared/styles/index.css');
+
+/* Technician Mobile Specific Styles */
+.mobile-container {
+  min-height: 100vh;
+  background-color: var(--st-gray-50);
+}
+
+.mobile-header {
+  background: linear-gradient(135deg, var(--st-primary-500), var(--st-primary-600));
+  color: white;
+  padding: 1rem;
+}
+
+.mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid var(--st-border-primary);
+  padding: 0.5rem;
+  z-index: 50;
+}
+
+.mobile-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 1rem;
+  z-index: 40;
+}
+
+/* Job Cards for Mobile */
+.job-card-mobile {
+  margin-bottom: 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+/* Camera Interface */
+.camera-overlay {
+  position: fixed;
+  inset: 0;
+  background: black;
+  z-index: 100;
+}
+
+.camera-controls {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Signature Pad */
+.signature-pad {
+  border: 2px dashed var(--st-border-primary);
+  border-radius: 0.5rem;
+  background: white;
+}
+
+/* Offline Mode Indicator */
+.offline-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--st-warning-500);
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  z-index: 100;
+}
+
+/* Loading States */
+.sync-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Layout */
+@media (max-width: 768px) {
+  .mobile-padding {
+    padding: 1rem;
+    padding-bottom: 6rem; /* Account for bottom navigation */
+  }
+  
+  .job-list {
+    padding-bottom: 5rem;
+  }
+}
+
+/* Touch-friendly buttons */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* GPS and Location */
+.location-pin {
+  color: var(--st-primary-500);
+  font-size: 1.25rem;
+}
+
+/* Status Indicators */
+.status-online {
+  color: var(--st-success-500);
+}
+
+.status-offline {
+  color: var(--st-error-500);
+}
+
+.status-syncing {
+  color: var(--st-warning-500);
+}
