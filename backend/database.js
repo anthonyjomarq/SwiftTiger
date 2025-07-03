@@ -196,6 +196,139 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Route assignments table for optimized daily routes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS route_assignments (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        technician_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+        sequence_order INTEGER NOT NULL,
+        estimated_travel_distance DECIMAL(10, 2) DEFAULT 0,
+        estimated_travel_time INTEGER DEFAULT 0,
+        estimated_arrival_time TIME,
+        fuel_cost_estimate DECIMAL(10, 2) DEFAULT 0,
+        actual_travel_distance DECIMAL(10, 2),
+        actual_travel_time INTEGER,
+        actual_arrival_time TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'planned',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(date, technician_id, job_id)
+      )
+    `);
+
+    // Create index for efficient route queries
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_route_assignments_date_tech 
+      ON route_assignments(date, technician_id, sequence_order)
+    `);
+
+    // Technician skills and capabilities
+    await pool.query(`
+      DO $$ 
+      BEGIN
+        BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS skills JSONB DEFAULT '[]';
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS service_area JSONB;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS home_location_lat DECIMAL(10, 8);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS home_location_lng DECIMAL(11, 8);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(50) DEFAULT 'van';
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS max_daily_jobs INTEGER DEFAULT 8;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50);
+        EXCEPTION
+          WHEN duplicate_column THEN NULL;
+        END;
+      END $$;
+    `);
+
+    // Job location and skill requirements
+    await pool.query(`
+      DO $$ 
+      BEGIN
+        BEGIN
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS address TEXT;
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8);
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8);
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS required_skills JSONB DEFAULT '[]';
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS service_type VARCHAR(100);
+          ALTER TABLE jobs ADD COLUMN IF NOT EXISTS assigned_technician INTEGER REFERENCES users(id);
+        EXCEPTION
+          WHEN duplicate_column THEN NULL;
+        END;
+      END $$;
+    `);
+
+    // Technician schedule availability
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS technician_schedule (
+        id SERIAL PRIMARY KEY,
+        technician_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        start_time TIME DEFAULT '08:00',
+        end_time TIME DEFAULT '17:00',
+        status VARCHAR(50) DEFAULT 'available',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(technician_id, date)
+      )
+    `);
+
+    // Job completion locations (track where technician was when marking job complete)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS job_completion_locations (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+        technician_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        latitude DECIMAL(10, 8) NOT NULL,
+        longitude DECIMAL(11, 8) NOT NULL,
+        accuracy DECIMAL(10, 2),
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        next_job_id INTEGER REFERENCES jobs(id),
+        UNIQUE(job_id)
+      )
+    `);
+
+    // Route optimization history and analytics
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS route_optimization_runs (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        total_jobs INTEGER NOT NULL,
+        total_technicians INTEGER NOT NULL,
+        total_distance DECIMAL(10, 2) NOT NULL,
+        total_fuel_cost DECIMAL(10, 2) NOT NULL,
+        estimated_savings DECIMAL(10, 2),
+        optimization_time_ms INTEGER,
+        algorithm_version VARCHAR(50) DEFAULT '1.0',
+        created_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Fuel cost tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fuel_costs (
+        id SERIAL PRIMARY KEY,
+        technician_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+        date DATE NOT NULL,
+        distance_miles DECIMAL(10, 2) NOT NULL,
+        fuel_cost DECIMAL(10, 2) NOT NULL,
+        cost_per_mile DECIMAL(10, 4) NOT NULL,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Fuel rate history for tracking rate changes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fuel_rate_history (
+        id SERIAL PRIMARY KEY,
+        cost_per_mile DECIMAL(10, 4) NOT NULL,
+        effective_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Support tickets table for customer support
     await pool.query(`
       CREATE TABLE IF NOT EXISTS support_tickets (

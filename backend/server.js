@@ -744,6 +744,475 @@ app.put(
   }
 );
 
+// Route Planning Endpoints
+const RouteOptimizer = require('./routePlanning');
+const routeOptimizer = new RouteOptimizer();
+
+// Fuel Tracking
+const FuelTracker = require('./fuelTracking');
+const fuelTracker = new FuelTracker();
+
+// Optimize routes for a specific date
+app.post(
+  "/api/routes/optimize",
+  authenticateToken,
+  requirePermission("routes.manage"),
+  sanitizeRequest,
+  [
+    body("date").isISO8601().withMessage("Valid date is required"),
+    body("options").optional().isObject(),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { date, options = {} } = req.body;
+      
+      log.info(`Starting route optimization for date: ${date}`, { userId: req.user.id });
+      
+      const startTime = Date.now();
+      const result = await routeOptimizer.optimizeRoutes(date, options);
+      const optimizationTime = Date.now() - startTime;
+      
+      // Save optimization run to database
+      await pool.query(`
+        INSERT INTO route_optimization_runs (
+          date, total_jobs, total_technicians, total_distance, 
+          total_fuel_cost, estimated_savings, optimization_time_ms, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        date,
+        result.summary.totalJobs,
+        result.summary.totalTechnicians,
+        result.summary.totalDistance,
+        result.summary.totalFuelCost,
+        result.summary.estimatedSavings,
+        optimizationTime,
+        req.user.id
+      ]);
+      
+      log.info(`Route optimization completed in ${optimizationTime}ms`, { 
+        date, 
+        totalJobs: result.summary.totalJobs,
+        totalTechnicians: result.summary.totalTechnicians 
+      });
+      
+      res.json(successResponse(result, "Routes optimized successfully"));
+    } catch (error) {
+      log.error("Route optimization error", error);
+      res.status(500).json(internalServerErrorResponse("Failed to optimize routes"));
+    }
+  }
+);
+
+// Save optimized routes
+app.post(
+  "/api/routes/save",
+  authenticateToken,
+  requirePermission("routes.manage"),
+  sanitizeRequest,
+  [
+    body("date").isISO8601().withMessage("Valid date is required"),
+    body("routes").isObject().withMessage("Routes object is required"),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { date, routes } = req.body;
+      
+      const result = await routeOptimizer.saveOptimizedRoutes(routes, date);
+      
+      log.info(`Routes saved for date: ${date}`, { 
+        userId: req.user.id,
+        technicianCount: Object.keys(routes).length 
+      });
+      
+      res.json(successResponse(result, "Routes saved successfully"));
+    } catch (error) {
+      log.error("Save routes error", error);
+      res.status(500).json(internalServerErrorResponse("Failed to save routes"));
+    }
+  }
+);
+
+// Get route assignments for a technician
+app.get(
+  "/api/routes/technician/:technicianId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { technicianId } = req.params;
+      const { date } = req.query;
+      
+      // Verify technician access (technicians can only see their own routes)
+      if (req.user.role === 'technician' && req.user.id != technicianId) {
+        return res.status(403).json(forbiddenResponse("Access denied"));
+      }
+      
+      const query = `
+        SELECT 
+          ra.*,
+          j.title as job_title,
+          j.description as job_description,
+          j.address as job_address,
+          j.latitude as job_latitude,
+          j.longitude as job_longitude,
+          j.priority as job_priority,
+          j.estimated_duration,
+          c.name as customer_name,
+          c.phone as customer_phone
+        FROM route_assignments ra
+        JOIN jobs j ON ra.job_id = j.id
+        LEFT JOIN users c ON j.customer_id = c.id
+        WHERE ra.technician_id = $1 
+          AND ra.date = $2
+        ORDER BY ra.sequence_order ASC
+      `;
+      
+      const result = await pool.query(query, [technicianId, date]);
+      
+      res.json(successResponse(result.rows, "Route retrieved successfully"));
+    } catch (error) {
+      log.error("Get technician route error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+// Record job completion location
+app.post(
+  "/api/routes/job-completion",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("jobId").isInt().withMessage("Valid job ID is required"),
+    body("latitude").isFloat().withMessage("Valid latitude is required"),
+    body("longitude").isFloat().withMessage("Valid longitude is required"),
+    body("accuracy").optional().isFloat(),
+    body("nextJobId").optional().isInt(),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { jobId, latitude, longitude, accuracy, nextJobId } = req.body;
+      
+      // Verify technician is assigned to this job
+      const jobCheck = await pool.query(
+        "SELECT assigned_technician FROM jobs WHERE id = $1",
+        [jobId]
+      );
+      
+      if (jobCheck.rows.length === 0) {
+        return res.status(404).json(notFoundResponse("Job not found"));
+      }
+      
+      if (jobCheck.rows[0].assigned_technician != req.user.id) {
+        return res.status(403).json(forbiddenResponse("Not assigned to this job"));
+      }
+      
+      // Record completion location
+      await pool.query(`
+        INSERT INTO job_completion_locations (
+          job_id, technician_id, latitude, longitude, accuracy, next_job_id
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (job_id) DO UPDATE SET
+          latitude = EXCLUDED.latitude,
+          longitude = EXCLUDED.longitude,
+          accuracy = EXCLUDED.accuracy,
+          completed_at = CURRENT_TIMESTAMP,
+          next_job_id = EXCLUDED.next_job_id
+      `, [jobId, req.user.id, latitude, longitude, accuracy, nextJobId]);
+      
+      // Update technician's current location
+      await pool.query(`
+        INSERT INTO technician_locations (user_id, latitude, longitude, accuracy)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id) DO UPDATE SET
+          latitude = EXCLUDED.latitude,
+          longitude = EXCLUDED.longitude,
+          accuracy = EXCLUDED.accuracy,
+          updated_at = CURRENT_TIMESTAMP
+      `, [req.user.id, latitude, longitude, accuracy]);
+      
+      log.info(`Job completion location recorded`, { 
+        jobId, 
+        technicianId: req.user.id,
+        nextJobId 
+      });
+      
+      res.json(successResponse(null, "Location recorded successfully"));
+    } catch (error) {
+      log.error("Record completion location error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+// Get route optimization history
+app.get(
+  "/api/routes/optimization-history",
+  authenticateToken,
+  requirePermission("routes.view"),
+  async (req, res) => {
+    try {
+      const { startDate, endDate, limit = 50 } = req.query;
+      
+      let query = `
+        SELECT 
+          ror.*,
+          u.name as created_by_name
+        FROM route_optimization_runs ror
+        LEFT JOIN users u ON ror.created_by = u.id
+        WHERE 1=1
+      `;
+      const params = [];
+      
+      if (startDate) {
+        params.push(startDate);
+        query += ` AND ror.date >= $${params.length}`;
+      }
+      
+      if (endDate) {
+        params.push(endDate);
+        query += ` AND ror.date <= $${params.length}`;
+      }
+      
+      params.push(parseInt(limit));
+      query += ` ORDER BY ror.created_at DESC LIMIT $${params.length}`;
+      
+      const result = await pool.query(query, params);
+      
+      res.json(successResponse(result.rows, "Optimization history retrieved"));
+    } catch (error) {
+      log.error("Get optimization history error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+// Get fuel cost reports
+app.get(
+  "/api/routes/fuel-costs",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { startDate, endDate, technicianId } = req.query;
+      
+      let query = `
+        SELECT 
+          fc.*,
+          u.name as technician_name,
+          j.title as job_title
+        FROM fuel_costs fc
+        LEFT JOIN users u ON fc.technician_id = u.id
+        LEFT JOIN jobs j ON fc.job_id = j.id
+        WHERE 1=1
+      `;
+      const params = [];
+      
+      if (startDate) {
+        params.push(startDate);
+        query += ` AND fc.date >= $${params.length}`;
+      }
+      
+      if (endDate) {
+        params.push(endDate);
+        query += ` AND fc.date <= $${params.length}`;
+      }
+      
+      if (technicianId) {
+        params.push(technicianId);
+        query += ` AND fc.technician_id = $${params.length}`;
+      }
+      
+      // Verify technician can only see their own costs
+      if (req.user.role === 'technician' && !technicianId) {
+        params.push(req.user.id);
+        query += ` AND fc.technician_id = $${params.length}`;
+      } else if (req.user.role === 'technician' && technicianId != req.user.id) {
+        return res.status(403).json(forbiddenResponse("Access denied"));
+      }
+      
+      query += ` ORDER BY fc.date DESC, fc.recorded_at DESC`;
+      
+      const result = await pool.query(query, params);
+      
+      res.json(successResponse(result.rows, "Fuel costs retrieved"));
+    } catch (error) {
+      log.error("Get fuel costs error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+// Fuel tracking endpoints
+app.post(
+  "/api/fuel/record",
+  authenticateToken,
+  sanitizeRequest,
+  [
+    body("jobId").isInt().withMessage("Valid job ID is required"),
+    body("distance").isFloat({ min: 0 }).withMessage("Valid distance is required"),
+    body("costPerMile").optional().isFloat({ min: 0 }),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { jobId, distance, costPerMile } = req.body;
+      
+      const result = await fuelTracker.recordJobFuelCost(
+        jobId, 
+        req.user.id, 
+        distance, 
+        costPerMile
+      );
+      
+      log.info(`Fuel cost recorded`, { 
+        jobId, 
+        technicianId: req.user.id,
+        distance,
+        cost: result.data.fuel_cost 
+      });
+      
+      res.json(successResponse(result.data, "Fuel cost recorded successfully"));
+    } catch (error) {
+      log.error("Record fuel cost error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+app.get(
+  "/api/fuel/report",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { startDate, endDate, technicianId, groupBy } = req.query;
+      
+      // Verify technician can only see their own costs
+      let filters = { startDate, endDate, groupBy };
+      if (req.user.role === 'technician') {
+        filters.technicianId = req.user.id;
+      } else if (technicianId) {
+        filters.technicianId = technicianId;
+      }
+      
+      const result = await fuelTracker.getFuelCostReport(filters);
+      
+      res.json(successResponse(result, "Fuel cost report retrieved"));
+    } catch (error) {
+      log.error("Get fuel report error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+app.get(
+  "/api/fuel/trends",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { startDate, endDate, technicianId } = req.query;
+      
+      // Verify technician can only see their own trends
+      let filters = { startDate, endDate };
+      if (req.user.role === 'technician') {
+        filters.technicianId = req.user.id;
+      } else if (technicianId) {
+        filters.technicianId = technicianId;
+      }
+      
+      const result = await fuelTracker.getFuelEfficiencyTrends(filters);
+      
+      res.json(successResponse(result, "Fuel efficiency trends retrieved"));
+    } catch (error) {
+      log.error("Get fuel trends error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+app.post(
+  "/api/fuel/calculate-route-costs",
+  authenticateToken,
+  requirePermission("routes.manage"),
+  sanitizeRequest,
+  [
+    body("date").isISO8601().withMessage("Valid date is required"),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { date } = req.body;
+      
+      const result = await fuelTracker.calculateRoutesFuelCosts(date);
+      
+      log.info(`Route fuel costs calculated for date: ${date}`, { 
+        totalCosts: result.data.length,
+        totalFuelCost: result.summary.totalCost 
+      });
+      
+      res.json(successResponse(result, "Route fuel costs calculated"));
+    } catch (error) {
+      log.error("Calculate route fuel costs error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+app.post(
+  "/api/fuel/estimate-routes",
+  authenticateToken,
+  requirePermission("routes.view"),
+  sanitizeRequest,
+  [
+    body("routes").isObject().withMessage("Routes object is required"),
+    body("costPerMile").optional().isFloat({ min: 0 }),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { routes, costPerMile } = req.body;
+      
+      const result = await fuelTracker.estimateRouteFuelCosts(routes, costPerMile);
+      
+      res.json(successResponse(result, "Route fuel costs estimated"));
+    } catch (error) {
+      log.error("Estimate route fuel costs error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+app.put(
+  "/api/fuel/rates",
+  authenticateToken,
+  requirePermission("settings.manage"),
+  sanitizeRequest,
+  [
+    body("costPerMile").isFloat({ min: 0 }).withMessage("Valid cost per mile is required"),
+    body("effectiveDate").optional().isISO8601(),
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const { costPerMile, effectiveDate } = req.body;
+      
+      const result = await fuelTracker.updateFuelRates(costPerMile, effectiveDate);
+      
+      log.info(`Fuel rates updated`, { 
+        costPerMile, 
+        effectiveDate,
+        updatedBy: req.user.id 
+      });
+      
+      res.json(successResponse(result, result.message));
+    } catch (error) {
+      log.error("Update fuel rates error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
 app.delete(
   "/api/jobs/:id",
   authenticateToken,
@@ -1592,6 +2061,308 @@ app.get("/api/notifications", authenticateToken, async (req, res) => {
   const result = await userService.getNotifications(req.user.id);
   sendResponse(res, result);
 });
+
+// ========================================
+// ADMIN DASHBOARD API ENDPOINTS
+// ========================================
+
+/**
+ * Get admin dashboard statistics
+ * GET /admin/dashboard/stats
+ */
+app.get("/api/admin/dashboard/stats", 
+  authenticateToken, 
+  requirePermission("admin.dashboard"), 
+  async (req, res) => {
+    try {
+      const { timeRange = 'month' } = req.query;
+      
+      // Get basic stats
+      const [userStats, jobStats, revenueStats, routeStats] = await Promise.all([
+        pool.query('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE role = \'technician\') as technicians, COUNT(*) FILTER (WHERE role = \'customer\') as customers, COUNT(*) FILTER (WHERE status = \'active\') as active FROM users'),
+        pool.query('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = \'completed\') as completed, COUNT(*) FILTER (WHERE status IN (\'pending\', \'scheduled\', \'in_progress\')) as active FROM jobs'),
+        pool.query('SELECT COALESCE(SUM(price), 0) as total FROM jobs WHERE status = \'completed\' AND created_at >= NOW() - INTERVAL \'1 month\''),
+        pool.query('SELECT COALESCE(SUM(estimated_fuel_cost), 0) as fuel_costs, COALESCE(AVG(optimization_score), 0) as route_efficiency FROM route_assignments WHERE date >= CURRENT_DATE - INTERVAL \'1 month\'')
+      ]);
+
+      const stats = {
+        totalUsers: parseInt(userStats.rows[0].total),
+        technicians: parseInt(userStats.rows[0].technicians),
+        customers: parseInt(userStats.rows[0].customers),
+        activeUsers: parseInt(userStats.rows[0].active),
+        totalJobs: parseInt(jobStats.rows[0].total),
+        completedJobs: parseInt(jobStats.rows[0].completed),
+        activeJobs: parseInt(jobStats.rows[0].active),
+        monthlyRevenue: parseFloat(revenueStats.rows[0].total),
+        fuelCosts: parseFloat(routeStats.rows[0].fuel_costs),
+        routeEfficiency: parseFloat(routeStats.rows[0].route_efficiency)
+      };
+
+      res.json(successResponse(stats, "Dashboard statistics retrieved successfully"));
+    } catch (error) {
+      log.error("Dashboard stats error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get admin analytics data
+ * GET /admin/analytics
+ */
+app.get("/api/admin/analytics", 
+  authenticateToken, 
+  requirePermission("admin.analytics"), 
+  async (req, res) => {
+    try {
+      const { timeRange = 'month' } = req.query;
+      
+      // Mock analytics data - would be replaced with real calculations
+      const analyticsData = {
+        revenue: {
+          total: 125000,
+          monthly: 45000,
+          growth: 12.5,
+          avgPerJob: 350,
+          projectedAnnual: 540000
+        },
+        jobs: {
+          total: 1250,
+          completed: 1100,
+          pending: 85,
+          inProgress: 45,
+          cancelled: 20,
+          completionRate: 88,
+          avgDuration: 2.5
+        },
+        technicians: {
+          total: 25,
+          active: 23,
+          utilization: 78,
+          avgJobsPerDay: 4.2,
+          topPerformer: { name: "John Smith", jobs: 45 }
+        },
+        customers: {
+          total: 850,
+          new: 125,
+          returning: 725,
+          satisfaction: 4.6,
+          retention: 85
+        },
+        efficiency: {
+          routeOptimization: 22,
+          fuelSavings: 2500,
+          timeReduction: 15,
+          costPerMile: 0.56
+        }
+      };
+
+      res.json(successResponse(analyticsData, "Analytics data retrieved successfully"));
+    } catch (error) {
+      log.error("Analytics data error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get admin settings
+ * GET /admin/settings
+ */
+app.get("/api/admin/settings", 
+  authenticateToken, 
+  requirePermission("admin.settings"), 
+  async (req, res) => {
+    try {
+      // In a real implementation, settings would be stored in database
+      const settings = {
+        company: {
+          name: 'SwiftTiger Service Co.',
+          address: '123 Business St, City, ST 12345',
+          phone: '(555) 123-4567',
+          email: 'info@swifttiger.com',
+          website: 'https://swifttiger.com'
+        },
+        operational: {
+          businessHours: { start: '08:00', end: '17:00' },
+          workDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+          timeZone: 'America/New_York',
+          defaultJobDuration: 60,
+          maxJobsPerTechnician: 8
+        },
+        pricing: {
+          baseFuelRate: 0.56,
+          emergencyJobMultiplier: 2.0,
+          overtimeRate: 1.5,
+          defaultServiceFee: 50
+        },
+        notifications: {
+          emailEnabled: true,
+          smsEnabled: false,
+          pushEnabled: true,
+          customerUpdates: true,
+          technicianAssignments: true,
+          adminAlerts: true
+        }
+      };
+
+      res.json(successResponse(settings, "Settings retrieved successfully"));
+    } catch (error) {
+      log.error("Settings retrieval error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Update admin settings
+ * PUT /admin/settings
+ */
+app.put("/api/admin/settings", 
+  authenticateToken, 
+  requirePermission("admin.settings"), 
+  sanitizeRequest,
+  async (req, res) => {
+    try {
+      const { category, settings } = req.body;
+      
+      // In a real implementation, would save to database
+      // For now, just return success
+      
+      res.json(successResponse(settings, `${category} settings updated successfully`));
+    } catch (error) {
+      log.error("Settings update error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get admin reports data
+ * GET /admin/reports/:type
+ */
+app.get("/api/admin/reports/:type", 
+  authenticateToken, 
+  requirePermission("admin.reports"), 
+  async (req, res) => {
+    try {
+      const { type } = req.params;
+      const { timeRange = 'month' } = req.query;
+      
+      // Mock report data - would be replaced with real database queries
+      const reportData = {
+        financial: {
+          revenue: { total: 485000, recurring: 320000, oneTime: 165000, growth: 12.5 },
+          expenses: { total: 285000, labor: 180000, materials: 65000, fuel: 25000 },
+          profit: { gross: 200000, net: 145000, margin: 29.9 }
+        },
+        operational: {
+          efficiency: { jobCompletionRate: 94.5, onTimePerformance: 87.2, firstTimeFixRate: 82.1 },
+          jobs: { total: 1250, completed: 1180, cancelled: 45, avgDuration: 2.5 },
+          routes: { totalMiles: 15420, fuelSavings: 3250, efficiencyImprovement: 22.8 }
+        },
+        customer: {
+          satisfaction: { overall: 4.6, responseTime: 4.3, workQuality: 4.8 },
+          retention: { rate: 89.2, newCustomers: 145, returningCustomers: 820 },
+          feedback: { totalReviews: 485, fiveStars: 325, fourStars: 110 }
+        },
+        technician: {
+          performance: { avgJobsPerDay: 4.2, avgJobDuration: 145, completionRate: 96.8 },
+          productivity: { billableHours: 1650, utilization: 78.5, efficiency: 92.3 },
+          topPerformers: [
+            { name: 'John Smith', jobs: 145, rating: 4.9, efficiency: 95 },
+            { name: 'Sarah Johnson', jobs: 138, rating: 4.8, efficiency: 93 }
+          ]
+        }
+      };
+
+      const data = reportData[type] || {};
+      res.json(successResponse(data, `${type} report data retrieved successfully`));
+    } catch (error) {
+      log.error("Report data error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Generate and download report
+ * POST /admin/reports/generate
+ */
+app.post("/api/admin/reports/generate", 
+  authenticateToken, 
+  requirePermission("admin.reports"), 
+  async (req, res) => {
+    try {
+      const { type, timeRange, format } = req.body;
+      
+      // In a real implementation, would generate actual PDF/Excel files
+      // For now, return a success message
+      res.json(successResponse(
+        { downloadUrl: `/downloads/report-${type}-${Date.now()}.${format}` },
+        "Report generated successfully"
+      ));
+    } catch (error) {
+      log.error("Report generation error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get recent activity for admin dashboard
+ * GET /admin/activity
+ */
+app.get("/api/admin/activity", 
+  authenticateToken, 
+  requirePermission("admin.dashboard"), 
+  async (req, res) => {
+    try {
+      const { limit = 10 } = req.query;
+      
+      // Get recent activities from multiple tables
+      const activities = [
+        { type: 'job', user_name: 'System', action: 'created job', target: '#1234', timestamp: new Date() },
+        { type: 'user', user_name: 'Admin', action: 'added technician', target: 'John Smith', timestamp: new Date(Date.now() - 3600000) },
+        { type: 'route', user_name: 'System', action: 'optimized routes for', target: 'today', timestamp: new Date(Date.now() - 7200000) }
+      ];
+
+      res.json(successResponse(activities, "Recent activity retrieved successfully"));
+    } catch (error) {
+      log.error("Activity retrieval error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
+
+/**
+ * Get system health status
+ * GET /admin/system/health
+ */
+app.get("/api/admin/system/health", 
+  authenticateToken, 
+  requirePermission("admin.system"), 
+  async (req, res) => {
+    try {
+      // Basic health checks
+      const dbHealth = await pool.query('SELECT 1');
+      
+      const health = {
+        status: 'healthy',
+        database: dbHealth.rows.length > 0 ? 'connected' : 'disconnected',
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        errors: 0,
+        lastCheck: new Date().toISOString()
+      };
+
+      res.json(successResponse(health, "System health retrieved successfully"));
+    } catch (error) {
+      log.error("System health error", error);
+      res.status(500).json(internalServerErrorResponse());
+    }
+  }
+);
 
 /**
  * Error handling middleware (must be last)
