@@ -34,7 +34,7 @@ const Customers = lazy(() => import("./pages/Customers"));
 const Jobs = lazy(() => import("./pages/Jobs"));
 const JobCreate = lazy(() => import("./pages/JobCreate"));
 const RoutePlanning = lazy(() => import("./pages/RoutePlanning"));
-const Layout = React.memo(require("./components/Layout").default);
+const Layout = lazy(() => import("./components/Layout"));
 
 /**
  * Main App component

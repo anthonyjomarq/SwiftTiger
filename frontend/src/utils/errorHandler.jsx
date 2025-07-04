@@ -194,8 +194,8 @@ export const getUserFriendlyMessage = (parsedError, context = "") => {
  */
 class ErrorReportingService {
   constructor() {
-    this.enabled = process.env.NODE_ENV === "production";
-    this.endpoint = process.env.VITE_ERROR_REPORTING_ENDPOINT || "/api/errors";
+    this.enabled = import.meta.env.MODE === "production";
+    this.endpoint = import.meta.env.VITE_ERROR_REPORTING_ENDPOINT || "/api/errors";
     this.maxRetries = 3;
     this.retryDelay = 1000;
   }
@@ -313,7 +313,7 @@ export const handleGlobalError = (error, context = {}) => {
   errorReportingService.reportError(parsedError, context);
 
   // Log error in development
-  if (process.env.NODE_ENV === "development") {
+  if (import.meta.env.MODE === "development") {
     console.error("Global Error:", {
       error: parsedError,
       context,
@@ -403,7 +403,7 @@ export class ErrorBoundary extends React.Component {
                   Refresh Page
                 </button>
               </div>
-              {process.env.NODE_ENV === "development" && this.state.error && (
+              {import.meta.env.MODE === "development" && this.state.error && (
                 <details className="mt-4 text-left">
                   <summary className="cursor-pointer text-sm text-gray-600">
                     Error Details (Development)
