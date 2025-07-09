@@ -1,0 +1,313 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useForm } from 'react-hook-form';
+import { Plus, Camera, User, MessageSquare, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { jobLogService } from '../services/jobLogService';
+import { useAuth } from '../contexts/AuthContext';
+
+const JobLogs = ({ jobId, jobStatus }) => {
+  const [isAddingLog, setIsAddingLog] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState([]);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: logs, isLoading } = useQuery(
+    ['job-logs', jobId],
+    () => jobLogService.getJobLogs(jobId),
+    { enabled: !!jobId }
+  );
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+  } = useForm({
+    defaultValues: {
+      notes: '',
+      statusUpdate: '',
+    },
+  });
+
+  const createLogMutation = useMutation(
+    (data) => jobLogService.createJobLog(jobId, data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['job-logs', jobId]);
+        queryClient.invalidateQueries('jobs');
+        reset();
+        setSelectedPhotos([]);
+        setIsAddingLog(false);
+        toast.success('Job log added successfully!');
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to add job log');
+      },
+    }
+  );
+
+  const handleAddLog = (data) => {
+    const formData = new FormData();
+    formData.append('notes', data.notes);
+    
+    if (data.statusUpdate) {
+      formData.append('statusUpdate', data.statusUpdate);
+    }
+
+    // Add photos
+    selectedPhotos.forEach((photo) => {
+      formData.append('photos', photo);
+    });
+
+    createLogMutation.mutate(formData);
+  };
+
+  const handlePhotoSelect = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum size is 5MB.`);
+        return false;
+      }
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image file.`);
+        return false;
+      }
+      return true;
+    });
+    
+    setSelectedPhotos(prev => [...prev, ...validFiles].slice(0, 5));
+  };
+
+  const removePhoto = (index) => {
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getStatusProgress = (status) => {
+    switch (status) {
+      case 'Pending':
+        return { percentage: 0, color: 'bg-gray-400', label: 'Not Started' };
+      case 'In Progress':
+        return { percentage: 50, color: 'bg-blue-500', label: 'In Progress' };
+      case 'Completed':
+        return { percentage: 100, color: 'bg-green-500', label: 'Completed' };
+      case 'Cancelled':
+        return { percentage: 0, color: 'bg-red-500', label: 'Cancelled' };
+      default:
+        return { percentage: 0, color: 'bg-gray-400', label: 'Unknown' };
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">Job Activity</h3>
+          <button
+            onClick={() => setIsAddingLog(true)}
+            className="btn btn-primary flex items-center gap-2"
+            disabled={jobStatus === 'Completed' || jobStatus === 'Cancelled'}
+          >
+            <Plus className="h-4 w-4" />
+            Add Log
+          </button>
+        </div>
+
+        {/* Job Progress Bar */}
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Job Progress</span>
+            <span className="text-sm font-medium text-gray-900">{getStatusProgress(jobStatus).label}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div
+              className={`h-3 rounded-full transition-all duration-300 ${getStatusProgress(jobStatus).color}`}
+              style={{ width: `${getStatusProgress(jobStatus).percentage}%` }}
+            ></div>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>Pending</span>
+            <span>In Progress</span>
+            <span>Completed</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Log Form */}
+      {isAddingLog && (
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+          <form onSubmit={handleSubmit(handleAddLog)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes *
+              </label>
+              <textarea
+                {...register('notes', { required: 'Notes are required' })}
+                rows={3}
+                className="input"
+                placeholder="Enter job notes, work performed, issues encountered, etc."
+              />
+              {errors.notes && (
+                <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status Update
+              </label>
+              <select {...register('statusUpdate')} className="input">
+                <option value="">No status change</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            {/* Photo Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Photos (Max 5, 5MB each)
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="btn btn-secondary cursor-pointer">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Add Photos
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handlePhotoSelect}
+                    className="hidden"
+                    disabled={selectedPhotos.length >= 5}
+                  />
+                </label>
+                <span className="text-sm text-gray-500">
+                  {selectedPhotos.length}/5 photos selected
+                </span>
+              </div>
+
+              {/* Photo Previews */}
+              {selectedPhotos.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {selectedPhotos.map((photo, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={URL.createObjectURL(photo)}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-20 object-cover rounded border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingLog(false);
+                  reset();
+                  setSelectedPhotos([]);
+                }}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createLogMutation.isLoading}
+                className="btn btn-primary"
+              >
+                {createLogMutation.isLoading ? 'Adding...' : 'Add Log'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Job Logs List */}
+      <div className="space-y-4">
+        {logs?.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>No job logs yet. Add the first log to track job progress.</p>
+          </div>
+        ) : (
+          logs?.map((log) => (
+            <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-6">
+              {/* Log Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 bg-primary-100 rounded-full flex items-center justify-center">
+                    <User className="h-4 w-4 text-primary-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{log.Technician?.name}</p>
+                    <p className="text-sm text-gray-500">{formatDate(log.createdAt)}</p>
+                  </div>
+                </div>
+                
+                {log.statusUpdate && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Status: {log.statusUpdate}
+                  </span>
+                )}
+              </div>
+
+              {/* Log Content */}
+              <div className="mb-4">
+                <p className="text-gray-900 whitespace-pre-wrap">{log.notes}</p>
+              </div>
+
+
+              {/* Photos */}
+              {log.photos && log.photos.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Photos:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {log.photos.map((photo, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={`/api/uploads/${photo.filename}`}
+                          alt={photo.originalName}
+                          className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer"
+                          onClick={() => window.open(`/api/uploads/${photo.filename}`, '_blank')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default JobLogs;

@@ -1,0 +1,33 @@
+{
+  "name": "swifttiger",
+  "version": "1.0.0",
+  "description": "Field Service Management System",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker-compose -f docker-compose.prod.yml up --build -d",
+    "docker:down": "docker-compose -f docker-compose.dev.yml down",
+    "docker:down:prod": "docker-compose -f docker-compose.prod.yml down",
+    "setup": "npm run install:all",
+    "create-admin": "cd backend && node scripts/createMainAdmin.js",
+    "migrate": "cd backend && npm run migrate",
+    "lint": "cd frontend && npm run lint && cd ../backend && npm run lint",
+    "test": "cd backend && npm run test",
+    "test:coverage": "cd backend && npm run test:coverage",
+    "deploy": "./deployment/deploy.sh",
+    "logs": "docker-compose -f docker-compose.prod.yml logs -f",
+    "backup": "docker-compose -f docker-compose.prod.yml exec postgres pg_dump -U postgres swifttiger > backup-$(date +%Y%m%d-%H%M%S).sql"
+  },
+  "keywords": ["field-service", "management", "react", "node", "postgres"],
+  "author": "Anthony Colon",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
