@@ -421,4 +421,218 @@ router.post('/:id/logs',
   }
 );
 
+/**
+ * @swagger
+ * /api/jobs/{jobId}/logs/{logId}:
+ *   put:
+ *     summary: Update a job log
+ *     tags: [Job Logs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Job ID
+ *       - in: path
+ *         name: logId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Job log ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - notes
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Job log notes
+ *               photos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Photo files
+ *               workStartTime:
+ *                 type: string
+ *                 format: date-time
+ *               workEndTime:
+ *                 type: string
+ *                 format: date-time
+ *               statusUpdate:
+ *                 type: string
+ *                 enum: [Pending, In Progress, Completed, Cancelled]
+ *     responses:
+ *       200:
+ *         description: Job log updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/JobLog'
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Job log not found
+ */
+router.put('/:jobId/logs/:logId', 
+  authenticate, 
+  upload.array('photos', 5),
+  validateJobLogCreate,
+  auditMiddleware('UPDATE_JOB_LOG', 'JOB_LOG'),
+  async (req, res) => {
+    try {
+      const { notes, workStartTime, workEndTime, statusUpdate } = req.body;
+      
+      const jobLog = await JobLog.findOne({
+        where: { 
+          id: req.params.logId,
+          jobId: req.params.jobId 
+        },
+        include: [
+          {
+            model: User,
+            as: 'Technician',
+            attributes: ['id', 'name', 'email']
+          }
+        ]
+      });
+
+      if (!jobLog) {
+        return res.status(404).json({ message: 'Job log not found' });
+      }
+
+      // Only allow the technician who created the log or admin/manager to edit
+      if (jobLog.technicianId !== req.user.id && !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Access denied. You can only edit your own job logs.' });
+      }
+
+      if (!notes) {
+        return res.status(400).json({ message: 'Notes are required' });
+      }
+
+      // Handle new photos if uploaded
+      let updatedPhotos = jobLog.photos || [];
+      if (req.files && req.files.length > 0) {
+        const newPhotos = req.files.map(file => ({
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path
+        }));
+        updatedPhotos = [...updatedPhotos, ...newPhotos];
+      }
+
+      // Update the job log
+      await jobLog.update({
+        notes,
+        photos: updatedPhotos,
+        workStartTime,
+        workEndTime,
+        statusUpdate
+      });
+
+      // Update job status if provided
+      if (statusUpdate) {
+        const job = await Job.findByPk(req.params.jobId);
+        if (job) {
+          const updateData = {
+            status: statusUpdate,
+            updatedBy: req.user.id
+          };
+          
+          if (statusUpdate === 'Completed' && !job.completedDate) {
+            updateData.completedDate = new Date();
+          }
+          
+          await job.update(updateData);
+        }
+      }
+
+      // Return updated job log
+      const updatedJobLog = await JobLog.findByPk(jobLog.id, {
+        include: [
+          {
+            model: User,
+            as: 'Technician',
+            attributes: ['id', 'name', 'email']
+          }
+        ]
+      });
+
+      res.json(updatedJobLog);
+    } catch (error) {
+      console.error('Update job log error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/jobs/{jobId}/logs/{logId}:
+ *   delete:
+ *     summary: Delete a job log
+ *     tags: [Job Logs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Job ID
+ *       - in: path
+ *         name: logId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Job log ID
+ *     responses:
+ *       200:
+ *         description: Job log deleted successfully
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Job log not found
+ */
+router.delete('/:jobId/logs/:logId',
+  authenticate,
+  authorize('admin', 'manager'),
+  auditMiddleware('DELETE_JOB_LOG', 'JOB_LOG'),
+  async (req, res) => {
+    try {
+      const jobLog = await JobLog.findOne({
+        where: { 
+          id: req.params.logId,
+          jobId: req.params.jobId 
+        }
+      });
+
+      if (!jobLog) {
+        return res.status(404).json({ message: 'Job log not found' });
+      }
+
+      await jobLog.destroy();
+
+      res.json({ message: 'Job log deleted successfully' });
+    } catch (error) {
+      console.error('Delete job log error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+);
+
 module.exports = router;

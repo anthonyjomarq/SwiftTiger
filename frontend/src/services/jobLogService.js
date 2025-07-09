@@ -14,4 +14,18 @@ export const jobLogService = {
     });
     return response.data;
   },
+
+  async updateJobLog(jobId, logId, formData) {
+    const response = await api.put(`/jobs/${jobId}/logs/${logId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  async deleteJobLog(jobId, logId) {
+    const response = await api.delete(`/jobs/${jobId}/logs/${logId}`);
+    return response.data;
+  },
 };

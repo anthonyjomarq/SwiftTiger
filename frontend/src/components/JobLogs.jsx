@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm } from 'react-hook-form';
-import { Plus, Camera, User, MessageSquare, X } from 'lucide-react';
+import { Plus, Camera, User, MessageSquare, X, Edit, Trash2, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobLogService } from '../services/jobLogService';
 import { useAuth } from '../contexts/AuthContext';
 
 const JobLogs = ({ jobId, jobStatus }) => {
   const [isAddingLog, setIsAddingLog] = useState(false);
+  const [editingLogId, setEditingLogId] = useState(null);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -48,6 +49,36 @@ const JobLogs = ({ jobId, jobStatus }) => {
     }
   );
 
+  const updateLogMutation = useMutation(
+    ({ logId, data }) => jobLogService.updateJobLog(jobId, logId, data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['job-logs', jobId]);
+        queryClient.invalidateQueries('jobs');
+        setEditingLogId(null);
+        setSelectedPhotos([]);
+        toast.success('Job log updated successfully!');
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to update job log');
+      },
+    }
+  );
+
+  const deleteLogMutation = useMutation(
+    (logId) => jobLogService.deleteJobLog(jobId, logId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['job-logs', jobId]);
+        queryClient.invalidateQueries('jobs');
+        toast.success('Job log deleted successfully!');
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to delete job log');
+      },
+    }
+  );
+
   const handleAddLog = (data) => {
     const formData = new FormData();
     formData.append('notes', data.notes);
@@ -62,6 +93,51 @@ const JobLogs = ({ jobId, jobStatus }) => {
     });
 
     createLogMutation.mutate(formData);
+  };
+
+  const handleEditLog = (log) => {
+    setEditingLogId(log.id);
+    reset({
+      notes: log.notes,
+      statusUpdate: log.statusUpdate || '',
+    });
+    setSelectedPhotos([]);
+  };
+
+  const handleUpdateLog = (data) => {
+    const formData = new FormData();
+    formData.append('notes', data.notes);
+    
+    if (data.statusUpdate) {
+      formData.append('statusUpdate', data.statusUpdate);
+    }
+
+    // Add new photos
+    selectedPhotos.forEach((photo) => {
+      formData.append('photos', photo);
+    });
+
+    updateLogMutation.mutate({ logId: editingLogId, data: formData });
+  };
+
+  const handleDeleteLog = (logId) => {
+    if (window.confirm('Are you sure you want to delete this job log?')) {
+      deleteLogMutation.mutate(logId);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingLogId(null);
+    setSelectedPhotos([]);
+    reset({ notes: '', statusUpdate: '' });
+  };
+
+  const canEditLog = (log) => {
+    return log.Technician?.id === user?.id || ['admin', 'manager'].includes(user?.role);
+  };
+
+  const canDeleteLog = () => {
+    return ['admin', 'manager'].includes(user?.role);
   };
 
   const handlePhotoSelect = (e) => {
@@ -271,36 +347,158 @@ const JobLogs = ({ jobId, jobStatus }) => {
                   </div>
                 </div>
                 
-                {log.statusUpdate && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Status: {log.statusUpdate}
-                  </span>
-                )}
-              </div>
-
-              {/* Log Content */}
-              <div className="mb-4">
-                <p className="text-gray-900 whitespace-pre-wrap">{log.notes}</p>
-              </div>
-
-
-              {/* Photos */}
-              {log.photos && log.photos.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Photos:</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {log.photos.map((photo, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={`/api/uploads/${photo.filename}`}
-                          alt={photo.originalName}
-                          className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer"
-                          onClick={() => window.open(`/api/uploads/${photo.filename}`, '_blank')}
-                        />
-                      </div>
-                    ))}
+                <div className="flex items-center gap-3">
+                  {log.statusUpdate && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Status: {log.statusUpdate}
+                    </span>
+                  )}
+                  
+                  {/* Edit/Delete Actions */}
+                  <div className="flex items-center gap-2">
+                    {canEditLog(log) && editingLogId !== log.id && (
+                      <button
+                        onClick={() => handleEditLog(log)}
+                        className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                        title="Edit log"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    )}
+                    
+                    {canDeleteLog() && editingLogId !== log.id && (
+                      <button
+                        onClick={() => handleDeleteLog(log.id)}
+                        className="p-1 text-gray-400 hover:text-red-600 rounded"
+                        title="Delete log"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
+              </div>
+
+              {/* Edit Form */}
+              {editingLogId === log.id ? (
+                <form onSubmit={handleSubmit(handleUpdateLog)} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Notes *
+                    </label>
+                    <textarea
+                      {...register('notes', { required: 'Notes are required' })}
+                      rows={3}
+                      className="input"
+                      placeholder="Enter job notes, work performed, issues encountered, etc."
+                    />
+                    {errors.notes && (
+                      <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status Update
+                    </label>
+                    <select {...register('statusUpdate')} className="input">
+                      <option value="">No status change</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  {/* Photo Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Add Photos (Max 5, 5MB each)
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="btn btn-secondary cursor-pointer">
+                        <Camera className="h-4 w-4 mr-2" />
+                        Add Photos
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handlePhotoSelect}
+                          className="hidden"
+                          disabled={selectedPhotos.length >= 5}
+                        />
+                      </label>
+                      <span className="text-sm text-gray-500">
+                        {selectedPhotos.length}/5 photos selected
+                      </span>
+                    </div>
+
+                    {/* Photo Previews */}
+                    {selectedPhotos.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {selectedPhotos.map((photo, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={URL.createObjectURL(photo)}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-20 object-cover rounded border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="btn btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={updateLogMutation.isLoading}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      <Save className="h-4 w-4" />
+                      {updateLogMutation.isLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  {/* Log Content */}
+                  <div className="mb-4">
+                    <p className="text-gray-900 whitespace-pre-wrap">{log.notes}</p>
+                  </div>
+
+                  {/* Photos */}
+                  {log.photos && log.photos.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Photos:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {log.photos.map((photo, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={`/api/uploads/${photo.filename}`}
+                              alt={photo.originalName}
+                              className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer"
+                              onClick={() => window.open(`/api/uploads/${photo.filename}`, '_blank')}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))
