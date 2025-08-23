@@ -24,10 +24,19 @@
     "logs": "docker-compose -f docker-compose.prod.yml logs -f",
     "backup": "docker-compose -f docker-compose.prod.yml exec postgres pg_dump -U postgres swifttiger > backup-$(date +%Y%m%d-%H%M%S).sql"
   },
-  "keywords": ["field-service", "management", "react", "node", "postgres"],
+  "keywords": [
+    "field-service",
+    "management",
+    "react",
+    "node",
+    "postgres"
+  ],
   "author": "Anthony Colon",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.7",
+    "concurrently": "^8.2.0",
+    "typescript": "^5.9.2"
   }
 }

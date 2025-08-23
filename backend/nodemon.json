@@ -1,0 +1,24 @@
+{
+  "watch": [
+    "*.js",
+    "*.mjs",
+    "*.ts",
+    "*.mts",
+    "routes/**/*",
+    "models/**/*",
+    "middleware/**/*",
+    "config/**/*",
+    "utils/**/*"
+  ],
+  "ext": "js,mjs,ts,mts,json",
+  "ignore": ["node_modules", "dist", "coverage", "*.test.ts", "*.spec.ts"],
+  "exec": "node --loader ts-node/esm --experimental-specifier-resolution=node",
+  "execMap": {
+    "ts": "node --loader ts-node/esm --experimental-specifier-resolution=node",
+    "js": "node"
+  },
+  "env": {
+    "NODE_ENV": "development",
+    "NODE_OPTIONS": "--experimental-specifier-resolution=node"
+  }
+}
