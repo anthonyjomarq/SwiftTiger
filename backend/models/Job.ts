@@ -1,7 +1,49 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes, Model } from 'sequelize';
+import { sequelize } from '../config/database.js';
 
-const Job = sequelize.define('Job', {
+export interface JobAttributes {
+  id: string;
+  jobName: string;
+  description: string;
+  customerId: string;
+  serviceType: 'New Account' | 'Replacement' | 'Training' | 'Maintenance';
+  priority: 'Low' | 'Medium' | 'High';
+  status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+  assignedTo?: string | null;
+  scheduledDate?: Date | null;
+  completedDate?: Date | null;
+  estimatedDuration: number;
+  actualDuration?: number | null;
+  createdBy: string;
+  updatedBy?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface JobCreationAttributes extends Omit<JobAttributes, 'id' | 'createdAt' | 'updatedAt'> {
+  id?: string;
+}
+
+export class Job extends Model<JobAttributes, JobCreationAttributes> implements JobAttributes {
+  public id!: string;
+  public jobName!: string;
+  public description!: string;
+  public customerId!: string;
+  public serviceType!: 'New Account' | 'Replacement' | 'Training' | 'Maintenance';
+  public priority!: 'Low' | 'Medium' | 'High';
+  public status!: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+  public assignedTo!: string | null;
+  public scheduledDate!: Date | null;
+  public completedDate!: Date | null;
+  public estimatedDuration!: number;
+  public actualDuration!: number | null;
+  public createdBy!: string;
+  public updatedBy!: string | null;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Job.init({
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -80,6 +122,7 @@ const Job = sequelize.define('Job', {
     }
   }
 }, {
+  sequelize,
   tableName: 'jobs',
   timestamps: true,
   indexes: [
@@ -91,4 +134,4 @@ const Job = sequelize.define('Job', {
   ]
 });
 
-module.exports = Job;
+export default Job;

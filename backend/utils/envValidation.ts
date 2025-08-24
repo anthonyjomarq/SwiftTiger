@@ -15,7 +15,7 @@ declare global {
       CORS_ORIGIN?: string;
       GOOGLE_PLACES_API_KEY?: string;
       GOOGLE_ROUTES_API_KEY?: string;
-      LOG_LEVEL?: string;
+      LOG_LEVEL?: "error" | "warn" | "info" | "debug";
     }
   }
 }

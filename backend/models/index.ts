@@ -1,9 +1,9 @@
-const sequelize = require('../config/database');
-const User = require('./User');
-const Customer = require('./Customer');
-const Job = require('./Job');
-const JobLog = require('./JobLog');
-const AuditLog = require('./AuditLog');
+import { sequelize } from '../config/database.js';
+import User from './User.js';
+import Customer from './Customer.js';
+import Job from './Job.js';
+import JobLog from './JobLog.js';
+import AuditLog from './AuditLog.js';
 
 // Define associations
 User.hasMany(Customer, { foreignKey: 'createdBy', as: 'CreatedCustomers' });
@@ -30,7 +30,16 @@ JobLog.belongsTo(User, { foreignKey: 'technicianId', as: 'Technician' });
 User.hasMany(AuditLog, { foreignKey: 'userId', as: 'AuditLogs' });
 AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'User' });
 
-module.exports = {
+export {
+  sequelize,
+  User,
+  Customer,
+  Job,
+  JobLog,
+  AuditLog
+};
+
+export default {
   sequelize,
   User,
   Customer,
