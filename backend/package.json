@@ -9,19 +9,16 @@
   },
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon",
-    "dev:ts": "node --loader ts-node/esm --experimental-specifier-resolution=node server.ts",
+    "dev": "node --loader ts-node/esm --experimental-specifier-resolution=node server.ts",
     "build": "tsc",
     "clean": "rm -rf dist",
     "rebuild": "npm run clean && npm run build",
     "type-check": "tsc --noEmit",
-    "create-admin": "node scripts/createMainAdmin.js",
-    "migrate": "node scripts/migrate.js",
     "test": "NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-    "lint": "eslint . --ext .js,.ts,.mjs,.mts",
-    "lint:fix": "eslint . --ext .js,.ts,.mjs,.mts --fix"
+    "lint": "eslint . --ext .ts,.mts",
+    "lint:fix": "eslint . --ext .ts,.mts --fix"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
