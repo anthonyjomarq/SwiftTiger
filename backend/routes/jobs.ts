@@ -1,14 +1,25 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const { Op } = require('sequelize');
-const Job = require('../models/Job');
-const JobLog = require('../models/JobLog');
-const Customer = require('../models/Customer');
-const User = require('../models/User');
-const { authenticate, authorize } = require('../middleware/auth');
-const { auditMiddleware } = require('../middleware/audit');
-const { validateJobCreate, validateJobUpdate, validateJobLogCreate } = require('../middleware/validation');
+import express, { Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import { Op } from 'sequelize';
+import { Job } from '@models/Job.js';
+import { JobLog } from '@models/JobLog.js';
+import { Customer } from '@models/Customer.js';
+import { User } from '@models/User.js';
+import { authenticate, authorize } from '@middleware/auth.js';
+import { auditMiddleware } from '@middleware/audit.js';
+import { validateJobCreate, validateJobUpdate, validateJobLogCreate } from '@middleware/validation.js';
+import {
+  AuthenticatedRequest,
+  CreateJobRequest,
+  UpdateJobRequest,
+  CreateJobLogRequest,
+  JobResponse,
+  JobsListResponse,
+  JobLogResponse,
+  ErrorResponse,
+  JobsQuery
+} from '../types/api.js';
 
 const router = express.Router();
 
@@ -30,22 +41,22 @@ const upload = multer({
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'), false);
+      cb(null, false);
     }
   }
 });
 
 // Get all jobs
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, async (req: any, res: any) => {
   try {
     console.log('💼 GET /jobs - Fetching jobs with query params:', req.query);
-    const { page = 1, limit = 10, status, assignedTo, customerId, scheduledDate } = req.query;
-    const skip = (page - 1) * limit;
+    const { page = '1', limit = '10', status, assignedTo, customerId, scheduledDate } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const filter = {};
+    const filter: any = {};
     if (status) {
       // Handle comma-separated status values
-      const statusValues = status.split(',').map(s => s.trim());
+      const statusValues = status.split(',').map((s: string) => s.trim());
       filter.status = statusValues;
     }
     if (assignedTo) filter.assignedTo = assignedTo;
@@ -97,10 +108,10 @@ router.get('/', authenticate, async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / parseInt(limit))
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Get jobs error:', {
       message: error.message,
       stack: error.stack,
@@ -114,7 +125,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Get job by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: any, res: any) => {
   try {
     const job = await Job.findByPk(req.params.id, {
       include: [
@@ -141,7 +152,7 @@ router.get('/:id', authenticate, async (req, res) => {
     }
     
     res.json(job);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get job error:', error);
     res.status(500).json({ message: 'Server error' });
   }
@@ -152,14 +163,13 @@ router.post('/',
   authenticate, 
   validateJobCreate,
   auditMiddleware('CREATE_JOB', 'JOB'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       console.log('💼 POST /jobs - Creating job with data:', req.body);
       
       const { 
         jobName, 
         description, 
-        customer, 
         customerId, 
         serviceType, 
         priority, 
@@ -168,17 +178,14 @@ router.post('/',
         estimatedDuration 
       } = req.body;
 
-      // Accept either 'customer' or 'customerId' for backward compatibility
-      const customerIdToUse = customerId || customer;
-
-      if (!jobName || !description || !customerIdToUse || !serviceType) {
+      if (!jobName || !description || !customerId || !serviceType) {
         console.log('❌ Missing required fields for job creation');
         return res.status(400).json({ message: 'Job name, description, customer ID, and service type are required' });
       }
 
       // Verify customer exists
-      console.log('🔍 Verifying customer exists:', customerIdToUse);
-      const customerExists = await Customer.findByPk(customerIdToUse);
+      console.log('🔍 Verifying customer exists:', customerId);
+      const customerExists = await Customer.findByPk(customerId);
       if (!customerExists) {
         console.log('❌ Customer not found');
         return res.status(400).json({ message: 'Customer not found' });
@@ -201,11 +208,12 @@ router.post('/',
       const job = await Job.create({
         jobName,
         description,
-        customerId: customerIdToUse,
+        customerId,
         serviceType,
         priority: priority || 'Medium',
+        status: 'Pending',
         assignedTo: assignedTo || null,
-        scheduledDate: scheduledDate || new Date(),
+        scheduledDate: scheduledDate ? new Date(scheduledDate) : new Date(),
         estimatedDuration: estimatedDuration || 60,
         createdBy: createdById
       });
@@ -229,7 +237,7 @@ router.post('/',
       });
       
       res.status(201).json(jobResponse);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Create job error:', {
         message: error.message,
         stack: error.stack,
@@ -254,7 +262,7 @@ router.put('/:id',
   authenticate, 
   validateJobUpdate,
   auditMiddleware('UPDATE_JOB', 'JOB'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const { jobName, description, serviceType, priority, assignedTo, scheduledDate, estimatedDuration, status } = req.body;
       
@@ -263,7 +271,7 @@ router.put('/:id',
         return res.status(404).json({ message: 'Job not found' });
       }
 
-      const updateData = {
+      const updateData: any = {
         updatedBy: req.user.id
       };
       
@@ -272,7 +280,7 @@ router.put('/:id',
       if (serviceType) updateData.serviceType = serviceType;
       if (priority) updateData.priority = priority;
       if (assignedTo) updateData.assignedTo = assignedTo;
-      if (scheduledDate) updateData.scheduledDate = scheduledDate;
+      if (scheduledDate) updateData.scheduledDate = new Date(scheduledDate);
       if (estimatedDuration) updateData.estimatedDuration = estimatedDuration;
       if (status) updateData.status = status;
 
@@ -303,7 +311,7 @@ router.put('/:id',
       });
 
       res.json(updatedJob);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update job error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -315,7 +323,7 @@ router.delete('/:id',
   authenticate, 
   authorize('admin', 'manager'), 
   auditMiddleware('DELETE_JOB', 'JOB'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const job = await Job.findByPk(req.params.id);
       if (!job) {
@@ -325,7 +333,7 @@ router.delete('/:id',
       await job.destroy();
 
       res.json({ message: 'Job deleted successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete job error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -333,7 +341,7 @@ router.delete('/:id',
 );
 
 // Get job logs
-router.get('/:id/logs', authenticate, async (req, res) => {
+router.get('/:id/logs', authenticate, async (req: any, res: any) => {
   try {
     const logs = await JobLog.findAll({
       where: { jobId: req.params.id },
@@ -348,7 +356,7 @@ router.get('/:id/logs', authenticate, async (req, res) => {
     });
     
     res.json(logs);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get job logs error:', error);
     res.status(500).json({ message: 'Server error' });
   }
@@ -360,7 +368,7 @@ router.post('/:id/logs',
   upload.array('photos', 5),
   validateJobLogCreate,
   auditMiddleware('CREATE_JOB_LOG', 'JOB_LOG'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const { notes, workStartTime, workEndTime, statusUpdate } = req.body;
       
@@ -368,7 +376,7 @@ router.post('/:id/logs',
         return res.status(400).json({ message: 'Notes are required' });
       }
 
-      const photos = req.files ? req.files.map(file => ({
+      const photos = req.files ? (req.files as Express.Multer.File[]).map(file => ({
         filename: file.filename,
         originalName: file.originalname,
         mimetype: file.mimetype,
@@ -381,8 +389,8 @@ router.post('/:id/logs',
         technicianId: req.user.id,
         notes,
         photos,
-        workStartTime,
-        workEndTime,
+        workStartTime: workStartTime ? new Date(workStartTime) : undefined,
+        workEndTime: workEndTime ? new Date(workEndTime) : undefined,
         statusUpdate
       });
 
@@ -400,7 +408,7 @@ router.post('/:id/logs',
       if (statusUpdate) {
         const job = await Job.findByPk(req.params.id);
         if (job) {
-          const updateData = {
+          const updateData: any = {
             status: statusUpdate,
             updatedBy: req.user.id
           };
@@ -414,7 +422,7 @@ router.post('/:id/logs',
       }
 
       res.status(201).json(jobLogWithTechnician);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create job log error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -488,7 +496,7 @@ router.put('/:jobId/logs/:logId',
   upload.array('photos', 5),
   validateJobLogCreate,
   auditMiddleware('UPDATE_JOB_LOG', 'JOB_LOG'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const { notes, workStartTime, workEndTime, statusUpdate } = req.body;
       
@@ -521,8 +529,8 @@ router.put('/:jobId/logs/:logId',
 
       // Handle new photos if uploaded
       let updatedPhotos = jobLog.photos || [];
-      if (req.files && req.files.length > 0) {
-        const newPhotos = req.files.map(file => ({
+      if (req.files && (req.files as Express.Multer.File[]).length > 0) {
+        const newPhotos = (req.files as Express.Multer.File[]).map(file => ({
           filename: file.filename,
           originalName: file.originalname,
           mimetype: file.mimetype,
@@ -536,8 +544,8 @@ router.put('/:jobId/logs/:logId',
       await jobLog.update({
         notes,
         photos: updatedPhotos,
-        workStartTime,
-        workEndTime,
+        workStartTime: workStartTime ? new Date(workStartTime) : undefined,
+        workEndTime: workEndTime ? new Date(workEndTime) : undefined,
         statusUpdate
       });
 
@@ -545,7 +553,7 @@ router.put('/:jobId/logs/:logId',
       if (statusUpdate) {
         const job = await Job.findByPk(req.params.jobId);
         if (job) {
-          const updateData = {
+          const updateData: any = {
             status: statusUpdate,
             updatedBy: req.user.id
           };
@@ -570,7 +578,7 @@ router.put('/:jobId/logs/:logId',
       });
 
       res.json(updatedJobLog);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update job log error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -612,7 +620,7 @@ router.delete('/:jobId/logs/:logId',
   authenticate,
   authorize('admin', 'manager'),
   auditMiddleware('DELETE_JOB_LOG', 'JOB_LOG'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const jobLog = await JobLog.findOne({
         where: { 
@@ -628,11 +636,11 @@ router.delete('/:jobId/logs/:logId',
       await jobLog.destroy();
 
       res.json({ message: 'Job log deleted successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete job log error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
 );
 
-module.exports = router;
+export default router;

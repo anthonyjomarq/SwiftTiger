@@ -1,22 +1,31 @@
-const express = require('express');
-const User = require('../models/User');
-const { authenticate, authorize, requireMainAdmin } = require('../middleware/auth');
-const { auditMiddleware } = require('../middleware/audit');
-const { validateUserCreate, validateUserUpdate } = require('../middleware/validation');
+import express, { Request, Response } from 'express';
+import { User } from '@models/User.js';
+import { authenticate, authorize, requireMainAdmin } from '@middleware/auth.js';
+import { auditMiddleware } from '@middleware/audit.js';
+import { validateUserCreate, validateUserUpdate } from '@middleware/validation.js';
+import {
+  AuthenticatedRequest,
+  CreateUserRequest,
+  UpdateUserRequest,
+  UserResponse,
+  UsersListResponse,
+  ErrorResponse,
+  UsersQuery
+} from '../types/api.js';
 
 const router = express.Router();
 
 // Get all users
-router.get('/', authenticate, authorize('admin', 'manager'), async (req, res) => {
+router.get('/', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
     console.log('👥 GET /users - Fetching users with query params:', req.query);
     
     // Build where clause based on query params
-    const whereClause = { isActive: true };
+    const whereClause: any = { isActive: true };
     
     // Handle role filtering
     if (req.query.role) {
-      const roles = req.query.role.split(',').map(r => r.trim());
+      const roles = req.query.role.split(',').map((r: string) => r.trim());
       whereClause.role = roles;
     }
     
@@ -30,8 +39,8 @@ router.get('/', authenticate, authorize('admin', 'manager'), async (req, res) =>
     });
     
     console.log(`✅ Found ${users.length} users`);
-    res.json(users);
-  } catch (error) {
+    res.json({ users: users as any[] });
+  } catch (error: any) {
     console.error('❌ Get users error:', {
       message: error.message,
       stack: error.stack,
@@ -45,7 +54,7 @@ router.get('/', authenticate, authorize('admin', 'manager'), async (req, res) =>
 });
 
 // Get user by ID
-router.get('/:id', authenticate, authorize('admin', 'manager'), async (req, res) => {
+router.get('/:id', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
     const user = await User.findByPk(req.params.id, {
       attributes: { exclude: ['password'] },
@@ -62,8 +71,8 @@ router.get('/:id', authenticate, authorize('admin', 'manager'), async (req, res)
       return res.status(404).json({ message: 'User not found' });
     }
     
-    res.json(user);
-  } catch (error) {
+    res.json(user as any);
+  } catch (error: any) {
     console.error('Get user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
@@ -75,7 +84,7 @@ router.post('/',
   authorize('admin'), 
   validateUserCreate,
   auditMiddleware('CREATE_USER', 'USER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       console.log('👤 POST /users - Creating user with data:', { 
         ...req.body, 
@@ -110,6 +119,7 @@ router.post('/',
         password,
         role,
         isActive,
+        isMainAdmin: role === 'admin' ? req.user.isMainAdmin : false,
         createdBy: req.user.id
       });
 
@@ -120,8 +130,8 @@ router.post('/',
         attributes: { exclude: ['password'] }
       });
       
-      res.status(201).json(userResponse);
-    } catch (error) {
+      res.status(201).json(userResponse as any);
+    } catch (error: any) {
       console.error('❌ Create user error:', {
         message: error.message,
         stack: error.stack,
@@ -147,7 +157,7 @@ router.put('/:id',
   authorize('admin'), 
   validateUserUpdate,
   auditMiddleware('UPDATE_USER', 'USER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const { name, email, role, isActive } = req.body;
       const user = await User.findByPk(req.params.id);
@@ -171,7 +181,7 @@ router.put('/:id',
         return res.status(403).json({ message: 'Only main admin can promote to admin' });
       }
 
-      const updateData = {};
+      const updateData: Partial<UpdateUserRequest> = {};
       if (name) updateData.name = name;
       if (email) updateData.email = email;
       if (role) updateData.role = role;
@@ -190,8 +200,8 @@ router.put('/:id',
         ]
       });
       
-      res.json(updatedUser);
-    } catch (error) {
+      res.json(updatedUser as any);
+    } catch (error: any) {
       console.error('Update user error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -203,7 +213,7 @@ router.delete('/:id',
   authenticate, 
   requireMainAdmin, 
   auditMiddleware('DELETE_USER', 'USER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const user = await User.findByPk(req.params.id);
 
@@ -219,11 +229,11 @@ router.delete('/:id',
       await user.update({ isActive: false });
 
       res.json({ message: 'User deactivated successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete user error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
 );
 
-module.exports = router;
+export default router;

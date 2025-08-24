@@ -1,4 +1,4 @@
-const swaggerJSDoc = require('swagger-jsdoc');
+import swaggerJSDoc from 'swagger-jsdoc';
 
 const options = {
   definition: {
@@ -390,9 +390,9 @@ const options = {
       }
     ]
   },
-  apis: ['./routes/*.js'], // paths to files containing OpenAPI definitions
+  apis: ['./routes/*.ts'], // paths to files containing OpenAPI definitions
 };
 
 const specs = swaggerJSDoc(options);
 
-module.exports = specs;
+export default specs;

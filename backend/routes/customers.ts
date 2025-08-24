@@ -1,20 +1,29 @@
-const express = require('express');
-const { Op } = require('sequelize');
-const Customer = require('../models/Customer');
-const User = require('../models/User');
-const { authenticate, authorize } = require('../middleware/auth');
-const { auditMiddleware } = require('../middleware/audit');
-const { validateCustomerCreate, validateCustomerUpdate } = require('../middleware/validation');
+import express, { Response } from 'express';
+import { Op } from 'sequelize';
+import { Customer } from '@models/Customer.js';
+import { User } from '@models/User.js';
+import { authenticate, authorize } from '@middleware/auth.js';
+import { auditMiddleware } from '@middleware/audit.js';
+import { validateCustomerCreate, validateCustomerUpdate } from '@middleware/validation.js';
+import {
+  AuthenticatedRequest,
+  CreateCustomerRequest,
+  UpdateCustomerRequest,
+  CustomerResponse,
+  CustomersListResponse,
+  ErrorResponse,
+  CustomersQuery
+} from '../types/api.js';
 
 const router = express.Router();
 
 // Get all customers
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, async (req: any, res: any) => {
   try {
-    const { page = 1, limit = 10, search = '' } = req.query;
-    const skip = (page - 1) * limit;
+    const { page = '1', limit = '10', search = '' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const whereClause = { isActive: true };
+    const whereClause: any = { isActive: true };
     
     if (search) {
       whereClause[Op.or] = [
@@ -51,17 +60,17 @@ router.get('/', authenticate, async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / parseInt(limit))
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get customers error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // Get customer by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: any, res: any) => {
   try {
     const customer = await Customer.findByPk(req.params.id, {
       include: [
@@ -83,7 +92,7 @@ router.get('/:id', authenticate, async (req, res) => {
     }
     
     res.json(customer);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get customer error:', error);
     res.status(500).json({ message: 'Server error' });
   }
@@ -94,7 +103,7 @@ router.post('/',
   authenticate, 
   validateCustomerCreate,
   auditMiddleware('CREATE_CUSTOMER', 'CUSTOMER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       console.log('🏢 POST /customers - Creating customer with data:', req.body);
       
@@ -141,6 +150,7 @@ router.post('/',
         addressLatitude: addressLatitude || null,
         addressLongitude: addressLongitude || null,
         addressPlaceId: addressPlaceId || null,
+        isActive: true,
         createdBy: createdById
       });
 
@@ -150,7 +160,7 @@ router.post('/',
       const customerResponse = await Customer.findByPk(customer.id);
       
       res.status(201).json(customerResponse);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Create customer error:', {
         message: error.message,
         stack: error.stack,
@@ -175,7 +185,7 @@ router.put('/:id',
   authenticate, 
   validateCustomerUpdate,
   auditMiddleware('UPDATE_CUSTOMER', 'CUSTOMER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const { name, email, phone, addressStreet, addressCity, addressState, addressZipCode, addressCountry } = req.body;
       
@@ -184,7 +194,7 @@ router.put('/:id',
         return res.status(404).json({ message: 'Customer not found' });
       }
 
-      const updateData = {
+      const updateData: any = {
         updatedBy: req.user.id
       };
       
@@ -215,7 +225,7 @@ router.put('/:id',
       });
 
       res.json(updatedCustomer);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update customer error:', error);
       res.status(500).json({ message: 'Server error' });
     }
@@ -227,7 +237,7 @@ router.delete('/:id',
   authenticate, 
   authorize('admin', 'manager'), 
   auditMiddleware('DELETE_CUSTOMER', 'CUSTOMER'),
-  async (req, res) => {
+  async (req: any, res: any) => {
     try {
       const customer = await Customer.findByPk(req.params.id);
       if (!customer || !customer.isActive) {
@@ -240,11 +250,11 @@ router.delete('/:id',
       });
 
       res.json({ message: 'Customer deleted successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete customer error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
 );
 
-module.exports = router;
+export default router;

@@ -1,14 +1,19 @@
-const express = require('express');
-const { Op } = require('sequelize');
-const Job = require('../models/Job');
-const Customer = require('../models/Customer');
-const User = require('../models/User');
-const { authenticate } = require('../middleware/auth');
+import express, { Response } from 'express';
+import { Op } from 'sequelize';
+import { Job } from '@models/Job.js';
+import { Customer } from '@models/Customer.js';
+import { User } from '@models/User.js';
+import { authenticate } from '@middleware/auth.js';
+import {
+  AuthenticatedRequest,
+  DashboardStatsResponse,
+  ErrorResponse
+} from '../types/api.js';
 
 const router = express.Router();
 
 // Get dashboard statistics
-router.get('/stats', authenticate, async (req, res) => {
+router.get('/stats', authenticate, async (req: any, res: any) => {
   try {
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -67,10 +72,10 @@ router.get('/stats', authenticate, async (req, res) => {
       lowPriority,
       totalUsers
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-module.exports = router;
+export default router;

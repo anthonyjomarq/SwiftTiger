@@ -1,9 +1,16 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const { authenticate } = require('../middleware/auth');
-const { createAuditLog } = require('../middleware/audit');
-const { validateLogin, validatePasswordChange } = require('../middleware/validation');
+import express, { Request, Response } from 'express';
+import jwt, { SignOptions } from 'jsonwebtoken';
+import { User } from '@models/User.js';
+import { authenticate } from '@middleware/auth.js';
+import { createAuditLog } from '@middleware/audit.js';
+import { validateLogin, validatePasswordChange } from '@middleware/validation.js';
+import {
+  AuthenticatedRequest,
+  LoginRequest,
+  LoginResponse,
+  ChangePasswordRequest,
+  ErrorResponse
+} from '../types/api.js';
 
 const router = express.Router();
 
@@ -39,7 +46,7 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/login', validateLogin, async (req, res) => {
+router.post('/login', validateLogin, async (req: any, res: any) => {
   try {
     const { email, password } = req.body;
 
@@ -61,16 +68,16 @@ router.post('/login', validateLogin, async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
-    );
+    const payload = { id: user.id, email: user.email, role: user.role };
+    const secret = process.env.JWT_SECRET as string;
+    const options = { expiresIn: process.env.JWT_EXPIRES_IN || '7d' };
+    const token = jwt.sign(payload, secret, options as any);
 
     // Create audit log
-    user.ipAddress = req.ip;
-    user.userAgent = req.get('User-Agent');
-    await createAuditLog(user, 'LOGIN', 'AUTH');
+    const auditUser = user as any;
+    auditUser.ipAddress = req.ip;
+    auditUser.userAgent = req.get('User-Agent');
+    await createAuditLog(auditUser, 'LOGIN', 'AUTH');
 
     res.json({
       token,
@@ -89,21 +96,21 @@ router.post('/login', validateLogin, async (req, res) => {
 });
 
 // Logout
-router.post('/logout', authenticate, async (req, res) => {
+router.post('/logout', authenticate, async (req: any, res: any) => {
   try {
     req.user.ipAddress = req.ip;
     req.user.userAgent = req.get('User-Agent');
     await createAuditLog(req.user, 'LOGOUT', 'AUTH');
     
     res.json({ message: 'Logged out successfully' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Logout error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // Get current user
-router.get('/me', authenticate, (req, res) => {
+router.get('/me', authenticate, (req: any, res: any) => {
   res.json({
     id: req.user.id,
     name: req.user.name,
@@ -114,7 +121,7 @@ router.get('/me', authenticate, (req, res) => {
 });
 
 // Change password
-router.put('/change-password', authenticate, validatePasswordChange, async (req, res) => {
+router.put('/change-password', authenticate, validatePasswordChange, async (req: any, res: any) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -123,6 +130,10 @@ router.put('/change-password', authenticate, validatePasswordChange, async (req,
     }
 
     const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
@@ -143,4 +154,4 @@ router.put('/change-password', authenticate, validatePasswordChange, async (req,
   }
 });
 
-module.exports = router;
+export default router;

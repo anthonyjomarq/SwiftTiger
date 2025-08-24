@@ -1,17 +1,26 @@
-const express = require('express');
-const { AuditLog, User } = require('../models');
-const { authenticate, authorize } = require('../middleware/auth');
-const { Op } = require('sequelize');
+import express, { Response } from 'express';
+import { AuditLog, User } from '@models/index.js';
+import { authenticate, authorize } from '@middleware/auth.js';
+import { Op } from 'sequelize';
+import { sequelize } from '@config/database.js';
+import {
+  AuthenticatedRequest,
+  AuditLogsListResponse,
+  AuditStatsResponse,
+  ErrorResponse,
+  AuditLogsQuery,
+  AuditStatsQuery
+} from '../types/api.js';
 
 const router = express.Router();
 
 // Get audit logs
-router.get('/', authenticate, authorize('admin', 'manager'), async (req, res) => {
+router.get('/', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
-    const { page = 1, limit = 20, action, resource, userId, startDate, endDate } = req.query;
-    const offset = (page - 1) * limit;
+    const { page = '1', limit = '20', action, resource, userId, startDate, endDate } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const where = {};
+    const where: any = {};
     if (action) where.action = action;
     if (resource) where.resource = resource;
     if (userId) where.userId = userId;
@@ -34,26 +43,26 @@ router.get('/', authenticate, authorize('admin', 'manager'), async (req, res) =>
     });
 
     res.json({
-      logs,
+      logs: logs as any[],
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / parseInt(limit))
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get audit logs error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // Get audit log statistics
-router.get('/stats', authenticate, authorize('admin', 'manager'), async (req, res) => {
+router.get('/stats', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
     const { startDate, endDate } = req.query;
     
-    const where = {};
+    const where: any = {};
     if (startDate && endDate) {
       where.createdAt = {
         [Op.gte]: new Date(startDate),
@@ -66,10 +75,10 @@ router.get('/stats', authenticate, authorize('admin', 'manager'), async (req, re
       where,
       attributes: [
         'action',
-        [AuditLog.sequelize.fn('COUNT', '*'), 'count']
+        [sequelize.fn('COUNT', '*'), 'count']
       ],
       group: ['action'],
-      order: [[AuditLog.sequelize.literal('count'), 'DESC']]
+      order: [[sequelize.literal('count'), 'DESC']]
     });
 
     // Get user statistics
@@ -77,31 +86,31 @@ router.get('/stats', authenticate, authorize('admin', 'manager'), async (req, re
       where,
       attributes: [
         'userId',
-        [AuditLog.sequelize.fn('COUNT', '*'), 'count']
+        [sequelize.fn('COUNT', '*'), 'count']
       ],
       include: [{
         model: User,
         attributes: ['name', 'email']
       }],
       group: ['userId', 'User.id', 'User.name', 'User.email'],
-      order: [[AuditLog.sequelize.literal('count'), 'DESC']]
+      order: [[sequelize.literal('count'), 'DESC']]
     });
 
     res.json({
       actionStats: actionStats.map(stat => ({
         _id: stat.action,
-        count: parseInt(stat.get('count'))
+        count: parseInt(stat.get('count') as string)
       })),
       userStats: userStats.map(stat => ({
-        userName: stat.User?.name,
-        userEmail: stat.User?.email,
-        count: parseInt(stat.get('count'))
+        userName: (stat as any).User?.name,
+        userEmail: (stat as any).User?.email,
+        count: parseInt(stat.get('count') as string)
       }))
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get audit stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-module.exports = router;
+export default router;
