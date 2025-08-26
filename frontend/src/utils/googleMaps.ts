@@ -1,14 +1,28 @@
 // Google Maps API utilities
 
-let isGoogleMapsLoaded = false;
-let googleMapsPromise = null;
+let isGoogleMapsLoaded: boolean = false;
+let googleMapsPromise: Promise<void> | null = null;
 
-export const loadGoogleMapsScript = () => {
-  console.log('🔍 Checking Google Maps loading status:', {
+interface GoogleMapsLoadStatus {
+  isLoaded: boolean;
+  hasPromise: boolean;
+  hasWindowGoogle: boolean;
+}
+
+interface GoogleMapsCheckStatus {
+  hasGoogle: boolean;
+  hasMaps: boolean;
+  hasPlaces: boolean;
+}
+
+export const loadGoogleMapsScript = (): Promise<void> => {
+  const status: GoogleMapsLoadStatus = {
     isLoaded: isGoogleMapsLoaded,
     hasPromise: !!googleMapsPromise,
     hasWindowGoogle: !!window.google
-  });
+  };
+  
+  console.log('🔍 Checking Google Maps loading status:', status);
   
   if (isGoogleMapsLoaded) {
     console.log('✅ Google Maps already loaded');
@@ -20,8 +34,8 @@ export const loadGoogleMapsScript = () => {
     return googleMapsPromise;
   }
 
-  googleMapsPromise = new Promise((resolve, reject) => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  googleMapsPromise = new Promise<void>((resolve, reject) => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
     console.log('🔑 Google Maps API Key status:', apiKey ? 'Found' : 'Missing');
     
     if (!apiKey) {
@@ -38,31 +52,29 @@ export const loadGoogleMapsScript = () => {
     }
 
     console.log('🔄 Creating Google Maps script tag...');
-    const script = document.createElement('script');
+    const script: HTMLScriptElement = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
     script.async = true;
     script.defer = true;
     
     console.log('📍 Google Maps script URL:', script.src);
     
-    script.onload = () => {
+    script.onload = (): void => {
       console.log('📥 Google Maps script loaded, checking APIs...');
       // Wait a bit for places library to be available
-      let attempts = 0;
-      const maxAttempts = 50; // 5 seconds max
+      let attempts: number = 0;
+      const maxAttempts: number = 50; // 5 seconds max
       
-      const checkPlaces = () => {
-        const hasGoogle = !!window.google;
-        const hasMaps = !!(window.google && window.google.maps);
-        const hasPlaces = !!(window.google && window.google.maps && window.google.maps.places);
+      const checkPlaces = (): void => {
+        const status: GoogleMapsCheckStatus = {
+          hasGoogle: !!window.google,
+          hasMaps: !!(window.google && window.google.maps),
+          hasPlaces: !!(window.google && window.google.maps && window.google.maps.places)
+        };
         
-        console.log(`🔍 Attempt ${attempts + 1}/${maxAttempts}:`, {
-          hasGoogle,
-          hasMaps,
-          hasPlaces
-        });
+        console.log(`🔍 Attempt ${attempts + 1}/${maxAttempts}:`, status);
         
-        if (hasGoogle && hasMaps && hasPlaces) {
+        if (status.hasGoogle && status.hasMaps && status.hasPlaces) {
           console.log('✅ Google Maps and Places API fully loaded');
           isGoogleMapsLoaded = true;
           resolve();
@@ -70,7 +82,7 @@ export const loadGoogleMapsScript = () => {
           attempts++;
           setTimeout(checkPlaces, 100);
         } else {
-          const error = new Error(`Google Maps Places library failed to load within timeout. Status: google=${hasGoogle}, maps=${hasMaps}, places=${hasPlaces}`);
+          const error = new Error(`Google Maps Places library failed to load within timeout. Status: google=${status.hasGoogle}, maps=${status.hasMaps}, places=${status.hasPlaces}`);
           console.error('❌', error.message);
           reject(error);
         }
@@ -78,7 +90,7 @@ export const loadGoogleMapsScript = () => {
       checkPlaces();
     };
     
-    script.onerror = (error) => {
+    script.onerror = (error: Event | string): void => {
       console.error('❌ Failed to load Google Maps script:', error);
       reject(new Error('Failed to load Google Maps script'));
     };
@@ -90,6 +102,6 @@ export const loadGoogleMapsScript = () => {
   return googleMapsPromise;
 };
 
-export const isGoogleMapsReady = () => {
-  return isGoogleMapsLoaded && window.google && window.google.maps && window.google.maps.places;
+export const isGoogleMapsReady = (): boolean => {
+  return isGoogleMapsLoaded && !!window.google && !!window.google.maps && !!window.google.maps.places;
 };

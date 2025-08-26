@@ -1,5 +1,5 @@
-import api from '../utils/api';
-import { setAuth, clearAuth } from '../utils/auth';
+import api from '../utils/api.ts';
+import { setAuth, clearAuth } from '../utils/auth.ts';
 
 export const authService = {
   async login(email, password) {

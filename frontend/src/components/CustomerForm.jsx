@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { MapPin } from 'lucide-react';
-import { loadGoogleMapsScript } from '../utils/googleMaps';
+import { loadGoogleMapsScript } from '../utils/googleMaps.ts';
 
 const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
   const [addressSearch, setAddressSearch] = useState('');

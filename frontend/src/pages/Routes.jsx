@@ -4,7 +4,7 @@ import { Calendar, MapPin, Users, Clock, Navigation, RefreshCw, Filter, Target, 
 import toast from 'react-hot-toast';
 import { routeService } from '../services/routeService';
 import { sampleDataService } from '../services/sampleDataService';
-import { loadGoogleMapsScript } from '../utils/googleMaps';
+import { loadGoogleMapsScript } from '../utils/googleMaps.ts';
 import RouteMap from '../components/RouteMap';
 import TechnicianWorkload from '../components/TechnicianWorkload';
 

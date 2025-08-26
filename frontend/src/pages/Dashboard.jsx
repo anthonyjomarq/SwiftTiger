@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { Users, Briefcase, Clock, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
-import api from '../utils/api';
+import api from '../utils/api.ts';
 
 const Dashboard = () => {
   const navigate = useNavigate();

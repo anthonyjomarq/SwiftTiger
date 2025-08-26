@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ApiError } from '@/types/api';
 
 const API_URL = '/api';
 
@@ -9,17 +10,17 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use((config: any) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: any) => response,
+  (error: any) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

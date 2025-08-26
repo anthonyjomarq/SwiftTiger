@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getUser, isAuthenticated, clearAuth } from '../utils/auth';
+import { getUser, isAuthenticated, clearAuth } from '../utils/auth.ts';
 
 const AuthContext = createContext();
 

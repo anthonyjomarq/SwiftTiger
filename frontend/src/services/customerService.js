@@ -1,4 +1,4 @@
-import api from '../utils/api';
+import api from '../utils/api.ts';
 
 export const customerService = {
   async getCustomers(params = {}) {
