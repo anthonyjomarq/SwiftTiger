@@ -1,10 +1,46 @@
-import api from '../utils/api.ts';
+import api from '../utils/api';
+import { 
+  Job, 
+  JobCluster, 
+  Coordinate, 
+  TechnicianWorkload, 
+  WorkloadAssignment, 
+  AutoAssignmentResult, 
+  RouteOptimization,
+  JobPriority,
+  User,
+  ApiResponse,
+  JobQueryParams,
+} from '@/types';
+
+interface JobsForDateResponse {
+  jobs: Job[];
+  total: number;
+}
+
+interface TravelData {
+  distance: number;
+  time: number;
+}
+
+interface SavedRoute extends RouteOptimization {
+  savedAt: string;
+  routeName: string;
+  id: string;
+}
+
+interface TechnicianScore {
+  technician: TechnicianWorkload;
+  score: number;
+  currentWorkload: number;
+  travelDistance?: number;
+}
 
 export const routeService = {
-  async getJobsForDate(date, technicianId = null) {
+  async getJobsForDate(date: string, technicianId: string | null = null): Promise<JobsForDateResponse> {
     try {
       console.log('📅 Fetching jobs for date:', date, 'technician:', technicianId);
-      const params = { 
+      const params: JobQueryParams = { 
         scheduledDate: date,
         status: 'Pending,In Progress',
         limit: 50  // Increase limit to get all jobs
@@ -14,10 +50,10 @@ export const routeService = {
       }
       console.log('📋 Jobs API params:', params);
       
-      const response = await api.get('/jobs', { params });
+      const response = await api.get<ApiResponse<JobsForDateResponse>>('/jobs', { params });
       console.log('📋 Jobs API response:', response.data);
-      return response.data;
-    } catch (error) {
+      return response.data.data;
+    } catch (error: any) {
       console.error('❌ Error fetching jobs:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
@@ -29,7 +65,7 @@ export const routeService = {
   },
 
   // Geographic clustering using k-means algorithm
-  performGeographicClustering(jobs, numberOfClusters = 6) {
+  performGeographicClustering(jobs: Job[], numberOfClusters: number = 6): JobCluster[] {
     console.log('🎯 Starting geographic clustering...', {
       totalJobs: jobs?.length || 0,
       numberOfClusters
@@ -58,7 +94,7 @@ export const routeService = {
     
     // Initialize centroids randomly
     let centroids = this.initializeCentroids(jobsWithCoords, numberOfClusters);
-    let clusters = [];
+    let clusters: Job[][] = [];
     let maxIterations = 50;
     let iteration = 0;
     
@@ -78,7 +114,7 @@ export const routeService = {
       iteration++;
     }
     
-    const result = clusters.map((cluster, index) => ({
+    const result: JobCluster[] = clusters.map((cluster, index) => ({
       id: index,
       center: centroids[index],
       jobs: cluster,
@@ -100,29 +136,33 @@ export const routeService = {
     return result;
   },
 
-  initializeCentroids(jobs, numberOfClusters) {
-    const centroids = [];
+  initializeCentroids(jobs: Job[], numberOfClusters: number): Coordinate[] {
+    const centroids: Coordinate[] = [];
     
     // Use job coordinates as initial centroids (better than random)
     const shuffled = [...jobs].sort(() => Math.random() - 0.5);
     
     for (let i = 0; i < Math.min(numberOfClusters, jobs.length); i++) {
       const job = shuffled[i];
-      centroids.push({
-        lat: parseFloat(job.Customer.addressLatitude),
-        lng: parseFloat(job.Customer.addressLongitude)
-      });
+      if (job.Customer?.addressLatitude && job.Customer?.addressLongitude) {
+        centroids.push({
+          lat: parseFloat(job.Customer.addressLatitude.toString()),
+          lng: parseFloat(job.Customer.addressLongitude.toString())
+        });
+      }
     }
     
     return centroids;
   },
 
-  assignJobsToClusters(jobs, centroids) {
-    const clusters = centroids.map(() => []);
+  assignJobsToClusters(jobs: Job[], centroids: Coordinate[]): Job[][] {
+    const clusters: Job[][] = centroids.map(() => []);
     
     jobs.forEach(job => {
-      const jobLat = parseFloat(job.Customer.addressLatitude);
-      const jobLng = parseFloat(job.Customer.addressLongitude);
+      if (!job.Customer?.addressLatitude || !job.Customer?.addressLongitude) return;
+      
+      const jobLat = parseFloat(job.Customer.addressLatitude.toString());
+      const jobLng = parseFloat(job.Customer.addressLongitude.toString());
       
       let nearestCluster = 0;
       let minDistance = Infinity;
@@ -141,25 +181,27 @@ export const routeService = {
     return clusters;
   },
 
-  calculateNewCentroids(clusters) {
+  calculateNewCentroids(clusters: Job[][]): Coordinate[] {
     return clusters.map(cluster => {
       if (cluster.length === 0) {
         return { lat: 18.2208, lng: -66.5901 }; // Default PR center
       }
       
-      const avgLat = cluster.reduce((sum, job) => 
-        sum + parseFloat(job.Customer.addressLatitude), 0
-      ) / cluster.length;
+      const avgLat = cluster.reduce((sum, job) => {
+        const lat = job.Customer?.addressLatitude;
+        return sum + (lat ? parseFloat(lat.toString()) : 0);
+      }, 0) / cluster.length;
       
-      const avgLng = cluster.reduce((sum, job) => 
-        sum + parseFloat(job.Customer.addressLongitude), 0
-      ) / cluster.length;
+      const avgLng = cluster.reduce((sum, job) => {
+        const lng = job.Customer?.addressLongitude;
+        return sum + (lng ? parseFloat(lng.toString()) : 0);
+      }, 0) / cluster.length;
       
       return { lat: avgLat, lng: avgLng };
     });
   },
 
-  centroidsConverged(oldCentroids, newCentroids, threshold = 0.001) {
+  centroidsConverged(oldCentroids: Coordinate[], newCentroids: Coordinate[], threshold: number = 0.001): boolean {
     for (let i = 0; i < oldCentroids.length; i++) {
       const distance = this.calculateDistance(
         oldCentroids[i].lat, oldCentroids[i].lng,
@@ -170,7 +212,7 @@ export const routeService = {
     return true;
   },
 
-  calculateDistance(lat1, lng1, lat2, lng2) {
+  calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -181,8 +223,8 @@ export const routeService = {
     return R * c;
   },
 
-  identifyRegion(coordinates) {
-    const regions = {
+  identifyRegion(coordinates: Coordinate): string {
+    const regions: Record<string, Coordinate> = {
       'San Juan Metro': { lat: 18.4655, lng: -66.1057 },
       'Bayamon': { lat: 18.3989, lng: -66.1614 },
       'Carolina': { lat: 18.3809, lng: -65.9528 },
@@ -211,8 +253,8 @@ export const routeService = {
     return nearestRegion;
   },
 
-  calculateAveragePriority(jobs) {
-    const priorityValues = { 'Low': 1, 'Medium': 2, 'High': 3 };
+  calculateAveragePriority(jobs: Job[]): JobPriority {
+    const priorityValues: Record<JobPriority, number> = { 'Low': 1, 'Medium': 2, 'High': 3 };
     const avg = jobs.reduce((sum, job) => sum + priorityValues[job.priority], 0) / jobs.length;
     
     if (avg >= 2.5) return 'High';
@@ -221,7 +263,12 @@ export const routeService = {
   },
 
   // Auto-assign jobs to technicians based on geographic clusters
-  async autoAssignJobsToTechnicians(clusters, technicians, date, excludedTechnicianIds = []) {
+  async autoAssignJobsToTechnicians(
+    clusters: JobCluster[], 
+    technicians: User[], 
+    date: string, 
+    excludedTechnicianIds: string[] = []
+  ): Promise<AutoAssignmentResult> {
     console.log('🎯 Starting auto-assignment process...');
     
     // Filter out non-technicians and excluded technicians
@@ -242,7 +289,7 @@ export const routeService = {
       date
     });
 
-    const assignments = [];
+    // const assignments: WorkloadAssignment[] = [];
     let totalJobsToAssign = 0;
     
     // Calculate total work hours and target per technician
@@ -261,7 +308,7 @@ export const routeService = {
     
     // Sort jobs by priority and estimated duration for better distribution
     const sortedJobs = allJobs.sort((a, b) => {
-      const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
+      const priorityOrder: Record<JobPriority, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
         return priorityOrder[b.priority] - priorityOrder[a.priority];
       }
@@ -276,11 +323,15 @@ export const routeService = {
     });
     
     // Track technician workload (only available technicians)
-    const technicianWorkload = availableTechnicians.map(tech => ({
+    const technicianWorkload: TechnicianWorkload[] = availableTechnicians.map(tech => ({
       ...tech,
       assignedJobs: [],
       totalDuration: 0,
-      assignedRegions: new Set()
+      assignedRegions: new Set(),
+      jobCount: 0,
+      jobs: [],
+      specialization: (tech as any).specialization,
+      homeBase: (tech as any).homeBase
     }));
     
     console.log('👥 Initial technician workload:', technicianWorkload.map(t => ({
@@ -292,10 +343,10 @@ export const routeService = {
     
     // Distribute jobs one by one to achieve better balance
     for (const job of sortedJobs) {
-      console.log(`\n🎯 Assigning job: ${job.jobName} (${job.clusterRegion}, ${job.priority}, ${job.estimatedDuration}min)`);
+      console.log(`\n🎯 Assigning job: ${job.jobName} (${(job as any).clusterRegion}, ${job.priority}, ${job.estimatedDuration}min)`);
       
       // Find best technician for this individual job
-      let bestTechnician = this.findBestTechnicianForJob(job, technicianWorkload, averageWorkPerTech);
+      let bestTechnician = this.findBestTechnicianForJob(job as any, technicianWorkload, averageWorkPerTech);
       
       if (bestTechnician) {
         console.log(`✅ Assigned job to ${bestTechnician.name} (current load: ${Math.round(bestTechnician.totalDuration/60)}h)`);
@@ -303,7 +354,8 @@ export const routeService = {
         // Assign job to technician
         bestTechnician.assignedJobs.push(job);
         bestTechnician.totalDuration += job.estimatedDuration || 60;
-        bestTechnician.assignedRegions.add(job.clusterRegion);
+        bestTechnician.assignedRegions.add((job as any).clusterRegion);
+        bestTechnician.jobCount++;
         totalJobsToAssign++;
         
         // Update job assignment in database
@@ -312,7 +364,7 @@ export const routeService = {
             assignedTo: bestTechnician.id
           });
           console.log(`✅ Job ${job.id} successfully assigned to ${bestTechnician.name} in database`);
-        } catch (error) {
+        } catch (error: any) {
           console.error(`❌ Failed to assign job ${job.id} to ${bestTechnician.name}:`, error);
           throw error;
         }
@@ -322,7 +374,7 @@ export const routeService = {
     }
     
     // Create assignment summary grouped by technician and region
-    const technicianAssignments = new Map();
+    const technicianAssignments = new Map<string, WorkloadAssignment>();
     for (const tech of technicianWorkload) {
       if (tech.assignedJobs.length > 0) {
         technicianAssignments.set(tech.id, {
@@ -352,11 +404,15 @@ export const routeService = {
     };
   },
 
-  findBestTechnicianForJob(job, technicianWorkload, averageWorkPerTech) {
+  findBestTechnicianForJob(
+    job: Job & { clusterRegion: string; clusterId: number }, 
+    technicianWorkload: TechnicianWorkload[], 
+    averageWorkPerTech: number
+  ): TechnicianWorkload | undefined {
     // Score technicians for individual job assignment focusing on workload balance
     const sanJuanCoords = { lat: 18.4655, lng: -66.1057 }; // Starting point
     
-    const scores = technicianWorkload.map(tech => {
+    const scores: TechnicianScore[] = technicianWorkload.map(tech => {
       let score = 0;
       
       // Primary factor: Workload balance (heavily weighted)
@@ -385,8 +441,8 @@ export const routeService = {
       if (job.Customer?.addressLatitude && job.Customer?.addressLongitude) {
         const travelDistance = this.calculateDistance(
           sanJuanCoords.lat, sanJuanCoords.lng,
-          parseFloat(job.Customer.addressLatitude),
-          parseFloat(job.Customer.addressLongitude)
+          parseFloat(job.Customer.addressLatitude.toString()),
+          parseFloat(job.Customer.addressLongitude.toString())
         );
         score += Math.max(0, (100 - travelDistance * 1.5));
       }
@@ -423,11 +479,11 @@ export const routeService = {
     return best?.technician;
   },
 
-  findBestTechnician(cluster, technicianWorkload) {
+  findBestTechnician(cluster: JobCluster, technicianWorkload: TechnicianWorkload[]): TechnicianWorkload | undefined {
     // Score technicians based on workload, regional expertise, and travel from San Juan
     const sanJuanCoords = { lat: 18.4655, lng: -66.1057 }; // Starting point
     
-    const scores = technicianWorkload.map(tech => {
+    const scores: TechnicianScore[] = technicianWorkload.map(tech => {
       let score = 0;
       
       // Prefer lower workload (inverse relationship)
@@ -463,7 +519,7 @@ export const routeService = {
         score += 8;
       }
       
-      return { technician: tech, score, travelDistance };
+      return { technician: tech, score, currentWorkload: workloadHours, travelDistance };
     });
     
     // Sort by score and log the decision
@@ -473,7 +529,7 @@ export const routeService = {
     console.log(`🏆 Best technician for ${cluster.region}:`, {
       selected: best.technician.name,
       score: Math.round(best.score),
-      travelKm: Math.round(best.travelDistance),
+      travelKm: Math.round(best.travelDistance!),
       currentWorkload: Math.round(best.technician.totalDuration / 60 * 10) / 10 + 'h',
       alternatives: scores.slice(1, 3).map(s => ({
         name: s.technician.name,
@@ -485,7 +541,7 @@ export const routeService = {
     return best?.technician;
   },
 
-  calculateWorkloadBalance(workload) {
+  calculateWorkloadBalance(workload: TechnicianWorkload[]): number {
     const durations = workload.map(tech => tech.totalDuration / 60);
     const activeTechnicians = durations.filter(d => d > 0);
     
@@ -515,9 +571,9 @@ export const routeService = {
     return balanceScore;
   },
 
-  async optimizeRoute(jobs, startLocation = null) {
+  async optimizeRoute(jobs: Job[], _startLocation: Coordinate | null = null): Promise<RouteOptimization> {
     if (!jobs || jobs.length === 0) {
-      return { route: [], totalDistance: 0, totalTime: 0 };
+      return { route: [], totalDistance: 0, totalTime: 0, estimatedCompletionTime: '', clusters: [] };
     }
 
     // Enhanced optimization with geographic clustering
@@ -527,17 +583,17 @@ export const routeService = {
     optimizedJobs.sort((a, b) => {
       // If jobs have coordinates, sort by proximity
       if (a.Customer?.addressLatitude && b.Customer?.addressLatitude) {
-        const aLat = parseFloat(a.Customer.addressLatitude);
-        const aLng = parseFloat(a.Customer.addressLongitude);
-        const bLat = parseFloat(b.Customer.addressLatitude);
-        const bLng = parseFloat(b.Customer.addressLongitude);
+        const aLat = parseFloat(a.Customer.addressLatitude.toString());
+        const aLng = parseFloat(a.Customer.addressLongitude?.toString() || '0');
+        const bLat = parseFloat(b.Customer.addressLatitude.toString());
+        const bLng = parseFloat(b.Customer.addressLongitude?.toString() || '0');
         
         // Use centroid of all jobs as reference point
         const centerLat = jobs.reduce((sum, job) => 
-          sum + parseFloat(job.Customer?.addressLatitude || 18.2208), 0
+          sum + parseFloat(job.Customer?.addressLatitude?.toString() || '18.2208'), 0
         ) / jobs.length;
         const centerLng = jobs.reduce((sum, job) => 
-          sum + parseFloat(job.Customer?.addressLongitude || -66.5901), 0
+          sum + parseFloat(job.Customer?.addressLongitude?.toString() || '-66.5901'), 0
         ) / jobs.length;
         
         const distanceA = this.calculateDistance(aLat, aLng, centerLat, centerLng);
@@ -549,7 +605,7 @@ export const routeService = {
       }
       
       // Then sort by priority
-      const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
+      const priorityOrder: Record<JobPriority, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
         return priorityOrder[b.priority] - priorityOrder[a.priority];
       }
@@ -583,13 +639,13 @@ export const routeService = {
     };
   },
 
-  calculateTravelBetweenJobs(job1, job2) {
+  calculateTravelBetweenJobs(job1: Job, job2: Job): TravelData {
     if (job1.Customer?.addressLatitude && job2.Customer?.addressLatitude) {
       const distance = this.calculateDistance(
-        parseFloat(job1.Customer.addressLatitude),
-        parseFloat(job1.Customer.addressLongitude),
-        parseFloat(job2.Customer.addressLatitude),
-        parseFloat(job2.Customer.addressLongitude)
+        parseFloat(job1.Customer.addressLatitude.toString()),
+        parseFloat(job1.Customer.addressLongitude!.toString()),
+        parseFloat(job2.Customer.addressLatitude.toString()),
+        parseFloat(job2.Customer.addressLongitude!.toString())
       );
       
       // Estimate travel time: average 40 km/h in PR (traffic considered)
@@ -608,7 +664,7 @@ export const routeService = {
     };
   },
 
-  calculateCompletionTime(totalMinutes) {
+  calculateCompletionTime(totalMinutes: number): string {
     const startTime = new Date();
     startTime.setHours(8, 0, 0, 0); // Assume work starts at 8 AM
     
@@ -616,24 +672,24 @@ export const routeService = {
     return endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   },
 
-  async getTechniciansWorkload(date) {
+  async getTechniciansWorkload(date: string): Promise<TechnicianWorkload[]> {
     try {
       console.log('🔍 Fetching technician workload for date:', date);
-      const response = await api.get('/users', { 
+      const response = await api.get<ApiResponse<User[]>>('/users', { 
         params: { role: 'technician,admin,manager' } 
       });
       console.log('👥 Users API response:', response.data);
       
-      const technicians = response.data.filter(user => 
+      const technicians = response.data.data.filter((user: User) => 
         user.role === 'technician' && !user.isMainAdmin
       );
       console.log('🔧 Filtered technicians:', technicians);
 
       // Get jobs for each technician
       const workloadPromises = technicians.map(async (tech) => {
-        console.log(`📋 Fetching jobs for technician ${tech.name} (${tech.id})`);
-        const jobsResponse = await this.getJobsForDate(date, tech.id);
-        console.log(`📋 Jobs for ${tech.name}:`, jobsResponse);
+        console.log(`📋 Fetching jobs for technician ${(tech as any).name} (${(tech as any).id})`);
+        const jobsResponse = await this.getJobsForDate(date, (tech as any).id);
+        console.log(`📋 Jobs for ${(tech as any).name}:`, jobsResponse);
         const jobs = jobsResponse.jobs || [];
         
         const totalDuration = jobs.reduce((sum, job) => 
@@ -644,14 +700,18 @@ export const routeService = {
           ...tech,
           jobCount: jobs.length,
           totalDuration,
-          jobs
+          jobs,
+          assignedJobs: jobs,
+          assignedRegions: new Set<string>(),
+          specialization: (tech as any).specialization,
+          homeBase: (tech as any).homeBase
         };
       });
 
       const workloadResults = await Promise.all(workloadPromises);
       console.log('📊 Final workload results:', workloadResults);
       return workloadResults;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching technician workload:', {
         status: error.response?.status,
         statusText: error.response?.statusText,
@@ -663,7 +723,7 @@ export const routeService = {
   },
 
   // Mock function for Google Maps integration
-  async calculateRouteWithGoogleMaps(waypoints) {
+  async calculateRouteWithGoogleMaps(_waypoints: Coordinate[]): Promise<{ distance: number; duration: number; polyline: string }> {
     // This would integrate with Google Maps Routes API
     // For now, return mock data
     return {
@@ -674,10 +734,10 @@ export const routeService = {
   },
 
   // Save optimized route to localStorage
-  saveOptimizedRoute(routeData, routeName = null) {
+  saveOptimizedRoute(routeData: RouteOptimization, routeName: string | null = null): SavedRoute {
     try {
       const timestamp = new Date().toISOString();
-      const savedRoute = {
+      const savedRoute: SavedRoute = {
         ...routeData,
         savedAt: timestamp,
         routeName: routeName || `Route ${new Date().toLocaleDateString()}`,
@@ -700,7 +760,7 @@ export const routeService = {
   },
 
   // Load saved routes from localStorage
-  getSavedRoutes() {
+  getSavedRoutes(): SavedRoute[] {
     try {
       const saved = localStorage.getItem('swiftTiger_savedRoutes');
       return saved ? JSON.parse(saved) : [];
@@ -711,7 +771,7 @@ export const routeService = {
   },
 
   // Delete a saved route
-  deleteSavedRoute(routeId) {
+  deleteSavedRoute(routeId: string): boolean {
     try {
       const existingRoutes = this.getSavedRoutes();
       const filteredRoutes = existingRoutes.filter(route => route.id !== routeId);
@@ -724,7 +784,7 @@ export const routeService = {
   },
 
   // Load a specific saved route
-  loadSavedRoute(routeId) {
+  loadSavedRoute(routeId: string): SavedRoute | null {
     try {
       const savedRoutes = this.getSavedRoutes();
       return savedRoutes.find(route => route.id === routeId) || null;

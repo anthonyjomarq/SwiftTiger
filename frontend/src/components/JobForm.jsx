@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from 'react-query';
-import { customerService } from '../services/customerService';
-import { userService } from '../services/userService';
+import { customerService } from '../services/customerService.ts';
+import { userService } from '../services/userService.ts';
 
 const JobForm = ({ job, onSubmit, onCancel, loading }) => {
   const [customDuration, setCustomDuration] = useState(false);

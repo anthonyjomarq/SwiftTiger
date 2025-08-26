@@ -1,7 +1,19 @@
-import api from '../utils/api.ts';
+import api from '../utils/api';
+import { 
+  Customer, 
+  Job, 
+  User, 
+  Coordinate, 
+  RegionMap, 
+  PuertoRicoRegion, 
+  ServiceType, 
+  JobPriority,
+  ApiResponse,
+  UserRole
+} from '@/types';
 
 // Puerto Rico geographic regions with approximate coordinates
-const PUERTO_RICO_REGIONS = {
+const PUERTO_RICO_REGIONS: RegionMap = {
   'San Juan Metro': {
     center: { lat: 18.4655, lng: -66.1057 },
     radius: 0.1 // degrees
@@ -44,7 +56,74 @@ const PUERTO_RICO_REGIONS = {
   }
 };
 
-const SAMPLE_CUSTOMERS = [
+interface SampleCustomerData {
+  name: string;
+  region: PuertoRicoRegion;
+  address: string;
+  businessType: string;
+}
+
+interface SampleTechnicianData {
+  name: string;
+  email: string;
+  specialization: string;
+  homeBase: PuertoRicoRegion;
+}
+
+interface CustomerCreatePayload {
+  name: string;
+  email: string;
+  phone: string;
+  addressStreet: string;
+  addressCity: string;
+  addressState: string;
+  addressZipCode: string;
+  addressCountry: string;
+  addressLatitude: number;
+  addressLongitude: number;
+  addressPlaceId: string;
+}
+
+interface UserCreatePayload {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  isActive: boolean;
+}
+
+interface JobCreatePayload {
+  jobName: string;
+  description: string;
+  customerId: string;
+  serviceType: ServiceType;
+  priority: JobPriority;
+  assignedTo: string;
+  scheduledDate: string;
+  estimatedDuration: number;
+}
+
+interface SampleDataSummary {
+  techniciansCreated: number;
+  customersCreated: number;
+  jobsCreated: number;
+  regionsUsed: string[];
+  targetDate: string;
+}
+
+interface InitializationResult {
+  technicians: User[];
+  customers: Customer[];
+  jobs: Job[];
+  summary: SampleDataSummary;
+}
+
+interface CustomerListResponse {
+  customers?: Customer[];
+  data?: Customer[];
+}
+
+const SAMPLE_CUSTOMERS: SampleCustomerData[] = [
   // San Juan Metro area
   { name: 'Plaza Las Americas', region: 'San Juan Metro', address: 'Plaza Las Americas, San Juan', businessType: 'Mall' },
   { name: 'Hospital San Jorge', region: 'San Juan Metro', address: 'Hospital San Jorge, Santurce', businessType: 'Hospital' },
@@ -96,7 +175,7 @@ const SAMPLE_CUSTOMERS = [
   { name: 'Ramey Base', region: 'Aguadilla', address: 'Former Ramey Air Force Base, Aguadilla', businessType: 'Industrial' }
 ];
 
-const SAMPLE_TECHNICIANS = [
+const SAMPLE_TECHNICIANS: SampleTechnicianData[] = [
   { name: 'Carlos Rodriguez', email: 'carlos.rodriguez@swifttiger.com', specialization: 'San Juan Metro, Carolina', homeBase: 'San Juan Metro' },
   { name: 'Maria Santos', email: 'maria.santos@swifttiger.com', specialization: 'Bayamon, Guaynabo', homeBase: 'Bayamon' },
   { name: 'Jose Rivera', email: 'jose.rivera@swifttiger.com', specialization: 'Caguas, Humacao', homeBase: 'Caguas' },
@@ -105,11 +184,11 @@ const SAMPLE_TECHNICIANS = [
   { name: 'Carmen Diaz', email: 'carmen.diaz@swifttiger.com', specialization: 'All Regions', homeBase: 'San Juan Metro' }
 ];
 
-const SERVICE_TYPES = ['New Account', 'Replacement', 'Training', 'Maintenance'];
-const PRIORITIES = ['Low', 'Medium', 'High'];
+const SERVICE_TYPES: ServiceType[] = ['New Account', 'Replacement', 'Training', 'Maintenance'];
+const PRIORITIES: JobPriority[] = ['Low', 'Medium', 'High'];
 
 export const sampleDataService = {
-  generateRandomCoordinate(region) {
+  generateRandomCoordinate(region: PuertoRicoRegion): Coordinate {
     const regionData = PUERTO_RICO_REGIONS[region];
     if (!regionData) return { lat: 18.2208, lng: -66.5901 }; // Default to PR center
     
@@ -119,14 +198,14 @@ export const sampleDataService = {
     return { lat: randomLat, lng: randomLng };
   },
 
-  async createSampleTechnicians() {
+  async createSampleTechnicians(): Promise<User[]> {
     console.log('🔧 Starting technician creation...');
-    const technicians = [];
+    const technicians: User[] = [];
     
     for (const techData of SAMPLE_TECHNICIANS) {
       try {
         console.log(`Creating technician: ${techData.name}`);
-        const payload = {
+        const payload: UserCreatePayload = {
           name: techData.name,
           email: techData.email,
           password: 'technician123', // Default password
@@ -135,15 +214,15 @@ export const sampleDataService = {
         };
         console.log('Payload:', payload);
         
-        const response = await api.post('/users', payload);
+        const response = await api.post<ApiResponse<User>>('/users', payload);
         console.log(`✅ Created technician ${techData.name}:`, response.data);
         
         technicians.push({
-          ...response.data,
-          specialization: techData.specialization,
-          homeBase: techData.homeBase
+          ...response.data.data,
+          // Add custom properties that aren't part of the base User type
+          ...(techData as any)
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error creating technician ${techData.name}:`, {
           status: error.response?.status,
           statusText: error.response?.statusText,
@@ -164,16 +243,16 @@ export const sampleDataService = {
     return technicians;
   },
 
-  async createSampleCustomers() {
+  async createSampleCustomers(): Promise<Customer[]> {
     console.log('🏢 Starting customer creation...');
-    const customers = [];
+    const customers: Customer[] = [];
     
     for (const customerData of SAMPLE_CUSTOMERS) {
       const coordinates = this.generateRandomCoordinate(customerData.region);
       
       try {
         console.log(`Creating customer: ${customerData.name} in ${customerData.region}`);
-        const payload = {
+        const payload: CustomerCreatePayload = {
           name: customerData.name,
           email: `${customerData.name.toLowerCase().replace(/\s+/g, '.')}@business.pr`,
           phone: `(787) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -188,15 +267,15 @@ export const sampleDataService = {
         };
         console.log('Customer payload:', payload);
         
-        const response = await api.post('/customers', payload);
+        const response = await api.post<ApiResponse<Customer>>('/customers', payload);
         console.log(`✅ Created customer ${customerData.name}:`, response.data);
         
         customers.push({
-          ...response.data,
+          ...response.data.data,
           region: customerData.region,
           businessType: customerData.businessType
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error creating customer ${customerData.name}:`, {
           status: error.response?.status,
           statusText: error.response?.statusText,
@@ -217,10 +296,10 @@ export const sampleDataService = {
     return customers;
   },
 
-  async createSampleJobs(customers, technicians, targetDate) {
+  async createSampleJobs(customers: Customer[], technicians: User[], targetDate: string): Promise<Job[]> {
     console.log('💼 Starting job creation...');
     console.log(`Target customers: ${customers.length}, technicians: ${technicians.length}, date: ${targetDate}`);
-    const jobs = [];
+    const jobs: Job[] = [];
     
     if (customers.length === 0) {
       console.error('❌ No customers available for job creation');
@@ -234,7 +313,7 @@ export const sampleDataService = {
     
     for (let i = 0; i < 30; i++) {
       const customer = customers[Math.floor(Math.random() * customers.length)];
-      const technician = this.assignTechnicianToRegion(customer.region, technicians);
+      const technician = this.assignTechnicianToRegion(customer.region!, technicians);
       const serviceType = SERVICE_TYPES[Math.floor(Math.random() * SERVICE_TYPES.length)];
       const priority = PRIORITIES[Math.floor(Math.random() * PRIORITIES.length)];
       
@@ -243,20 +322,20 @@ export const sampleDataService = {
       const jobName = `${serviceType} - ${businessType} Service`;
       
       // Calculate estimated duration based on service type
-      const baseDuration = {
+      const baseDuration: Record<ServiceType, number> = {
         'New Account': 90,
         'Replacement': 45,
         'Training': 45,
         'Maintenance': 45
-      }[serviceType];
+      };
       
-      const estimatedDuration = baseDuration + Math.floor(Math.random() * 30) - 15; // ±15 min variation
+      const estimatedDuration = baseDuration[serviceType] + Math.floor(Math.random() * 30) - 15; // ±15 min variation
       
       try {
         console.log(`Creating job ${i + 1}/30: ${jobName} for ${customer.name}`);
-        const payload = {
+        const payload: JobCreatePayload = {
           jobName,
-          description: `${serviceType} service for ${customer.name}. ${this.generateJobDescription(serviceType, customer.businessType)}`,
+          description: `${serviceType} service for ${customer.name}. ${this.generateJobDescription(serviceType, customer.businessType!)}`,
           customerId: customer.id,
           serviceType,
           priority,
@@ -266,16 +345,16 @@ export const sampleDataService = {
         };
         console.log('Job payload:', payload);
         
-        const response = await api.post('/jobs', payload);
+        const response = await api.post<ApiResponse<Job>>('/jobs', payload);
         console.log(`✅ Created job ${i + 1}: ${jobName}`, response.data);
         
         jobs.push({
-          ...response.data,
+          ...response.data.data,
           region: customer.region,
           Customer: customer,
           AssignedTechnician: technician
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error creating job ${i + 1} for ${customer.name}:`, {
           status: error.response?.status,
           statusText: error.response?.statusText,
@@ -292,22 +371,27 @@ export const sampleDataService = {
     return jobs;
   },
 
-  assignTechnicianToRegion(region, technicians) {
+  assignTechnicianToRegion(region: string, technicians: User[]): User {
     // Find technician specialized in this region
-    const specialist = technicians.find(tech => 
-      tech.specialization && tech.specialization.includes(region)
-    );
+    const specialist = technicians.find(tech => {
+      const specialization = (tech as any).specialization;
+      return specialization && specialization.includes(region);
+    });
     
     if (specialist) return specialist;
     
     // Find technician with home base nearby
-    const nearby = technicians.find(tech => tech.homeBase === region);
+    const nearby = technicians.find(tech => {
+      const homeBase = (tech as any).homeBase;
+      return homeBase === region;
+    });
     if (nearby) return nearby;
     
     // Assign to general technician (Carmen Diaz - All Regions)
-    const general = technicians.find(tech => 
-      tech.specialization && tech.specialization.includes('All Regions')
-    );
+    const general = technicians.find(tech => {
+      const specialization = (tech as any).specialization;
+      return specialization && specialization.includes('All Regions');
+    });
     
     if (general) return general;
     
@@ -315,8 +399,8 @@ export const sampleDataService = {
     return technicians[Math.floor(Math.random() * technicians.length)];
   },
 
-  generateJobDescription(serviceType, businessType) {
-    const descriptions = {
+  generateJobDescription(serviceType: ServiceType, businessType: string): string {
+    const descriptions: Record<ServiceType, Record<string, string>> = {
       'New Account': {
         'Mall': 'Install and configure new POS systems across multiple retail locations.',
         'Hospital': 'Set up medical equipment monitoring systems and staff training.',
@@ -378,21 +462,21 @@ export const sampleDataService = {
     return descriptions[serviceType]?.[businessType] || `${serviceType} service required.`;
   },
 
-  async initializeAllSampleData(targetDate = new Date().toISOString().split('T')[0]) {
+  async initializeAllSampleData(targetDate: string = new Date().toISOString().split('T')[0]): Promise<InitializationResult> {
     try {
       console.log('📋 Using existing data approach...');
       
       // Get existing technicians and customers
       console.log('🔍 Fetching existing technicians...');
-      const techniciansResponse = await api.get('/users?role=technician,admin,manager');
-      const existingTechnicians = techniciansResponse.data.filter(user => 
+      const techniciansResponse = await api.get<ApiResponse<User[]>>('/users?role=technician,admin,manager');
+      const existingTechnicians = techniciansResponse.data.data.filter((user: any) => 
         ['technician', 'admin', 'manager'].includes(user.role)
       );
       console.log(`✅ Found ${existingTechnicians.length} existing technicians`);
       
       console.log('🔍 Fetching existing customers...');
-      const customersResponse = await api.get('/customers?limit=50');
-      const existingCustomers = customersResponse.data.customers || customersResponse.data || [];
+      const customersResponse = await api.get<ApiResponse<CustomerListResponse>>('/customers?limit=50');
+      const existingCustomers = customersResponse.data.data.customers || customersResponse.data.data || [];
       console.log(`✅ Found ${existingCustomers.length} existing customers`);
       
       if (existingTechnicians.length === 0) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import { Calendar, User, AlertTriangle, Eye, Plus, Briefcase } from 'lucide-react';
-import { jobService } from '../services/jobService';
+import { jobService } from '../services/jobService.ts';
 import { useAuth } from '../contexts/AuthContext';
 
 const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {

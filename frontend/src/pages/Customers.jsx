@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, MapPin, Phone, Mail, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { customerService } from '../services/customerService';
+import { customerService } from '../services/customerService.ts';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import CustomerForm from '../components/CustomerForm';

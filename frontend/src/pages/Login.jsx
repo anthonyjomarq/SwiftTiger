@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authService } from '../services/authService';
+import { authService } from '../services/authService.ts';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {

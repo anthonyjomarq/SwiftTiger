@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import { Search, Filter, User, MessageSquare, Calendar, MapPin, Briefcase } from 'lucide-react';
-import { jobService } from '../services/jobService';
-import { jobLogService } from '../services/jobLogService';
+import { jobService } from '../services/jobService.ts';
+import { jobLogService } from '../services/jobLogService.ts';
 
 const JobLogs = () => {
   const [searchTerm, setSearchTerm] = useState('');

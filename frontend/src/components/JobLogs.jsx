@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm } from 'react-hook-form';
 import { Plus, Camera, User, MessageSquare, X, Edit, Trash2, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { jobLogService } from '../services/jobLogService';
+import { jobLogService } from '../services/jobLogService.ts';
 import { useAuth } from '../contexts/AuthContext';
 
 const JobLogs = ({ jobId, jobStatus }) => {
