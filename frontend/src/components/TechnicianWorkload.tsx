@@ -1,27 +1,51 @@
 import React from 'react';
 import { User, Clock, Briefcase, AlertTriangle } from 'lucide-react';
+import { TechnicianWorkload as TechnicianWorkloadType, JobPriority } from '../types';
 
-const TechnicianWorkload = ({ technicians, isLoading, onTechnicianSelect, selectedTechnician }) => {
-  const getWorkloadColor = (totalHours) => {
+interface TechnicianWorkloadProps {
+  technicians: TechnicianWorkloadType[];
+  isLoading: boolean;
+  onTechnicianSelect: (technician: TechnicianWorkloadType) => void;
+  selectedTechnician?: TechnicianWorkloadType | null;
+}
+
+const TechnicianWorkload: React.FC<TechnicianWorkloadProps> = ({ 
+  technicians, 
+  isLoading, 
+  onTechnicianSelect, 
+  selectedTechnician 
+}) => {
+  const getWorkloadColor = (totalHours: number): string => {
     if (totalHours === 0) return 'bg-gray-200';
     if (totalHours < 4) return 'bg-green-200';
     if (totalHours < 7) return 'bg-yellow-200';
     return 'bg-red-200';
   };
 
-  const getWorkloadTextColor = (totalHours) => {
+  const getWorkloadTextColor = (totalHours: number): string => {
     if (totalHours === 0) return 'text-gray-600';
     if (totalHours < 4) return 'text-green-800';
     if (totalHours < 7) return 'text-yellow-800';
     return 'text-red-800';
   };
 
-  const formatDuration = (minutes) => {
+  const formatDuration = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours === 0) return `${mins}m`;
     if (mins === 0) return `${hours}h`;
     return `${hours}h ${mins}m`;
+  };
+
+  const getWorkloadBarColor = (totalHours: number): string => {
+    if (totalHours === 0) return 'bg-gray-300';
+    if (totalHours < 4) return 'bg-green-500';
+    if (totalHours < 7) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  const getPriorityJobsCount = (technician: TechnicianWorkloadType, priority: JobPriority): number => {
+    return technician.jobs.filter(job => job.priority === priority).length;
   };
 
   if (isLoading) {
@@ -94,7 +118,7 @@ const TechnicianWorkload = ({ technicians, isLoading, onTechnicianSelect, select
                   </div>
                   <div>
                     <div className="text-lg font-bold text-gray-900">
-                      {technician.jobs.filter(job => job.priority === 'High').length}
+                      {getPriorityJobsCount(technician, 'High')}
                     </div>
                     <div className="text-xs text-gray-500">High Priority</div>
                   </div>
@@ -108,11 +132,7 @@ const TechnicianWorkload = ({ technicians, isLoading, onTechnicianSelect, select
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        totalHours === 0 ? 'bg-gray-300' :
-                        totalHours < 4 ? 'bg-green-500' :
-                        totalHours < 7 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
+                      className={`h-2 rounded-full transition-all duration-300 ${getWorkloadBarColor(totalHours)}`}
                       style={{ width: `${Math.min((totalHours / 8) * 100, 100)}%` }}
                     ></div>
                   </div>
@@ -132,7 +152,7 @@ const TechnicianWorkload = ({ technicians, isLoading, onTechnicianSelect, select
                             }`}></div>
                             <span className="text-gray-600 truncate max-w-[120px]">{job.jobName}</span>
                           </div>
-                          <span className="text-gray-500">{formatDuration(job.estimatedDuration)}</span>
+                          <span className="text-gray-500">{formatDuration(job.estimatedDuration || 0)}</span>
                         </div>
                       ))}
                       {technician.jobs.length > 3 && (

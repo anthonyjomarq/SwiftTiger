@@ -2,35 +2,49 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Plus, Edit, Trash2, Shield, User } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { userService } from '../services/userService.ts';
+import { User as UserType, UserRole } from '../types';
+import { userService } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';
 
-const Users = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+interface UsersData {
+  users: UserType[];
+}
+
+interface MutationVariables {
+  id: string;
+  data: Partial<UserType>;
+}
+
+const Users: React.FC = () => {
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [userToDelete, setUserToDelete] = useState<UserType | null>(null);
   
   const { hasRole, isMainAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: users, isLoading } = useQuery('users', userService.getUsers);
+  const { data: usersData, isLoading } = useQuery<UsersData>('users', userService.getUsers);
+  const users = usersData?.users || [];
 
-  const createMutation = useMutation(userService.createUser, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('users');
-      setIsModalOpen(false);
-      setSelectedUser(null);
-      toast.success('User created successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to create user');
-    },
-  });
+  const createMutation = useMutation<UserType, Error, Partial<UserType>>(
+    userService.createUser,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('users');
+        setIsModalOpen(false);
+        setSelectedUser(null);
+        toast.success('User created successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to create user');
+      },
+    }
+  );
 
-  const updateMutation = useMutation(
+  const updateMutation = useMutation<UserType, Error, MutationVariables>(
     ({ id, data }) => userService.updateUser(id, data),
     {
       onSuccess: () => {
@@ -39,48 +53,43 @@ const Users = () => {
         setSelectedUser(null);
         toast.success('User updated successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to update user');
       },
     }
   );
 
-  const deleteMutation = useMutation(userService.deleteUser, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('users');
-      setIsDeleteModalOpen(false);
-      setUserToDelete(null);
-      toast.success('User deleted successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to delete user');
-    },
-  });
+  const deleteMutation = useMutation<void, Error, string>(
+    userService.deleteUser,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('users');
+        setIsDeleteModalOpen(false);
+        setUserToDelete(null);
+        toast.success('User deleted successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to delete user');
+      },
+    }
+  );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
-  const handleCreateUser = () => {
+  const handleCreateUser = (): void => {
     setSelectedUser(null);
     setIsModalOpen(true);
   };
 
-  const handleEditUser = (user) => {
+  const handleEditUser = (user: UserType): void => {
     setSelectedUser(user);
     setIsModalOpen(true);
   };
 
-  const handleDeleteUser = (user) => {
+  const handleDeleteUser = (user: UserType): void => {
     setUserToDelete(user);
     setIsDeleteModalOpen(true);
   };
 
-  const handleSubmitUser = (data) => {
+  const handleSubmitUser = (data: Partial<UserType>): void => {
     if (selectedUser) {
       updateMutation.mutate({ id: selectedUser.id, data });
     } else {
@@ -88,13 +97,13 @@ const Users = () => {
     }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = (): void => {
     if (userToDelete) {
       deleteMutation.mutate(userToDelete.id);
     }
   };
 
-  const getRoleColor = (role) => {
+  const getRoleColor = (role: UserRole): string => {
     switch (role) {
       case 'admin':
         return 'bg-red-100 text-red-800';
@@ -108,6 +117,24 @@ const Users = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const handleCloseModal = (): void => {
+    setIsModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  const handleCloseDeleteModal = (): void => {
+    setIsDeleteModalOpen(false);
+    setUserToDelete(null);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -212,19 +239,13 @@ const Users = () => {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedUser(null);
-        }}
+        onClose={handleCloseModal}
         title={selectedUser ? 'Edit User' : 'Create User'}
       >
         <UserForm
           user={selectedUser}
           onSubmit={handleSubmitUser}
-          onCancel={() => {
-            setIsModalOpen(false);
-            setSelectedUser(null);
-          }}
+          onCancel={handleCloseModal}
           loading={createMutation.isLoading || updateMutation.isLoading}
         />
       </Modal>
@@ -232,7 +253,7 @@ const Users = () => {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={handleCloseDeleteModal}
         title="Delete User"
       >
         <div className="space-y-4">
@@ -242,7 +263,7 @@ const Users = () => {
           </p>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setIsDeleteModalOpen(false)}
+              onClick={handleCloseDeleteModal}
               className="btn btn-secondary"
             >
               Cancel

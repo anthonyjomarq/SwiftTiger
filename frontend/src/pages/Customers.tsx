@@ -1,48 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, MapPin, Phone, Mail, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { customerService } from '../services/customerService.ts';
+import { Customer, CustomerQueryParams, Job } from '../types';
+import { customerService } from '../services/customerService';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import CustomerForm from '../components/CustomerForm';
 import CustomerJobs from '../components/CustomerJobs';
 
-const Customers = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewCustomer, setViewCustomer] = useState(null);
-  const [activeTab, setActiveTab] = useState('details');
+interface CustomersData {
+  customers: Customer[];
+  pagination: {
+    page: number;
+    pages: number;
+    total: number;
+  };
+}
+
+interface MutationVariables {
+  id: string;
+  data: Partial<Customer>;
+}
+
+type TabType = 'details' | 'jobs';
+
+const Customers: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState<boolean>(false);
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('details');
   
   const { hasRole } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const { data: customersData, isLoading } = useQuery(
+  const { data: customersData, isLoading } = useQuery<CustomersData>(
     ['customers', { page: currentPage, search: searchTerm }],
-    () => customerService.getCustomers({ page: currentPage, search: searchTerm }),
+    () => customerService.getCustomers({ page: currentPage, search: searchTerm } as CustomerQueryParams),
     { keepPreviousData: true }
   );
 
-  const createMutation = useMutation(customerService.createCustomer, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('customers');
-      setIsModalOpen(false);
-      setSelectedCustomer(null);
-      toast.success('Customer created successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to create customer');
-    },
-  });
+  const createMutation = useMutation<Customer, Error, Partial<Customer>>(
+    customerService.createCustomer,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('customers');
+        setIsModalOpen(false);
+        setSelectedCustomer(null);
+        toast.success('Customer created successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to create customer');
+      },
+    }
+  );
 
-  const updateMutation = useMutation(
+  const updateMutation = useMutation<Customer, Error, MutationVariables>(
     ({ id, data }) => customerService.updateCustomer(id, data),
     {
       onSuccess: () => {
@@ -51,40 +71,43 @@ const Customers = () => {
         setSelectedCustomer(null);
         toast.success('Customer updated successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to update customer');
       },
     }
   );
 
-  const deleteMutation = useMutation(customerService.deleteCustomer, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('customers');
-      setIsDeleteModalOpen(false);
-      setCustomerToDelete(null);
-      toast.success('Customer deleted successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to delete customer');
-    },
-  });
+  const deleteMutation = useMutation<void, Error, string>(
+    customerService.deleteCustomer,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('customers');
+        setIsDeleteModalOpen(false);
+        setCustomerToDelete(null);
+        toast.success('Customer deleted successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to delete customer');
+      },
+    }
+  );
 
-  const handleCreateCustomer = () => {
+  const handleCreateCustomer = (): void => {
     setSelectedCustomer(null);
     setIsModalOpen(true);
   };
 
-  const handleEditCustomer = (customer) => {
+  const handleEditCustomer = (customer: Customer): void => {
     setSelectedCustomer(customer);
     setIsModalOpen(true);
   };
 
-  const handleDeleteCustomer = (customer) => {
+  const handleDeleteCustomer = (customer: Customer): void => {
     setCustomerToDelete(customer);
     setIsDeleteModalOpen(true);
   };
 
-  const handleSubmitCustomer = (data) => {
+  const handleSubmitCustomer = (data: Partial<Customer>): void => {
     if (selectedCustomer) {
       updateMutation.mutate({ id: selectedCustomer.id, data });
     } else {
@@ -92,31 +115,51 @@ const Customers = () => {
     }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = (): void => {
     if (customerToDelete) {
       deleteMutation.mutate(customerToDelete.id);
     }
   };
 
-  const handleSearchChange = (e) => {
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>): void => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
 
-  const handleViewCustomer = (customer) => {
+  const handleViewCustomer = (customer: Customer): void => {
     setViewCustomer(customer);
     setActiveTab('details');
     setIsViewModalOpen(true);
   };
 
-  const handleCreateJobForCustomer = () => {
+  const handleCreateJobForCustomer = (): void => {
     setIsViewModalOpen(false);
     navigate('/jobs', { state: { preselectedCustomer: viewCustomer } });
   };
 
-  const handleViewJobFromCustomer = (job) => {
+  const handleViewJobFromCustomer = (job: Job): void => {
     setIsViewModalOpen(false);
     navigate('/jobs', { state: { viewJob: job } });
+  };
+
+  const handlePreviousPage = (): void => {
+    setCurrentPage(Math.max(1, currentPage - 1));
+  };
+
+  const handleNextPage = (): void => {
+    if (customersData?.pagination) {
+      setCurrentPage(Math.min(customersData.pagination.pages, currentPage + 1));
+    }
+  };
+
+  const handleTabChange = (tab: TabType): void => {
+    setActiveTab(tab);
+  };
+
+  const handleCloseModals = (): void => {
+    setIsModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setIsViewModalOpen(false);
   };
 
   if (isLoading) {
@@ -256,14 +299,14 @@ const Customers = () => {
           <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200">
             <div className="flex-1 flex justify-between sm:hidden">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={handlePreviousPage}
                 disabled={currentPage === 1}
                 className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
                 Previous
               </button>
               <button
-                onClick={() => setCurrentPage(Math.min(customersData.pagination.pages, currentPage + 1))}
+                onClick={handleNextPage}
                 disabled={currentPage === customersData.pagination.pages}
                 className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
@@ -279,14 +322,14 @@ const Customers = () => {
               <div>
                 <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                   <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    onClick={handlePreviousPage}
                     disabled={currentPage === 1}
                     className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => setCurrentPage(Math.min(customersData.pagination.pages, currentPage + 1))}
+                    onClick={handleNextPage}
                     disabled={currentPage === customersData.pagination.pages}
                     className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
@@ -302,13 +345,13 @@ const Customers = () => {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModals}
         title={selectedCustomer ? 'Edit Customer' : 'Create Customer'}
       >
         <CustomerForm
           customer={selectedCustomer}
           onSubmit={handleSubmitCustomer}
-          onCancel={() => setIsModalOpen(false)}
+          onCancel={handleCloseModals}
           loading={createMutation.isLoading || updateMutation.isLoading}
         />
       </Modal>
@@ -316,7 +359,7 @@ const Customers = () => {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={handleCloseModals}
         title="Delete Customer"
       >
         <div className="space-y-4">
@@ -326,7 +369,7 @@ const Customers = () => {
           </p>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setIsDeleteModalOpen(false)}
+              onClick={handleCloseModals}
               className="btn btn-secondary"
             >
               Cancel
@@ -345,7 +388,7 @@ const Customers = () => {
       {/* View Customer Modal */}
       <Modal
         isOpen={isViewModalOpen}
-        onClose={() => setIsViewModalOpen(false)}
+        onClose={handleCloseModals}
         title={`Customer: ${viewCustomer?.name || ''}`}
         size="large"
       >
@@ -355,7 +398,7 @@ const Customers = () => {
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 <button
-                  onClick={() => setActiveTab('details')}
+                  onClick={() => handleTabChange('details')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'details'
                       ? 'border-primary-500 text-primary-600'
@@ -365,7 +408,7 @@ const Customers = () => {
                   Customer Details
                 </button>
                 <button
-                  onClick={() => setActiveTab('jobs')}
+                  onClick={() => handleTabChange('jobs')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'jobs'
                       ? 'border-primary-500 text-primary-600'
@@ -423,7 +466,7 @@ const Customers = () => {
 
             <div className="pt-4 border-t border-gray-200">
               <button
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={handleCloseModals}
                 className="btn btn-secondary w-full"
               >
                 Close

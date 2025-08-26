@@ -1,8 +1,14 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types';
 
-const ProtectedRoute = ({ children, requiredRoles = [] }) => {
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRoles?: UserRole[];
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles = [] }) => {
   const { isAuthenticated, hasRole, loading } = useAuth();
 
   if (loading) {
@@ -28,7 +34,7 @@ const ProtectedRoute = ({ children, requiredRoles = [] }) => {
     );
   }
 
-  return children;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

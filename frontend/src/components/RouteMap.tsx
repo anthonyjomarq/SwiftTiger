@@ -1,9 +1,38 @@
 import React, { useEffect, useRef } from 'react';
 import { MapPin, Navigation, Clock } from 'lucide-react';
+import { Job, JobPriority, RouteOptimization } from '../types';
 
-const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
-  const mapRef = useRef(null);
-  const googleMapRef = useRef(null);
+interface RouteMapProps {
+  jobs: Job[];
+  optimizedRoute?: RouteOptimization | null;
+  isLoading: boolean;
+}
+
+interface GoogleMapsWindow extends Window {
+  google?: {
+    maps?: {
+      Map?: any;
+      Marker?: any;
+      InfoWindow?: any;
+      DirectionsService?: any;
+      DirectionsRenderer?: any;
+      LatLng?: any;
+      Size?: any;
+      TravelMode?: {
+        DRIVING: string;
+      };
+      event?: {
+        clearInstanceListeners: (instance: any) => void;
+      };
+    };
+  };
+}
+
+declare const window: GoogleMapsWindow;
+
+const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const googleMapRef = useRef<any>(null);
 
   useEffect(() => {
     console.log('🗺️ RouteMap useEffect triggered', {
@@ -26,7 +55,7 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
     }
   }, [jobs]);
 
-  const initializeMap = () => {
+  const initializeMap = (): void => {
     console.log('🚀 initializeMap called', {
       hasMapRef: !!mapRef.current,
       hasGoogleMaps: !!window.google,
@@ -61,8 +90,8 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
         if (job.Customer?.addressLatitude && job.Customer?.addressLongitude) {
           const marker = new window.google.maps.Marker({
             position: {
-              lat: parseFloat(job.Customer.addressLatitude),
-              lng: parseFloat(job.Customer.addressLongitude)
+              lat: parseFloat(job.Customer.addressLatitude.toString()),
+              lng: parseFloat(job.Customer.addressLongitude.toString())
             },
             map: map,
             title: job.jobName,
@@ -113,10 +142,15 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
     }
   };
 
-  const drawOptimizedRoute = (map, routeJobs) => {
+  const drawOptimizedRoute = (map: any, routeJobs: Job[]): void => {
     console.log('🛣️ Drawing optimized route with', routeJobs.length, 'jobs');
     
     try {
+      if (!window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
+        console.error('❌ Directions API not available');
+        return;
+      }
+
       const directionsService = new window.google.maps.DirectionsService();
       const directionsRenderer = new window.google.maps.DirectionsRenderer({
         suppressMarkers: true, // We'll use our custom markers
@@ -134,8 +168,8 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
         .filter(job => job.Customer?.addressLatitude && job.Customer?.addressLongitude)
         .map(job => ({
           location: new window.google.maps.LatLng(
-            parseFloat(job.Customer.addressLatitude),
-            parseFloat(job.Customer.addressLongitude)
+            parseFloat(job.Customer!.addressLatitude!.toString()),
+            parseFloat(job.Customer!.addressLongitude!.toString())
           ),
           stopover: true
         }));
@@ -154,7 +188,7 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
           waypoints: waypointsMiddle,
           optimizeWaypoints: false, // We've already optimized
           travelMode: window.google.maps.TravelMode.DRIVING,
-        }, (result, status) => {
+        }, (result: any, status: string) => {
           console.log('📍 Directions result:', { status, result });
           if (status === 'OK') {
             directionsRenderer.setDirections(result);
@@ -171,7 +205,7 @@ const RouteMap = ({ jobs, optimizedRoute, isLoading }) => {
     }
   };
 
-  const getJobColor = (priority) => {
+  const getJobColor = (priority: JobPriority): string => {
     switch (priority) {
       case 'High': return '#dc2626';
       case 'Medium': return '#d97706';

@@ -1,10 +1,19 @@
 import React from 'react';
-import { X } from 'lucide-react';
 
-const Modal = ({ isOpen, onClose, title, children, size = 'default' }) => {
+type ModalSize = 'small' | 'default' | 'large' | 'xl';
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  size?: ModalSize;
+}
+
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'default' }) => {
   if (!isOpen) return null;
 
-  const getSizeClasses = () => {
+  const getSizeClasses = (): string => {
     switch (size) {
       case 'small':
         return 'sm:max-w-md';
@@ -27,9 +36,9 @@ const Modal = ({ isOpen, onClose, title, children, size = 'default' }) => {
               <h3 className="text-lg font-medium text-gray-900">{title}</h3>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 text-xl font-bold w-6 h-6 flex items-center justify-center"
               >
-                <X className="h-6 w-6" />
+                ×
               </button>
             </div>
             <div>{children}</div>

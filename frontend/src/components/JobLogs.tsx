@@ -1,19 +1,48 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { useForm } from 'react-hook-form';
-import { Plus, Camera, User, MessageSquare, X, Edit, Trash2, Save } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { jobLogService } from '../services/jobLogService.ts';
+import React, { useState, useEffect } from 'react';
+import { jobLogService } from '../services/jobLogService';
 import { useAuth } from '../contexts/AuthContext';
+import { JobStatus, User as UserType } from '../types';
 
-const JobLogs = ({ jobId, jobStatus }) => {
+interface JobLogFormData {
+  notes: string;
+  statusUpdate: JobStatus | '';
+}
+
+interface JobLogPhoto {
+  filename: string;
+  originalName: string;
+}
+
+interface JobLog {
+  id: string;
+  jobId: string;
+  notes: string;
+  statusUpdate?: JobStatus;
+  photos?: JobLogPhoto[];
+  createdAt: string;
+  updatedAt: string;
+  Technician?: UserType;
+}
+
+interface JobLogsProps {
+  jobId: string;
+  jobStatus: JobStatus;
+}
+
+interface StatusProgress {
+  percentage: number;
+  color: string;
+  label: string;
+}
+
+const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
   const [isAddingLog, setIsAddingLog] = useState(false);
-  const [editingLogId, setEditingLogId] = useState(null);
-  const [selectedPhotos, setSelectedPhotos] = useState([]);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: logs, isLoading } = useQuery(
+  const { data: logs, isLoading } = useQuery<JobLog[]>(
     ['job-logs', jobId],
     () => jobLogService.getJobLogs(jobId),
     { enabled: !!jobId }
@@ -25,7 +54,7 @@ const JobLogs = ({ jobId, jobStatus }) => {
     formState: { errors },
     reset,
     watch,
-  } = useForm({
+  } = useForm<JobLogFormData>({
     defaultValues: {
       notes: '',
       statusUpdate: '',
@@ -33,7 +62,7 @@ const JobLogs = ({ jobId, jobStatus }) => {
   });
 
   const createLogMutation = useMutation(
-    (data) => jobLogService.createJobLog(jobId, data),
+    (data: FormData) => jobLogService.createJobLog(jobId, data),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);
@@ -43,14 +72,14 @@ const JobLogs = ({ jobId, jobStatus }) => {
         setIsAddingLog(false);
         toast.success('Job log added successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to add job log');
       },
     }
   );
 
   const updateLogMutation = useMutation(
-    ({ logId, data }) => jobLogService.updateJobLog(jobId, logId, data),
+    ({ logId, data }: { logId: string; data: FormData }) => jobLogService.updateJobLog(jobId, logId, data),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);
@@ -59,27 +88,27 @@ const JobLogs = ({ jobId, jobStatus }) => {
         setSelectedPhotos([]);
         toast.success('Job log updated successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to update job log');
       },
     }
   );
 
   const deleteLogMutation = useMutation(
-    (logId) => jobLogService.deleteJobLog(jobId, logId),
+    (logId: string) => jobLogService.deleteJobLog(jobId, logId),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);
         queryClient.invalidateQueries('jobs');
         toast.success('Job log deleted successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to delete job log');
       },
     }
   );
 
-  const handleAddLog = (data) => {
+  const handleAddLog = (data: JobLogFormData): void => {
     const formData = new FormData();
     formData.append('notes', data.notes);
     
@@ -95,7 +124,7 @@ const JobLogs = ({ jobId, jobStatus }) => {
     createLogMutation.mutate(formData);
   };
 
-  const handleEditLog = (log) => {
+  const handleEditLog = (log: JobLog): void => {
     setEditingLogId(log.id);
     reset({
       notes: log.notes,
@@ -104,7 +133,9 @@ const JobLogs = ({ jobId, jobStatus }) => {
     setSelectedPhotos([]);
   };
 
-  const handleUpdateLog = (data) => {
+  const handleUpdateLog = (data: JobLogFormData): void => {
+    if (!editingLogId) return;
+
     const formData = new FormData();
     formData.append('notes', data.notes);
     
@@ -120,28 +151,28 @@ const JobLogs = ({ jobId, jobStatus }) => {
     updateLogMutation.mutate({ logId: editingLogId, data: formData });
   };
 
-  const handleDeleteLog = (logId) => {
+  const handleDeleteLog = (logId: string): void => {
     if (window.confirm('Are you sure you want to delete this job log?')) {
       deleteLogMutation.mutate(logId);
     }
   };
 
-  const cancelEdit = () => {
+  const cancelEdit = (): void => {
     setEditingLogId(null);
     setSelectedPhotos([]);
     reset({ notes: '', statusUpdate: '' });
   };
 
-  const canEditLog = (log) => {
-    return log.Technician?.id === user?.id || ['admin', 'manager'].includes(user?.role);
+  const canEditLog = (log: JobLog): boolean => {
+    return log.Technician?.id === user?.id || ['admin', 'manager'].includes(user?.role || '');
   };
 
-  const canDeleteLog = () => {
-    return ['admin', 'manager'].includes(user?.role);
+  const canDeleteLog = (): boolean => {
+    return ['admin', 'manager'].includes(user?.role || '');
   };
 
-  const handlePhotoSelect = (e) => {
-    const files = Array.from(e.target.files);
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = Array.from(e.target.files || []);
     const validFiles = files.filter(file => {
       if (file.size > 5 * 1024 * 1024) {
         toast.error(`${file.name} is too large. Maximum size is 5MB.`);
@@ -157,15 +188,15 @@ const JobLogs = ({ jobId, jobStatus }) => {
     setSelectedPhotos(prev => [...prev, ...validFiles].slice(0, 5));
   };
 
-  const removePhoto = (index) => {
+  const removePhoto = (index: number): void => {
     setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleString();
   };
 
-  const getStatusProgress = (status) => {
+  const getStatusProgress = (status: JobStatus): StatusProgress => {
     switch (status) {
       case 'Pending':
         return { percentage: 0, color: 'bg-gray-400', label: 'Not Started' };
@@ -178,6 +209,10 @@ const JobLogs = ({ jobId, jobStatus }) => {
       default:
         return { percentage: 0, color: 'bg-gray-400', label: 'Unknown' };
     }
+  };
+
+  const openImageInNewTab = (filename: string): void => {
+    window.open(`/api/uploads/${filename}`, '_blank');
   };
 
   if (isLoading) {
@@ -247,7 +282,11 @@ const JobLogs = ({ jobId, jobStatus }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Status Update
               </label>
-              <select {...register('statusUpdate')} className="input">
+              <select 
+                value={formData.statusUpdate}
+                onChange={(e) => handleInputChange('statusUpdate', e.target.value)}
+                className="input"
+              >
                 <option value="">No status change</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Completed">Completed</option>
@@ -327,13 +366,13 @@ const JobLogs = ({ jobId, jobStatus }) => {
 
       {/* Job Logs List */}
       <div className="space-y-4">
-        {logs?.length === 0 ? (
+        {!logs || logs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p>No job logs yet. Add the first log to track job progress.</p>
           </div>
         ) : (
-          logs?.map((log) => (
+          logs.map((log) => (
             <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-6">
               {/* Log Header */}
               <div className="flex justify-between items-start mb-4">
@@ -401,7 +440,11 @@ const JobLogs = ({ jobId, jobStatus }) => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Status Update
                     </label>
-                    <select {...register('statusUpdate')} className="input">
+                    <select 
+                      value={formData.statusUpdate}
+                      onChange={(e) => handleInputChange('statusUpdate', e.target.value)}
+                      className="input"
+                    >
                       <option value="">No status change</option>
                       <option value="In Progress">In Progress</option>
                       <option value="Completed">Completed</option>
@@ -491,7 +534,7 @@ const JobLogs = ({ jobId, jobStatus }) => {
                               src={`/api/uploads/${photo.filename}`}
                               alt={photo.originalName}
                               className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer"
-                              onClick={() => window.open(`/api/uploads/${photo.filename}`, '_blank')}
+                              onClick={() => openImageInNewTab(photo.filename)}
                             />
                           </div>
                         ))}

@@ -1,10 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { useQuery } from 'react-query';
-import { customerService } from '../services/customerService.ts';
-import { userService } from '../services/userService.ts';
+import { customerService } from '../services/customerService';
+import { userService } from '../services/userService';
+import { Job, ServiceType, JobPriority, Customer, User } from '../types';
 
-const JobForm = ({ job, onSubmit, onCancel, loading }) => {
+interface JobFormData {
+  jobName: string;
+  description: string;
+  customer: string;
+  serviceType: ServiceType | '';
+  priority: JobPriority;
+  assignedTo: string;
+  scheduledDate: string;
+  estimatedDuration: number;
+}
+
+interface JobFormProps {
+  job?: Job | null;
+  onSubmit: (data: JobFormData) => void;
+  onCancel: () => void;
+  loading: boolean;
+}
+
+interface CustomersData {
+  customers: Customer[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) => {
   const [customDuration, setCustomDuration] = useState(false);
   
   const {
@@ -13,24 +37,33 @@ const JobForm = ({ job, onSubmit, onCancel, loading }) => {
     formState: { errors },
     watch,
     setValue,
-  } = useForm({
-    defaultValues: job || {
+  } = useForm<JobFormData>({
+    defaultValues: job ? {
+      jobName: job.jobName,
+      description: job.description || '',
+      customer: job.customerId,
+      serviceType: job.serviceType,
+      priority: job.priority,
+      assignedTo: job.assignedTo || '',
+      scheduledDate: job.scheduledDate ? new Date(job.scheduledDate).toISOString().split('T')[0] : '',
+      estimatedDuration: job.estimatedDuration || 120,
+    } : {
       jobName: '',
       description: '',
       customer: '',
-      serviceType: '',
-      priority: 'Medium',
+      serviceType: '' as const,
+      priority: 'Medium' as const,
       assignedTo: '',
       scheduledDate: '',
       estimatedDuration: 120,
     },
   });
 
-  const { data: customers } = useQuery('customers-list', () =>
+  const { data: customers } = useQuery<CustomersData>('customers-list', () =>
     customerService.getCustomers({ limit: 1000 })
   );
 
-  const { data: users } = useQuery('users-list', () => userService.getUsers());
+  const { data: users } = useQuery<User[]>('users-list', () => userService.getUsers());
 
   const technicians = users?.filter(user => 
     ['technician', 'admin', 'manager'].includes(user.role)
@@ -45,7 +78,7 @@ const JobForm = ({ job, onSubmit, onCancel, loading }) => {
   // Auto-update estimated duration based on service type
   useEffect(() => {
     if (!customDuration && watchedServiceType) {
-      let duration;
+      let duration: number;
       switch (watchedServiceType) {
         case 'Replacement':
           duration = 45; // 30 minutes to 1 hour (average 45 min)
@@ -66,12 +99,23 @@ const JobForm = ({ job, onSubmit, onCancel, loading }) => {
     }
   }, [watchedServiceType, customDuration, setValue]);
 
-  const handleFormSubmit = (data) => {
+  const handleFormSubmit = (data: JobFormData): void => {
     // Convert scheduledDate to proper format if provided
-    if (data.scheduledDate) {
-      data.scheduledDate = new Date(data.scheduledDate).toISOString();
+    const submitData = { ...data };
+    if (submitData.scheduledDate) {
+      submitData.scheduledDate = new Date(submitData.scheduledDate).toISOString();
     }
-    onSubmit(data);
+    onSubmit(submitData);
+  };
+
+  const getServiceTypeDescription = (serviceType: ServiceType): string => {
+    switch (serviceType) {
+      case 'New Account': return '1-2 hours (90 min average)';
+      case 'Replacement': return '30min-1hr (45 min average)';
+      case 'Training': return '30min-1hr (45 min average)';
+      case 'Maintenance': return '30min-1hr (45 min average)';
+      default: return '';
+    }
   };
 
   return (
@@ -227,36 +271,28 @@ const JobForm = ({ job, onSubmit, onCancel, loading }) => {
           
           {customDuration ? (
             <input
-              {...register('estimatedDuration', { 
-                valueAsNumber: true,
-                min: { value: 15, message: 'Minimum 15 minutes' }
-              })}
               type="number"
               min="15"
               step="15"
+              value={formData.estimatedDuration}
+              onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || 0)}
               className="input"
               placeholder="Enter minutes"
             />
           ) : (
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-              {watchedServiceType ? (
+              {formData.serviceType ? (
                 <div>
-                  <strong>{watchedServiceType}:</strong>
-                  {watchedServiceType === 'New Account' && ' 1-2 hours (90 min average)'}
-                  {watchedServiceType === 'Replacement' && ' 30min-1hr (45 min average)'}
-                  {watchedServiceType === 'Training' && ' 30min-1hr (45 min average)'}
-                  {watchedServiceType === 'Maintenance' && ' 30min-1hr (45 min average)'}
+                  <strong>{formData.serviceType}:</strong> {getServiceTypeDescription(formData.serviceType)}
                 </div>
               ) : (
                 'Select a service type to see estimated duration'
               )}
             </div>
           )}
-          
-          <input type="hidden" {...register('estimatedDuration')} />
         </div>
         {errors.estimatedDuration && (
-          <p className="mt-1 text-sm text-red-600">{errors.estimatedDuration.message}</p>
+          <p className="mt-1 text-sm text-red-600">{errors.estimatedDuration}</p>
         )}
       </div>
 

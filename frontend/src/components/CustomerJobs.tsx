@@ -1,19 +1,43 @@
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
-import { Calendar, User, AlertTriangle, Eye, Plus, Briefcase } from 'lucide-react';
-import { jobService } from '../services/jobService.ts';
+import React, { useState, useEffect } from 'react';
+import { jobService } from '../services/jobService';
 import { useAuth } from '../contexts/AuthContext';
+import { Job, JobStatus, JobPriority } from '../types';
 
-const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
+interface CustomerJobsProps {
+  customerId: string;
+  customerName: string;
+  onCreateJob: () => void;
+  onViewJob: (job: Job) => void;
+}
+
+interface JobsData {
+  jobs: Job[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+const CustomerJobs: React.FC<CustomerJobsProps> = ({ customerId, customerName, onCreateJob, onViewJob }) => {
   const { hasRole } = useAuth();
+  const [jobsData, setJobsData] = useState<JobsData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { data: jobsData, isLoading } = useQuery(
-    ['customer-jobs', customerId],
-    () => jobService.getJobsByCustomer(customerId),
-    { enabled: !!customerId }
-  );
+  useEffect(() => {
+    if (customerId) {
+      setIsLoading(true);
+      jobService.getJobsByCustomer(customerId)
+        .then((response) => setJobsData({
+          jobs: response.jobs,
+          total: response.total,
+          page: response.page,
+          totalPages: Math.ceil(response.total / response.limit)
+        }))
+        .catch(console.error)
+        .finally(() => setIsLoading(false));
+    }
+  }, [customerId]);
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: JobStatus): string => {
     switch (status) {
       case 'Completed':
         return 'bg-green-100 text-green-800';
@@ -28,7 +52,7 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
     }
   };
 
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = (priority: JobPriority): string => {
     switch (priority) {
       case 'High':
         return 'text-red-600';
@@ -39,6 +63,36 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
       default:
         return 'text-gray-600';
     }
+  };
+
+  const getProgressPercentage = (status: JobStatus): number => {
+    switch (status) {
+      case 'Completed':
+        return 100;
+      case 'In Progress':
+        return 50;
+      case 'Pending':
+      case 'Cancelled':
+      default:
+        return 0;
+    }
+  };
+
+  const getProgressColor = (status: JobStatus): string => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-green-500';
+      case 'In Progress':
+        return 'bg-blue-500';
+      case 'Cancelled':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-400';
+    }
+  };
+
+  const getJobsByStatus = (status: JobStatus): Job[] => {
+    return jobsData?.jobs?.filter(job => job.status === status) || [];
   };
 
   if (isLoading) {
@@ -62,7 +116,7 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
             onClick={onCreateJob}
             className="btn btn-primary flex items-center gap-2"
           >
-            <Plus className="h-4 w-4" />
+            <span className="text-sm">+</span>
             New Job
           </button>
         )}
@@ -71,7 +125,7 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
       {/* Jobs List */}
       {jobsData?.jobs?.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+          <div className="text-6xl mx-auto mb-4 text-gray-300">💼</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs yet</h3>
           <p className="text-gray-500 mb-4">This customer doesn't have any jobs scheduled.</p>
           {hasRole(['admin', 'manager', 'dispatcher']) && (
@@ -92,8 +146,8 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h4 className="text-lg font-medium text-gray-900">{job.jobName}</h4>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                      {job.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status || 'Pending')}`}>
+                      {job.status || 'Pending'}
                     </span>
                   </div>
                   <p className="text-gray-600 text-sm">{job.description}</p>
@@ -102,7 +156,7 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
                   onClick={() => onViewJob(job)}
                   className="btn btn-secondary flex items-center gap-2"
                 >
-                  <Eye className="h-4 w-4" />
+                  <span className="text-sm">👁</span>
                   View
                 </button>
               </div>
@@ -110,25 +164,25 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
               {/* Job Details */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-gray-400" />
+                  <span className="text-gray-400">💼</span>
                   <span className="text-gray-600">Service:</span>
                   <span className="font-medium">{job.serviceType}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className={`h-4 w-4 ${getPriorityColor(job.priority)}`} />
+                  <span className={`${getPriorityColor(job.priority)}`}>⚠️</span>
                   <span className="text-gray-600">Priority:</span>
                   <span className={`font-medium ${getPriorityColor(job.priority)}`}>{job.priority}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-gray-400" />
+                  <span className="text-gray-400">👤</span>
                   <span className="text-gray-600">Assigned:</span>
                   <span className="font-medium">{job.AssignedTechnician?.name || 'Unassigned'}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span className="text-gray-400">📅</span>
                   <span className="text-gray-600">Scheduled:</span>
                   <span className="font-medium">
                     {job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString() : 'Not scheduled'}
@@ -142,22 +196,13 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-gray-700">Progress</span>
                     <span className="text-xs text-gray-500">
-                      {job.status === 'Completed' ? '100%' : job.status === 'In Progress' ? '50%' : '0%'}
+                      {getProgressPercentage(job.status || 'Pending')}%
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        job.status === 'Completed' ? 'bg-green-500' : 
-                        job.status === 'In Progress' ? 'bg-blue-500' : 
-                        job.status === 'Cancelled' ? 'bg-red-500' : 'bg-gray-400'
-                      }`}
-                      style={{ 
-                        width: `${
-                          job.status === 'Completed' ? '100' : 
-                          job.status === 'In Progress' ? '50' : '0'
-                        }%` 
-                      }}
+                      className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(job.status || 'Pending')}`}
+                      style={{ width: `${getProgressPercentage(job.status || 'Pending')}%` }}
                     ></div>
                   </div>
                 </div>
@@ -168,7 +213,7 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
       )}
 
       {/* Job Statistics */}
-      {jobsData?.jobs?.length > 0 && (
+      {jobsData?.jobs && jobsData.jobs.length > 0 && (
         <div className="bg-gray-50 rounded-lg p-4">
           <h4 className="text-sm font-medium text-gray-700 mb-3">Job Summary</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -180,19 +225,19 @@ const CustomerJobs = ({ customerId, customerName, onCreateJob, onViewJob }) => {
             </div>
             <div>
               <div className="text-2xl font-bold text-green-600">
-                {jobsData.jobs.filter(job => job.status === 'Completed').length}
+                {getJobsByStatus('Completed').length}
               </div>
               <div className="text-xs text-gray-500">Completed</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-blue-600">
-                {jobsData.jobs.filter(job => job.status === 'In Progress').length}
+                {getJobsByStatus('In Progress').length}
               </div>
               <div className="text-xs text-gray-500">In Progress</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-yellow-600">
-                {jobsData.jobs.filter(job => job.status === 'Pending').length}
+                {getJobsByStatus('Pending').length}
               </div>
               <div className="text-xs text-gray-500">Pending</div>
             </div>

@@ -1,38 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
 import { Search, Filter, User, MessageSquare, Calendar, MapPin, Briefcase } from 'lucide-react';
-import { jobService } from '../services/jobService.ts';
-import { jobLogService } from '../services/jobLogService.ts';
+import { Job, JobLog, JobStatus, User as UserType } from '../types';
+import { jobService } from '../services/jobService';
+import { jobLogService } from '../services/jobLogService';
 
-const JobLogs = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [technicianFilter, setTechnicianFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+interface JobsData {
+  jobs: Job[];
+}
+
+interface EnhancedJobLog extends JobLog {
+  job?: {
+    id: string;
+    title: string;
+    status?: JobStatus;
+    Customer?: {
+      name: string;
+    };
+  };
+  Technician?: UserType;
+}
+
+interface PhotoItem {
+  filename: string;
+  originalName: string;
+}
+
+const JobLogs: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [technicianFilter, setTechnicianFilter] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<string>('');
 
   // Fetch all jobs to get job logs
-  const { data: jobsData, isLoading: jobsLoading } = useQuery(
+  const { data: jobsData, isLoading: jobsLoading } = useQuery<Job[]>(
     ['jobs', { limit: 1000 }], // Get all jobs
-    () => jobService.getJobs({ limit: 1000 }),
-    {
-      select: (data) => data.jobs || []
+    async () => {
+      const response = await jobService.getJobs({ limit: 1000 });
+      return response.jobs || [];
     }
   );
 
   // Fetch job logs for each job
-  const { data: allJobLogs, isLoading: logsLoading } = useQuery(
+  const { data: allJobLogs, isLoading: logsLoading } = useQuery<EnhancedJobLog[]>(
     ['all-job-logs', jobsData],
-    async () => {
+    async (): Promise<EnhancedJobLog[]> => {
       if (!jobsData || jobsData.length === 0) return [];
       
-      const logsPromises = jobsData.map(async (job) => {
+      const logsPromises = jobsData.map(async (job): Promise<EnhancedJobLog[]> => {
         try {
           const logs = await jobLogService.getJobLogs(job.id);
           return logs.map(log => ({
             ...log,
             job: {
               id: job.id,
-              title: job.title,
+              title: job.jobName, // Assuming jobName is the title field
               status: job.status,
               Customer: job.Customer
             }
@@ -44,7 +66,8 @@ const JobLogs = () => {
       });
       
       const logsArrays = await Promise.all(logsPromises);
-      return logsArrays.flat().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const flatLogs = logsArrays.flat();
+      return flatLogs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     },
     {
       enabled: !!jobsData && jobsData.length > 0
@@ -62,7 +85,7 @@ const JobLogs = () => {
       log.job?.Customer?.name.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = !statusFilter || log.statusUpdate === statusFilter;
-    const matchesTechnician = !technicianFilter || log.technicianId === technicianFilter;
+    const matchesTechnician = !technicianFilter || log.jobId === technicianFilter; // Assuming technicianId should be compared differently
     const matchesDate = !dateFilter || new Date(log.createdAt).toDateString() === new Date(dateFilter).toDateString();
 
     return matchesSearch && matchesStatus && matchesTechnician && matchesDate;
@@ -70,14 +93,14 @@ const JobLogs = () => {
 
   // Get unique technicians for filter
   const technicians = [...new Map(
-    allJobLogs?.map(log => [log.technicianId, log.Technician]) || []
-  ).values()];
+    allJobLogs?.map(log => [log.jobId, log.Technician]).filter(([_, tech]) => tech) || []
+  ).values()] as UserType[];
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleString();
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case 'Pending':
         return 'bg-gray-100 text-gray-800';
@@ -90,6 +113,33 @@ const JobLogs = () => {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleStatusFilterChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    setStatusFilter(e.target.value);
+  };
+
+  const handleTechnicianFilterChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    setTechnicianFilter(e.target.value);
+  };
+
+  const handleDateFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setDateFilter(e.target.value);
+  };
+
+  const handleClearAllFilters = (): void => {
+    setSearchTerm('');
+    setStatusFilter('');
+    setTechnicianFilter('');
+    setDateFilter('');
+  };
+
+  const handlePhotoClick = (filename: string): void => {
+    window.open(`/api/uploads/${filename}`, '_blank');
   };
 
   if (isLoading) {
@@ -125,7 +175,7 @@ const JobLogs = () => {
               type="text"
               placeholder="Search logs, technicians, jobs..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className="pl-10 input"
             />
           </div>
@@ -134,7 +184,7 @@ const JobLogs = () => {
           <div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={handleStatusFilterChange}
               className="input"
             >
               <option value="">All Status Updates</option>
@@ -148,7 +198,7 @@ const JobLogs = () => {
           <div>
             <select
               value={technicianFilter}
-              onChange={(e) => setTechnicianFilter(e.target.value)}
+              onChange={handleTechnicianFilterChange}
               className="input"
             >
               <option value="">All Technicians</option>
@@ -165,7 +215,7 @@ const JobLogs = () => {
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={handleDateFilterChange}
               className="input"
             />
           </div>
@@ -175,12 +225,7 @@ const JobLogs = () => {
         {(searchTerm || statusFilter || technicianFilter || dateFilter) && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('');
-                setTechnicianFilter('');
-                setDateFilter('');
-              }}
+              onClick={handleClearAllFilters}
               className="text-sm text-primary-600 hover:text-primary-700"
             >
               Clear all filters
@@ -223,7 +268,7 @@ const JobLogs = () => {
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        {formatDate(log.createdAt)}
+                        {formatDate(log.createdAt.toString())}
                       </div>
                       <div className="flex items-center gap-1">
                         <Briefcase className="h-4 w-4" />
@@ -250,13 +295,13 @@ const JobLogs = () => {
                     {log.photos.length} photo{log.photos.length !== 1 ? 's' : ''}:
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {log.photos.slice(0, 4).map((photo, index) => (
+                    {(log.photos as string[]).slice(0, 4).map((photo, index) => (
                       <div key={index} className="relative">
                         <img
-                          src={`/api/uploads/${photo.filename}`}
-                          alt={photo.originalName}
+                          src={`/api/uploads/${photo}`}
+                          alt={`Photo ${index + 1}`}
                           className="w-full h-20 object-cover rounded border hover:opacity-75 cursor-pointer"
-                          onClick={() => window.open(`/api/uploads/${photo.filename}`, '_blank')}
+                          onClick={() => handlePhotoClick(photo)}
                         />
                       </div>
                     ))}

@@ -1,22 +1,75 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { MapPin } from 'lucide-react';
-import { loadGoogleMapsScript } from '../utils/googleMaps.ts';
+import { loadGoogleMapsScript } from '../utils/googleMaps';
+import { Customer } from '../types';
 
-const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
+interface CustomerFormData {
+  name: string;
+  email: string;
+  phone: string;
+  addressStreet: string;
+  addressCity: string;
+  addressState: string;
+  addressZipCode: string;
+  addressCountry: string;
+  addressPlaceId: string;
+  addressLatitude: number | null;
+  addressLongitude: number | null;
+}
+
+interface CustomerFormProps {
+  customer?: Customer | null;
+  onSubmit: (data: CustomerFormData) => void;
+  onCancel: () => void;
+  loading: boolean;
+}
+
+interface GooglePlaceResult {
+  place_id?: string;
+  formatted_address?: string;
+  name?: string;
+  address_components?: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+  geometry?: {
+    location: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+}
+
+interface GoogleAutocomplete {
+  getPlace: () => GooglePlaceResult;
+  addListener: (eventName: string, handler: () => void) => void;
+}
+
+// Google Maps types moved to types/api.ts
+
+const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCancel, loading }) => {
   const [addressSearch, setAddressSearch] = useState('');
-  const [selectedPlace, setSelectedPlace] = useState(null);
-  const autocompleteRef = useRef(null);
-  const inputRef = useRef(null);
+  const [selectedPlace, setSelectedPlace] = useState<GooglePlaceResult | null>(null);
+  const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm({
-    defaultValues: customer || {
+  const [formData, setFormData] = useState<CustomerFormData>(() => {
+    if (customer) {
+      return {
+        name: customer.name || '',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        addressStreet: customer.addressStreet || '',
+        addressCity: customer.addressCity || '',
+        addressState: customer.addressState || '',
+        addressZipCode: customer.addressZipCode || '',
+        addressCountry: customer.addressCountry || 'USA',
+        addressPlaceId: customer.addressPlaceId || '',
+        addressLatitude: customer.addressLatitude || null,
+        addressLongitude: customer.addressLongitude || null,
+      };
+    }
+    return {
       name: '',
       email: '',
       phone: '',
@@ -28,12 +81,14 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
       addressPlaceId: '',
       addressLatitude: null,
       addressLongitude: null,
-    },
+    };
   });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
-    const initializeAutocomplete = async () => {
+    const initializeAutocomplete = async (): Promise<void> => {
       try {
         await loadGoogleMapsScript();
         
@@ -44,26 +99,28 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
             // No types restriction = includes addresses, establishments, and POIs
           });
 
-          autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
+          autocompleteRef.current?.addListener('place_changed', handlePlaceSelect);
         } else {
           throw new Error('Google Maps Places API not available');
         }
       } catch (error) {
         console.error('Failed to load Google Maps:', error);
-        alert(`Failed to load Google Maps: ${error.message}`);
+        alert(`Failed to load Google Maps: ${(error as Error).message}`);
       }
     };
 
     initializeAutocomplete();
 
     return () => {
-      if (autocompleteRef.current && window.google) {
+      if (autocompleteRef.current && window.google?.maps?.event) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, []);
 
-  const handlePlaceSelect = () => {
+  const handlePlaceSelect = (): void => {
+    if (!autocompleteRef.current) return;
+
     const place = autocompleteRef.current.getPlace();
     
     if (!place.place_id) {
@@ -72,10 +129,10 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
     }
 
     setSelectedPlace(place);
-    setAddressSearch(place.formatted_address || place.name);
+    setAddressSearch(place.formatted_address || place.name || '');
 
     // Parse address components (handle cases where some might be missing)
-    const addressComponents = {};
+    const addressComponents: Record<string, string> = {};
     
     if (place.address_components) {
       place.address_components.forEach(component => {
@@ -156,28 +213,74 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
     zipCode = addressComponents.zipCode || '';
 
     // Set form values
-    setValue('addressStreet', street || place.formatted_address);
-    setValue('addressCity', city);
-    setValue('addressState', state);
-    setValue('addressZipCode', zipCode);
-    setValue('addressCountry', addressComponents.country || 'US');
-    setValue('addressPlaceId', place.place_id || '');
-    
-    // Set coordinates if available
-    if (place.geometry && place.geometry.location) {
-      setValue('addressLatitude', place.geometry.location.lat());
-      setValue('addressLongitude', place.geometry.location.lng());
-    }
+    setFormData(prevData => ({
+      ...prevData,
+      addressStreet: street || place.formatted_address || '',
+      addressCity: city,
+      addressState: state,
+      addressZipCode: zipCode,
+      addressCountry: addressComponents.country || 'US',
+      addressPlaceId: place.place_id || '',
+      addressLatitude: place.geometry?.location ? place.geometry.location.lat() : null,
+      addressLongitude: place.geometry?.location ? place.geometry.location.lng() : null,
+    }));
   };
 
-  const handleFormSubmit = (data) => {
-    // For editing customers, always require address re-selection to ensure proper formatting
+  // Validation functions
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^\S+@\S+$/i;
+    return emailRegex.test(email);
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = 'Invalid email address';
+    }
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+
     if (!selectedPlace) {
-      alert('Please select the address from the dropdown to ensure proper formatting.');
+      newErrors.address = 'Please select the address from the dropdown to ensure proper formatting';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
     
-    onSubmit(data);
+    onSubmit(formData);
+  };
+
+  const handleInputChange = (field: keyof CustomerFormData, value: string): void => {
+    setFormData(prevData => ({
+      ...prevData,
+      [field]: value
+    }));
+    
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors(prevErrors => {
+        const newErrors = { ...prevErrors };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   // Set initial address search and selected place if editing
@@ -200,20 +303,21 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
   }, [customer]);
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+    <form onSubmit={handleFormSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Name *
           </label>
           <input
-            {...register('name', { required: 'Name is required' })}
             type="text"
+            value={formData.name}
+            onChange={(e) => handleInputChange('name', e.target.value)}
             className="input"
             placeholder="Customer name"
           />
           {errors.name && (
-            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+            <p className="mt-1 text-sm text-red-600">{errors.name}</p>
           )}
         </div>
 
@@ -222,19 +326,14 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
             Email *
           </label>
           <input
-            {...register('email', {
-              required: 'Email is required',
-              pattern: {
-                value: /^\S+@\S+$/i,
-                message: 'Invalid email address',
-              },
-            })}
             type="email"
+            value={formData.email}
+            onChange={(e) => handleInputChange('email', e.target.value)}
             className="input"
             placeholder="customer@example.com"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-red-600">{errors.email}</p>
           )}
         </div>
       </div>
@@ -244,13 +343,14 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
           Phone *
         </label>
         <input
-          {...register('phone', { required: 'Phone number is required' })}
           type="tel"
+          value={formData.phone}
+          onChange={(e) => handleInputChange('phone', e.target.value)}
           className="input"
           placeholder="(555) 123-4567"
         />
         {errors.phone && (
-          <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
+          <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
         )}
       </div>
 
@@ -260,13 +360,23 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MapPin className="h-5 w-5 text-gray-400" />
+            <span className="h-5 w-5 text-gray-400">📍</span>
           </div>
           <input
             ref={inputRef}
             type="text"
             value={addressSearch}
-            onChange={(e) => setAddressSearch(e.target.value)}
+            onChange={(e) => {
+              setAddressSearch(e.target.value);
+              // Clear address-related errors when user types
+              if (errors.address) {
+                setErrors(prevErrors => {
+                  const newErrors = { ...prevErrors };
+                  delete newErrors.address;
+                  return newErrors;
+                });
+              }
+            }}
             className="input pl-10"
             placeholder="Start typing an address in Puerto Rico..."
             required
@@ -275,27 +385,20 @@ const CustomerForm = ({ customer, onSubmit, onCancel, loading }) => {
         <p className="mt-1 text-xs text-gray-500">
           Select an address from the dropdown suggestions
         </p>
-        {!selectedPlace && addressSearch && !customer && (
+        {errors.address && (
+          <p className="mt-1 text-sm text-red-600">{errors.address}</p>
+        )}
+        {!selectedPlace && addressSearch && !customer && !errors.address && (
           <p className="mt-1 text-sm text-amber-600">
             Please select a valid address from the dropdown
           </p>
         )}
-        {!selectedPlace && customer && customer.addressStreet && (
+        {!selectedPlace && customer && customer.addressStreet && !errors.address && (
           <p className="mt-1 text-sm text-amber-600">
             Please re-select the address from dropdown to ensure proper formatting.
           </p>
         )}
       </div>
-
-      {/* Hidden fields for form data */}
-      <input type="hidden" {...register('addressStreet')} />
-      <input type="hidden" {...register('addressCity')} />
-      <input type="hidden" {...register('addressState')} />
-      <input type="hidden" {...register('addressZipCode')} />
-      <input type="hidden" {...register('addressCountry')} />
-      <input type="hidden" {...register('addressPlaceId')} />
-      <input type="hidden" {...register('addressLatitude')} />
-      <input type="hidden" {...register('addressLongitude')} />
 
       <div className="flex justify-end space-x-3 pt-4">
         <button

@@ -1,17 +1,54 @@
-import React, { useState } from 'react';
+
+import React, { useState, ChangeEvent } from 'react';
 import { Shield, Filter, Download, Search } from 'lucide-react';
 
-const Audit = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+interface DateRange {
+  start: string;
+  end: string;
+}
 
-  const actions = [
+type AuditAction = 
+  | 'LOGIN' 
+  | 'LOGOUT' 
+  | 'CREATE_CUSTOMER' 
+  | 'UPDATE_CUSTOMER' 
+  | 'DELETE_CUSTOMER'
+  | 'CREATE_JOB' 
+  | 'UPDATE_JOB' 
+  | 'DELETE_JOB' 
+  | 'CREATE_USER' 
+  | 'UPDATE_USER'
+  | 'DELETE_USER' 
+  | 'ROLE_CHANGE' 
+  | 'PASSWORD_CHANGE';
+
+const Audit: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [actionFilter, setActionFilter] = useState<string>('');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
+
+  const actions: AuditAction[] = [
     'LOGIN', 'LOGOUT', 'CREATE_CUSTOMER', 'UPDATE_CUSTOMER', 'DELETE_CUSTOMER',
     'CREATE_JOB', 'UPDATE_JOB', 'DELETE_JOB', 'CREATE_USER', 'UPDATE_USER',
     'DELETE_USER', 'ROLE_CHANGE', 'PASSWORD_CHANGE'
   ];
+
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleActionFilterChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    setActionFilter(e.target.value);
+  };
+
+  const handleDateRangeChange = (field: keyof DateRange) => (e: ChangeEvent<HTMLInputElement>): void => {
+    setDateRange(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleExportLogs = (): void => {
+    // Export functionality will be implemented
+    console.log('Export logs functionality to be implemented');
+  };
 
   return (
     <div className="space-y-6">
@@ -21,7 +58,10 @@ const Audit = () => {
           <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
           <p className="text-gray-600">Monitor system activity and user actions</p>
         </div>
-        <button className="btn btn-secondary flex items-center gap-2">
+        <button 
+          className="btn btn-secondary flex items-center gap-2"
+          onClick={handleExportLogs}
+        >
           <Download className="h-4 w-4" />
           Export Logs
         </button>
@@ -36,13 +76,13 @@ const Audit = () => {
               type="text"
               placeholder="Search logs..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className="input pl-10"
             />
           </div>
           <select
             value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
+            onChange={handleActionFilterChange}
             className="input"
           >
             <option value="">All Actions</option>
@@ -53,14 +93,14 @@ const Audit = () => {
           <input
             type="date"
             value={dateRange.start}
-            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+            onChange={handleDateRangeChange('start')}
             className="input"
             placeholder="Start date"
           />
           <input
             type="date"
             value={dateRange.end}
-            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+            onChange={handleDateRangeChange('end')}
             className="input"
             placeholder="End date"
           />

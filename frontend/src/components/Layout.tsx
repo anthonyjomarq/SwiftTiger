@@ -1,39 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  Home, 
-  Users, 
-  Briefcase, 
-  FileText,
-  MapPin, 
-  Settings, 
-  Shield, 
-  LogOut,
-  Menu,
-  X 
-} from 'lucide-react';
-import { useState } from 'react';
+import { UserRole } from '../types';
 
-const Layout = ({ children }) => {
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: string;
+  current: boolean;
+  roles?: UserRole[];
+}
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout, hasRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     logout();
     navigate('/login');
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home, current: location.pathname === '/' },
-    { name: 'Customers', href: '/customers', icon: Users, current: location.pathname.startsWith('/customers') },
-    { name: 'Jobs', href: '/jobs', icon: Briefcase, current: location.pathname.startsWith('/jobs') && !location.pathname.startsWith('/job-logs') },
-    { name: 'Job Logs', href: '/job-logs', icon: FileText, current: location.pathname.startsWith('/job-logs') },
-    { name: 'Route Optimizer', href: '/routes', icon: MapPin, current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
-    { name: 'User Management', href: '/users', icon: Settings, current: location.pathname.startsWith('/users'), roles: ['admin'] },
-    { name: 'Audit Logs', href: '/audit', icon: Shield, current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
+  const navigation: NavigationItem[] = [
+    { name: 'Dashboard', href: '/', icon: '🏠', current: location.pathname === '/' },
+    { name: 'Customers', href: '/customers', icon: '👥', current: location.pathname.startsWith('/customers') },
+    { name: 'Jobs', href: '/jobs', icon: '💼', current: location.pathname.startsWith('/jobs') && !location.pathname.startsWith('/job-logs') },
+    { name: 'Job Logs', href: '/job-logs', icon: '📝', current: location.pathname.startsWith('/job-logs') },
+    { name: 'Route Optimizer', href: '/routes', icon: '🗺️', current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
+    { name: 'User Management', href: '/users', icon: '⚙️', current: location.pathname.startsWith('/users'), roles: ['admin'] },
+    { name: 'Audit Logs', href: '/audit', icon: '🛡️', current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
   ];
 
   const filteredNavigation = navigation.filter(item => 
@@ -49,10 +49,10 @@ const Layout = ({ children }) => {
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
               type="button"
-              className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white text-white text-xl font-bold"
               onClick={() => setSidebarOpen(false)}
             >
-              <X className="h-6 w-6 text-white" />
+              ×
             </button>
           </div>
           <div className="flex flex-shrink-0 items-center px-4 py-4">
@@ -70,7 +70,7 @@ const Layout = ({ children }) => {
                 } group flex items-center px-2 py-2 text-sm font-medium rounded-md`}
                 onClick={() => setSidebarOpen(false)}
               >
-                <item.icon className="mr-3 h-5 w-5" />
+                <span className="mr-3 text-lg">{item.icon}</span>
                 {item.name}
               </Link>
             ))}
@@ -98,7 +98,7 @@ const Layout = ({ children }) => {
                             : 'text-gray-700 hover:text-primary-700 hover:bg-gray-50'
                         } group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold`}
                       >
-                        <item.icon className="h-5 w-5 shrink-0" />
+                        <span className="text-lg shrink-0">{item.icon}</span>
                         {item.name}
                       </Link>
                     </li>
@@ -118,10 +118,10 @@ const Layout = ({ children }) => {
             <div className="flex items-center gap-x-4">
               <button
                 type="button"
-                className="-m-2.5 p-2.5 text-gray-700 hover:text-gray-900 lg:hidden"
+                className="-m-2.5 p-2.5 text-gray-700 hover:text-gray-900 lg:hidden text-xl font-bold flex items-center justify-center w-6 h-6"
                 onClick={() => setSidebarOpen(true)}
               >
-                <Menu className="h-6 w-6" />
+                ☰
               </button>
               
               {/* Page title or breadcrumb area */}
@@ -165,7 +165,7 @@ const Layout = ({ children }) => {
                   onClick={handleLogout}
                   className="flex items-center gap-x-2 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <span className="text-sm">🚪</span>
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </div>

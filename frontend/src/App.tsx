@@ -12,7 +12,7 @@ import Users from './pages/Users';
 import RoutesPage from './pages/Routes';
 import Audit from './pages/Audit';
 
-function App() {
+const App: React.FC = () => {
   return (
     <AuthProvider>
       <Routes>
@@ -91,6 +91,6 @@ function App() {
       </Routes>
     </AuthProvider>
   );
-}
+};
 
 export default App;

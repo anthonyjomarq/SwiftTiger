@@ -1,32 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
 import { Calendar, MapPin, Users, Clock, Navigation, RefreshCw, Filter, Target, Database, Save, FolderOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { routeService } from '../services/routeService.ts';
-import { sampleDataService } from '../services/sampleDataService.ts';
-import { loadGoogleMapsScript } from '../utils/googleMaps.ts';
+import { Job, TechnicianWorkload, JobCluster, RouteOptimization, AutoAssignmentResult } from '../types';
+import { routeService } from '../services/routeService';
+import { sampleDataService } from '../services/sampleDataService';
+import { loadGoogleMapsScript } from '../utils/googleMaps';
 import RouteMap from '../components/RouteMap';
 import TechnicianWorkload from '../components/TechnicianWorkload';
 
-const Routes = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedTechnician, setSelectedTechnician] = useState(null);
-  const [optimizedRoute, setOptimizedRoute] = useState(null);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-  const [clusters, setClusters] = useState([]);
-  const [autoAssignments, setAutoAssignments] = useState(null);
-  const [isGeneratingData, setIsGeneratingData] = useState(false);
-  const [isClustering, setIsClustering] = useState(false);
-  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
-  const [savedRoutes, setSavedRoutes] = useState([]);
-  const [showSavedRoutes, setShowSavedRoutes] = useState(false);
-  const [excludedTechnicians, setExcludedTechnicians] = useState([]);
-  const [showTechnicianSelector, setShowTechnicianSelector] = useState(false);
+interface SavedRoute extends RouteOptimization {
+  id: string;
+  routeName: string;
+  savedAt: string;
+}
+
+interface JobsData {
+  jobs: Job[];
+}
+
+interface SampleDataResult {
+  summary: {
+    techniciansCreated: number;
+    customersCreated: number;
+    jobsCreated: number;
+  };
+}
+
+const Routes: React.FC = () => {
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedTechnician, setSelectedTechnician] = useState<TechnicianWorkload | null>(null);
+  const [optimizedRoute, setOptimizedRoute] = useState<RouteOptimization | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState<boolean>(false);
+  const [clusters, setClusters] = useState<JobCluster[]>([]);
+  const [autoAssignments, setAutoAssignments] = useState<AutoAssignmentResult | null>(null);
+  const [isGeneratingData, setIsGeneratingData] = useState<boolean>(false);
+  const [isClustering, setIsClustering] = useState<boolean>(false);
+  const [isAutoAssigning, setIsAutoAssigning] = useState<boolean>(false);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [showSavedRoutes, setShowSavedRoutes] = useState<boolean>(false);
+  const [excludedTechnicians, setExcludedTechnicians] = useState<string[]>([]);
+  const [showTechnicianSelector, setShowTechnicianSelector] = useState<boolean>(false);
 
   // Load Google Maps and saved routes on component mount
   useEffect(() => {
-    const loadMaps = async () => {
+    const loadMaps = async (): Promise<void> => {
       try {
         console.log('🔄 Loading Google Maps script...');
         await loadGoogleMapsScript();
@@ -41,7 +60,8 @@ const Routes = () => {
         }
       } catch (error) {
         console.error('❌ Failed to load Google Maps:', error);
-        toast.error(`Failed to load Google Maps: ${error.message}. Map features will be limited.`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Failed to load Google Maps: ${errorMessage}. Map features will be limited.`);
       }
     };
     loadMaps();
@@ -51,7 +71,7 @@ const Routes = () => {
   }, []);
 
   // Fetch jobs for selected date
-  const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs } = useQuery(
+  const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs } = useQuery<JobsData>(
     ['route-jobs', selectedDate, selectedTechnician?.id],
     () => routeService.getJobsForDate(selectedDate, selectedTechnician?.id),
     {
@@ -61,7 +81,7 @@ const Routes = () => {
   );
 
   // Fetch technician workload
-  const { data: technicians, isLoading: techniciansLoading } = useQuery(
+  const { data: technicians, isLoading: techniciansLoading } = useQuery<TechnicianWorkload[]>(
     ['technician-workload', selectedDate],
     () => routeService.getTechniciansWorkload(selectedDate),
     {
@@ -72,7 +92,7 @@ const Routes = () => {
 
   const jobs = jobsData?.jobs || [];
 
-  const handleOptimizeRoute = async () => {
+  const handleOptimizeRoute = async (): Promise<void> => {
     if (filteredJobs.length === 0) {
       toast.error('No jobs available for route optimization. Please select a technician first.');
       return;
@@ -97,21 +117,21 @@ const Routes = () => {
     }
   };
 
-  const handleDateChange = (newDate) => {
+  const handleDateChange = (newDate: string): void => {
     setSelectedDate(newDate);
     setOptimizedRoute(null);
     setSelectedTechnician(null);
   };
 
-  const handleTechnicianSelect = (technician) => {
+  const handleTechnicianSelect = (technician: TechnicianWorkload): void => {
     setSelectedTechnician(technician);
     setOptimizedRoute(null);
   };
 
-  const handleGenerateSampleData = async () => {
+  const handleGenerateSampleData = async (): Promise<void> => {
     setIsGeneratingData(true);
     try {
-      const result = await sampleDataService.initializeAllSampleData(selectedDate);
+      const result: SampleDataResult = await sampleDataService.initializeAllSampleData(selectedDate);
       toast.success(`Generated ${result.summary.techniciansCreated} technicians, ${result.summary.customersCreated} customers, and ${result.summary.jobsCreated} jobs for Puerto Rico!`);
       refetchJobs();
     } catch (error) {
@@ -122,7 +142,7 @@ const Routes = () => {
     }
   };
 
-  const handleGeographicClustering = async () => {
+  const handleGeographicClustering = async (): Promise<void> => {
     console.log('🔵 Geographic clustering button clicked!', {
       jobsLength: jobs.length,
       jobsData: jobs
@@ -149,7 +169,7 @@ const Routes = () => {
     }
   };
 
-  const handleAutoAssignment = async () => {
+  const handleAutoAssignment = async (): Promise<void> => {
     if (clusters.length === 0) {
       toast.error('Please create geographic clusters first');
       return;
@@ -179,7 +199,7 @@ const Routes = () => {
     }
   };
 
-  const handleSaveRoute = async () => {
+  const handleSaveRoute = async (): Promise<void> => {
     if (!optimizedRoute) {
       toast.error('No optimized route to save');
       return;
@@ -198,7 +218,7 @@ const Routes = () => {
     }
   };
 
-  const handleLoadRoute = (routeId) => {
+  const handleLoadRoute = (routeId: string): void => {
     try {
       const route = routeService.loadSavedRoute(routeId);
       if (route) {
@@ -212,7 +232,7 @@ const Routes = () => {
     }
   };
 
-  const handleDeleteRoute = (routeId) => {
+  const handleDeleteRoute = (routeId: string): void => {
     try {
       if (routeService.deleteSavedRoute(routeId)) {
         setSavedRoutes(routeService.getSavedRoutes());
@@ -222,6 +242,32 @@ const Routes = () => {
       console.error('Error deleting route:', error);
       toast.error('Failed to delete route');
     }
+  };
+
+  const handleRefresh = (): void => {
+    refetchJobs();
+  };
+
+  const handleDateInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    handleDateChange(e.target.value);
+  };
+
+  const handleClearFilter = (): void => {
+    setSelectedTechnician(null);
+  };
+
+  const handleTechnicianCheckboxChange = (techId: string) => (e: ChangeEvent<HTMLInputElement>): void => {
+    if (e.target.checked) {
+      // Include technician (remove from excluded list)
+      setExcludedTechnicians(prev => prev.filter(id => id !== techId));
+    } else {
+      // Exclude technician (add to excluded list)
+      setExcludedTechnicians(prev => [...prev, techId]);
+    }
+  };
+
+  const handleIncludeAllTechnicians = (): void => {
+    setExcludedTechnicians([]);
   };
 
   const filteredJobs = selectedTechnician 
@@ -238,7 +284,7 @@ const Routes = () => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => refetchJobs()}
+            onClick={handleRefresh}
             className="btn btn-secondary flex items-center gap-2"
             disabled={jobsLoading}
           >
@@ -325,7 +371,7 @@ const Routes = () => {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => handleDateChange(e.target.value)}
+            onChange={handleDateInputChange}
             className="input max-w-xs"
           />
           
@@ -336,7 +382,7 @@ const Routes = () => {
                 Filtering for: <strong>{selectedTechnician.name}</strong>
               </span>
               <button
-                onClick={() => setSelectedTechnician(null)}
+                onClick={handleClearFilter}
                 className="text-sm text-primary-600 hover:text-primary-800"
               >
                 Clear filter
@@ -605,15 +651,7 @@ const Routes = () => {
                         <input
                           type="checkbox"
                           checked={!isExcluded}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              // Include technician (remove from excluded list)
-                              setExcludedTechnicians(prev => prev.filter(id => id !== tech.id));
-                            } else {
-                              // Exclude technician (add to excluded list)
-                              setExcludedTechnicians(prev => [...prev, tech.id]);
-                            }
-                          }}
+                          onChange={handleTechnicianCheckboxChange(tech.id)}
                           className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                         />
                         <div className="flex-1">
@@ -638,7 +676,7 @@ const Routes = () => {
               
               <div className="mt-6 flex justify-end space-x-3">
                 <button
-                  onClick={() => setExcludedTechnicians([])}
+                  onClick={handleIncludeAllTechnicians}
                   className="btn btn-ghost text-sm"
                 >
                   Include All

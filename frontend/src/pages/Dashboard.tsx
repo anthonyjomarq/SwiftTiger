@@ -1,18 +1,42 @@
 import React from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
-import { Users, Briefcase, Clock, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
-import api from '../utils/api.ts';
+import { Users, Briefcase, Clock, CheckCircle, AlertTriangle, Calendar, LucideIcon } from 'lucide-react';
+import { Job, JobPriority, JobStatus } from '../types';
+import api from '../utils/api';
 
-const Dashboard = () => {
+interface DashboardStats {
+  totalCustomers: number;
+  activeJobs: number;
+  pendingJobs: number;
+  completedToday: number;
+  highPriority: number;
+  mediumPriority: number;
+  lowPriority: number;
+}
+
+interface StatCard {
+  title: string;
+  value: number;
+  icon: LucideIcon;
+  color: string;
+}
+
+interface PriorityStats {
+  priority: JobPriority;
+  count: number;
+  color: string;
+}
+
+const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
-  const { data: stats, isLoading } = useQuery('dashboard-stats', async () => {
+  const { data: stats, isLoading } = useQuery<DashboardStats>('dashboard-stats', async () => {
     const response = await api.get('/dashboard/stats');
     return response.data;
   });
 
-  const { data: recentJobs } = useQuery('recent-jobs', async () => {
+  const { data: recentJobs } = useQuery<Job[]>('recent-jobs', async () => {
     const response = await api.get('/jobs?limit=5');
     return response.data.jobs;
   });
@@ -25,7 +49,7 @@ const Dashboard = () => {
     );
   }
 
-  const statCards = [
+  const statCards: StatCard[] = [
     {
       title: 'Total Customers',
       value: stats?.totalCustomers || 0,
@@ -52,11 +76,34 @@ const Dashboard = () => {
     },
   ];
 
-  const priorityStats = [
+  const priorityStats: PriorityStats[] = [
     { priority: 'High', count: stats?.highPriority || 0, color: 'text-red-600' },
     { priority: 'Medium', count: stats?.mediumPriority || 0, color: 'text-yellow-600' },
     { priority: 'Low', count: stats?.lowPriority || 0, color: 'text-green-600' },
   ];
+
+  const getStatusColor = (status: JobStatus): string => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-green-100 text-green-800';
+      case 'In Progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'Pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'Cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleNavigateToCustomers = (): void => {
+    navigate('/customers');
+  };
+
+  const handleNavigateToJobs = (): void => {
+    navigate('/jobs');
+  };
 
   return (
     <div className="space-y-6">
@@ -116,12 +163,9 @@ const Dashboard = () => {
                 </div>
                 <div className="text-right">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    job.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                    job.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                    job.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
+                    getStatusColor(job.status || 'Pending')
                   }`}>
-                    {job.status}
+                    {job.status || 'Pending'}
                   </span>
                   <p className="text-xs text-gray-500 mt-1">
                     {job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString() : 'Not scheduled'}
@@ -141,7 +185,7 @@ const Dashboard = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button 
-            onClick={() => navigate('/customers')}
+            onClick={handleNavigateToCustomers}
             className="btn btn-primary text-left p-4 rounded-lg border border-primary-200 hover:bg-primary-50"
           >
             <Users className="h-6 w-6 text-primary-600 mb-2" />
@@ -149,7 +193,7 @@ const Dashboard = () => {
             <p className="text-sm text-gray-500">Create a new customer profile</p>
           </button>
           <button 
-            onClick={() => navigate('/jobs')}
+            onClick={handleNavigateToJobs}
             className="btn btn-secondary text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50"
           >
             <Briefcase className="h-6 w-6 text-gray-600 mb-2" />
@@ -157,7 +201,7 @@ const Dashboard = () => {
             <p className="text-sm text-gray-500">Schedule a new service job</p>
           </button>
           <button 
-            onClick={() => navigate('/jobs')}
+            onClick={handleNavigateToJobs}
             className="btn btn-secondary text-left p-4 rounded-lg border border-gray-200 hover:bg-gray-50"
           >
             <Calendar className="h-6 w-6 text-gray-600 mb-2" />

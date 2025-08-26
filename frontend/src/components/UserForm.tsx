@@ -1,8 +1,24 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
+import { User, UserRole } from '../types';
 
-const UserForm = ({ user, onSubmit, onCancel, loading }) => {
+interface UserFormData {
+  name: string;
+  email: string;
+  password?: string;
+  role: UserRole;
+  isActive: boolean;
+}
+
+interface UserFormProps {
+  user?: User | null;
+  onSubmit: (data: UserFormData) => void;
+  onCancel: () => void;
+  loading: boolean;
+}
+
+const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, onCancel, loading }) => {
   const { isMainAdmin } = useAuth();
   
   const {
@@ -10,7 +26,7 @@ const UserForm = ({ user, onSubmit, onCancel, loading }) => {
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm({
+  } = useForm<UserFormData>({
     defaultValues: user || {
       name: '',
       email: '',
@@ -22,12 +38,47 @@ const UserForm = ({ user, onSubmit, onCancel, loading }) => {
 
   const selectedRole = watch('role');
 
-  const handleFormSubmit = (data) => {
+  const handleFormSubmit = (data: UserFormData): void => {
     // Remove password field if it's empty (for updates)
     if (user && !data.password) {
       delete data.password;
     }
     onSubmit(data);
+  };
+
+  const getRolePermissions = (role: UserRole): string[] => {
+    switch (role) {
+      case 'admin':
+        return [
+          '• Full system access',
+          '• User management',
+          '• System configuration',
+          '• All job and customer operations'
+        ];
+      case 'manager':
+        return [
+          '• Customer and job management',
+          '• View all reports',
+          '• Assign technicians',
+          '• Route planning'
+        ];
+      case 'dispatcher':
+        return [
+          '• Schedule and assign jobs',
+          '• Customer management',
+          '• Route optimization',
+          '• View reports'
+        ];
+      case 'technician':
+        return [
+          '• View assigned jobs',
+          '• Update job status',
+          '• Add job logs and photos',
+          '• View customer information'
+        ];
+      default:
+        return [];
+    }
   };
 
   return (
@@ -75,7 +126,10 @@ const UserForm = ({ user, onSubmit, onCancel, loading }) => {
           {user ? 'Password (leave empty to keep current)' : 'Password *'}
         </label>
         <input
-          {...register('password', user ? {} : { required: 'Password is required', minLength: { value: 6, message: 'Password must be at least 6 characters' } })}
+          {...register('password', user ? {} : { 
+            required: 'Password is required', 
+            minLength: { value: 6, message: 'Password must be at least 6 characters' } 
+          })}
           type="password"
           className="input"
           placeholder={user ? 'Leave empty to keep current password' : 'Enter password'}
@@ -106,8 +160,8 @@ const UserForm = ({ user, onSubmit, onCancel, loading }) => {
             Status
           </label>
           <select {...register('isActive')} className="input">
-            <option value={true}>Active</option>
-            <option value={false}>Inactive</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
           </select>
         </div>
       </div>
@@ -116,38 +170,11 @@ const UserForm = ({ user, onSubmit, onCancel, loading }) => {
         <div className="bg-gray-50 p-4 rounded-md">
           <h4 className="text-sm font-medium text-gray-700 mb-2">Role Permissions</h4>
           <div className="text-sm text-gray-600">
-            {selectedRole === 'admin' && (
-              <ul className="space-y-1">
-                <li>• Full system access</li>
-                <li>• User management</li>
-                <li>• System configuration</li>
-                <li>• All job and customer operations</li>
-              </ul>
-            )}
-            {selectedRole === 'manager' && (
-              <ul className="space-y-1">
-                <li>• Customer and job management</li>
-                <li>• View all reports</li>
-                <li>• Assign technicians</li>
-                <li>• Route planning</li>
-              </ul>
-            )}
-            {selectedRole === 'dispatcher' && (
-              <ul className="space-y-1">
-                <li>• Schedule and assign jobs</li>
-                <li>• Customer management</li>
-                <li>• Route optimization</li>
-                <li>• View reports</li>
-              </ul>
-            )}
-            {selectedRole === 'technician' && (
-              <ul className="space-y-1">
-                <li>• View assigned jobs</li>
-                <li>• Update job status</li>
-                <li>• Add job logs and photos</li>
-                <li>• View customer information</li>
-              </ul>
-            )}
+            <ul className="space-y-1">
+              {getRolePermissions(selectedRole).map((permission, index) => (
+                <li key={index}>{permission}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

@@ -1,31 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Plus, Search, Edit, Trash2, Eye, FileText, Calendar, User, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { jobService } from '../services/jobService.ts';
-import { userService } from '../services/userService.ts';
+import { Job, JobStatus, JobPriority, User as UserType, JobQueryParams } from '../types';
+import { jobService } from '../services/jobService';
+import { userService } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import JobForm from '../components/JobForm';
 import JobLogs from '../components/JobLogs';
 
-const Jobs = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [assignedToFilter, setAssignedToFilter] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [jobToDelete, setJobToDelete] = useState(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewJob, setViewJob] = useState(null);
-  const [activeTab, setActiveTab] = useState('details');
+interface JobsData {
+  jobs: Job[];
+  pagination: {
+    page: number;
+    pages: number;
+    total: number;
+  };
+}
+
+interface UsersData {
+  users: UserType[];
+}
+
+interface MutationVariables {
+  id: string;
+  data: Partial<Job>;
+}
+
+type TabType = 'details' | 'logs';
+
+const Jobs: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [assignedToFilter, setAssignedToFilter] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState<boolean>(false);
+  const [viewJob, setViewJob] = useState<Job | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('details');
   
   const { hasRole, user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: jobsData, isLoading } = useQuery(
+  const { data: jobsData, isLoading } = useQuery<JobsData>(
     ['jobs', { 
       page: currentPage, 
       status: statusFilter, 
@@ -35,26 +56,29 @@ const Jobs = () => {
       page: currentPage, 
       status: statusFilter, 
       assignedTo: assignedToFilter 
-    }),
+    } as JobQueryParams),
     { keepPreviousData: true }
   );
 
-  const { data: users } = useQuery('users-list', () => userService.getUsers());
+  const { data: usersData } = useQuery<UsersData>('users-list', () => userService.getUsers());
 
-  const createMutation = useMutation(jobService.createJob, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('jobs');
-      queryClient.invalidateQueries('dashboard-stats');
-      setIsModalOpen(false);
-      setSelectedJob(null);
-      toast.success('Job created successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to create job');
-    },
-  });
+  const createMutation = useMutation<Job, Error, Partial<Job>>(
+    jobService.createJob,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('jobs');
+        queryClient.invalidateQueries('dashboard-stats');
+        setIsModalOpen(false);
+        setSelectedJob(null);
+        toast.success('Job created successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to create job');
+      },
+    }
+  );
 
-  const updateMutation = useMutation(
+  const updateMutation = useMutation<Job, Error, MutationVariables>(
     ({ id, data }) => jobService.updateJob(id, data),
     {
       onSuccess: () => {
@@ -64,47 +88,50 @@ const Jobs = () => {
         setSelectedJob(null);
         toast.success('Job updated successfully!');
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(error.response?.data?.message || 'Failed to update job');
       },
     }
   );
 
-  const deleteMutation = useMutation(jobService.deleteJob, {
-    onSuccess: () => {
-      queryClient.invalidateQueries('jobs');
-      queryClient.invalidateQueries('dashboard-stats');
-      setIsDeleteModalOpen(false);
-      setJobToDelete(null);
-      toast.success('Job deleted successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to delete job');
-    },
-  });
+  const deleteMutation = useMutation<void, Error, string>(
+    jobService.deleteJob,
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('jobs');
+        queryClient.invalidateQueries('dashboard-stats');
+        setIsDeleteModalOpen(false);
+        setJobToDelete(null);
+        toast.success('Job deleted successfully!');
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to delete job');
+      },
+    }
+  );
 
-  const handleCreateJob = () => {
+  const handleCreateJob = (): void => {
     setSelectedJob(null);
     setIsModalOpen(true);
   };
 
-  const handleEditJob = (job) => {
+  const handleEditJob = (job: Job): void => {
     setSelectedJob(job);
     setIsModalOpen(true);
   };
 
-  const handleViewJob = (job) => {
+  const handleViewJob = (job: Job): void => {
     setViewJob(job);
     setActiveTab('details');
     setIsViewModalOpen(true);
   };
 
-  const handleDeleteJob = (job) => {
+  const handleDeleteJob = (job: Job): void => {
     setJobToDelete(job);
     setIsDeleteModalOpen(true);
   };
 
-  const handleSubmitJob = (data) => {
+  const handleSubmitJob = (data: Partial<Job>): void => {
     if (selectedJob) {
       updateMutation.mutate({ id: selectedJob.id, data });
     } else {
@@ -112,13 +139,13 @@ const Jobs = () => {
     }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = (): void => {
     if (jobToDelete) {
       deleteMutation.mutate(jobToDelete.id);
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: JobStatus): string => {
     switch (status) {
       case 'Completed':
         return 'bg-green-100 text-green-800';
@@ -133,7 +160,7 @@ const Jobs = () => {
     }
   };
 
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = (priority: JobPriority): string => {
     switch (priority) {
       case 'High':
         return 'text-red-600';
@@ -146,7 +173,39 @@ const Jobs = () => {
     }
   };
 
-  const technicians = users?.filter(u => 
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleStatusFilterChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    setStatusFilter(e.target.value);
+  };
+
+  const handleAssignedToFilterChange = (e: ChangeEvent<HTMLSelectElement>): void => {
+    setAssignedToFilter(e.target.value);
+  };
+
+  const handlePreviousPage = (): void => {
+    setCurrentPage(Math.max(1, currentPage - 1));
+  };
+
+  const handleNextPage = (): void => {
+    if (jobsData?.pagination) {
+      setCurrentPage(Math.min(jobsData.pagination.pages, currentPage + 1));
+    }
+  };
+
+  const handleTabChange = (tab: TabType): void => {
+    setActiveTab(tab);
+  };
+
+  const handleCloseModals = (): void => {
+    setIsModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setIsViewModalOpen(false);
+  };
+
+  const technicians = usersData?.users?.filter(u => 
     ['technician', 'admin', 'manager'].includes(u.role)
   );
 
@@ -184,13 +243,13 @@ const Jobs = () => {
               type="text"
               placeholder="Search jobs..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className="input pl-10"
             />
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={handleStatusFilterChange}
             className="input"
           >
             <option key="all-status" value="">All Statuses</option>
@@ -201,7 +260,7 @@ const Jobs = () => {
           </select>
           <select
             value={assignedToFilter}
-            onChange={(e) => setAssignedToFilter(e.target.value)}
+            onChange={handleAssignedToFilterChange}
             className="input"
           >
             <option key="all-techs" value="">All Technicians</option>
@@ -274,8 +333,8 @@ const Jobs = () => {
                     )}
                   </td>
                   <td className="table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                      {job.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status || 'Pending')}`}>
+                      {job.status || 'Pending'}
                     </span>
                   </td>
                   <td className="table-cell">
@@ -326,14 +385,14 @@ const Jobs = () => {
           <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200">
             <div className="flex-1 flex justify-between sm:hidden">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={handlePreviousPage}
                 disabled={currentPage === 1}
                 className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
                 Previous
               </button>
               <button
-                onClick={() => setCurrentPage(Math.min(jobsData.pagination.pages, currentPage + 1))}
+                onClick={handleNextPage}
                 disabled={currentPage === jobsData.pagination.pages}
                 className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
@@ -349,14 +408,14 @@ const Jobs = () => {
               <div>
                 <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                   <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    onClick={handlePreviousPage}
                     disabled={currentPage === 1}
                     className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => setCurrentPage(Math.min(jobsData.pagination.pages, currentPage + 1))}
+                    onClick={handleNextPage}
                     disabled={currentPage === jobsData.pagination.pages}
                     className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
@@ -372,13 +431,13 @@ const Jobs = () => {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModals}
         title={selectedJob ? 'Edit Job' : 'Create Job'}
       >
         <JobForm
           job={selectedJob}
           onSubmit={handleSubmitJob}
-          onCancel={() => setIsModalOpen(false)}
+          onCancel={handleCloseModals}
           loading={createMutation.isLoading || updateMutation.isLoading}
         />
       </Modal>
@@ -386,7 +445,7 @@ const Jobs = () => {
       {/* View Job Modal */}
       <Modal
         isOpen={isViewModalOpen}
-        onClose={() => setIsViewModalOpen(false)}
+        onClose={handleCloseModals}
         title={`Job: ${viewJob?.jobName || ''}`}
         size="large"
       >
@@ -396,7 +455,7 @@ const Jobs = () => {
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
                 <button
-                  onClick={() => setActiveTab('details')}
+                  onClick={() => handleTabChange('details')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'details'
                       ? 'border-primary-500 text-primary-600'
@@ -406,7 +465,7 @@ const Jobs = () => {
                   Job Details
                 </button>
                 <button
-                  onClick={() => setActiveTab('logs')}
+                  onClick={() => handleTabChange('logs')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${
                     activeTab === 'logs'
                       ? 'border-primary-500 text-primary-600'
@@ -428,8 +487,8 @@ const Jobs = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Status</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(viewJob.status)}`}>
-                      {viewJob.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(viewJob.status || 'Pending')}`}>
+                      {viewJob.status || 'Pending'}
                     </span>
                   </div>
                 </div>
@@ -474,13 +533,13 @@ const Jobs = () => {
 
             {activeTab === 'logs' && (
               <div>
-                <JobLogs jobId={viewJob.id} jobStatus={viewJob.status} />
+                <JobLogs jobId={viewJob.id} jobStatus={viewJob.status || 'Pending'} />
               </div>
             )}
 
             <div className="pt-4 border-t border-gray-200">
               <button
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={handleCloseModals}
                 className="btn btn-secondary w-full"
               >
                 Close
@@ -493,7 +552,7 @@ const Jobs = () => {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={handleCloseModals}
         title="Delete Job"
       >
         <div className="space-y-4">
@@ -503,7 +562,7 @@ const Jobs = () => {
           </p>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setIsDeleteModalOpen(false)}
+              onClick={handleCloseModals}
               className="btn btn-secondary"
             >
               Cancel

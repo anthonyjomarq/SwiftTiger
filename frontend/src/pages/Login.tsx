@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authService } from '../services/authService.ts';
+import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
 
-const Login = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+const Login: React.FC = () => {
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -16,20 +21,24 @@ const Login = () => {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<LoginFormData>();
 
-  const onSubmit = async (data) => {
+  const onSubmit: SubmitHandler<LoginFormData> = async (data) => {
     setLoading(true);
     try {
       const { user } = await authService.login(data.email, data.password);
       login(user);
       toast.success('Login successful!');
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTogglePassword = (): void => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -86,7 +95,7 @@ const Login = () => {
               <button
                 type="button"
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={handleTogglePassword}
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5 text-gray-400" />
