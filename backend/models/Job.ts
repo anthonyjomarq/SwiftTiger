@@ -25,22 +25,22 @@ export interface JobCreationAttributes extends Omit<JobAttributes, 'id' | 'creat
 }
 
 export class Job extends Model<JobAttributes, JobCreationAttributes> implements JobAttributes {
-  public id!: string;
-  public jobName!: string;
-  public description!: string;
-  public customerId!: string;
-  public serviceType!: 'New Account' | 'Replacement' | 'Training' | 'Maintenance';
-  public priority!: 'Low' | 'Medium' | 'High';
-  public status!: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
-  public assignedTo!: string | null;
-  public scheduledDate!: Date | null;
-  public completedDate!: Date | null;
-  public estimatedDuration!: number;
-  public actualDuration!: number | null;
-  public createdBy!: string;
-  public updatedBy!: string | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare jobName: string;
+  declare description: string;
+  declare customerId: string;
+  declare serviceType: 'New Account' | 'Replacement' | 'Training' | 'Maintenance';
+  declare priority: 'Low' | 'Medium' | 'High';
+  declare status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+  declare assignedTo: string | null;
+  declare scheduledDate: Date | null;
+  declare completedDate: Date | null;
+  declare estimatedDuration: number;
+  declare actualDuration: number | null;
+  declare createdBy: string;
+  declare updatedBy: string | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Job.init({
@@ -67,6 +67,7 @@ Job.init({
   customerId: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'customer_id',
     references: {
       model: 'customers',
       key: 'id'
@@ -74,7 +75,8 @@ Job.init({
   },
   serviceType: {
     type: DataTypes.ENUM('New Account', 'Replacement', 'Training', 'Maintenance'),
-    allowNull: false
+    allowNull: false,
+    field: 'service_type'
   },
   priority: {
     type: DataTypes.ENUM('Low', 'Medium', 'High'),
@@ -86,29 +88,35 @@ Job.init({
   },
   assignedTo: {
     type: DataTypes.UUID,
+    field: 'assigned_to',
     references: {
       model: 'users',
       key: 'id'
     }
   },
   scheduledDate: {
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    field: 'scheduled_date'
   },
   completedDate: {
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    field: 'completed_date'
   },
   estimatedDuration: {
     type: DataTypes.INTEGER,
     defaultValue: 120,
+    field: 'estimated_duration',
     comment: 'Duration in minutes'
   },
   actualDuration: {
     type: DataTypes.INTEGER,
+    field: 'actual_duration',
     comment: 'Duration in minutes'
   },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'created_by',
     references: {
       model: 'users',
       key: 'id'
@@ -116,6 +124,7 @@ Job.init({
   },
   updatedBy: {
     type: DataTypes.UUID,
+    field: 'updated_by',
     references: {
       model: 'users',
       key: 'id'
@@ -126,10 +135,10 @@ Job.init({
   tableName: 'jobs',
   timestamps: true,
   indexes: [
-    { fields: ['customerId'] },
-    { fields: ['assignedTo'] },
+    { fields: ['customer_id'] },
+    { fields: ['assigned_to'] },
     { fields: ['status'] },
-    { fields: ['scheduledDate'] },
+    { fields: ['scheduled_date'] },
     { fields: ['priority'] }
   ]
 });

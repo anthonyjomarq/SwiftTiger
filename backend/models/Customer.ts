@@ -39,23 +39,23 @@ export interface CustomerCreationAttributes extends Omit<CustomerAttributes, 'id
 }
 
 export class Customer extends Model<CustomerAttributes, CustomerCreationAttributes> implements CustomerAttributes {
-  public id!: string;
-  public name!: string;
-  public email!: string;
-  public phone!: string;
-  public addressStreet!: string;
-  public addressCity!: string;
-  public addressState!: string;
-  public addressZipCode!: string;
-  public addressCountry!: string;
-  public addressPlaceId!: string | null;
-  public addressLatitude!: number | null;
-  public addressLongitude!: number | null;
-  public isActive!: boolean;
-  public createdBy!: string;
-  public updatedBy!: string | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare name: string;
+  declare email: string;
+  declare phone: string;
+  declare addressStreet: string;
+  declare addressCity: string;
+  declare addressState: string;
+  declare addressZipCode: string;
+  declare addressCountry: string;
+  declare addressPlaceId: string | null;
+  declare addressLatitude: number | null;
+  declare addressLongitude: number | null;
+  declare isActive: boolean;
+  declare createdBy: string;
+  declare updatedBy: string | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public getAddressObject(): AddressObject {
     return {
@@ -140,11 +140,13 @@ Customer.init({
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true
+    defaultValue: true,
+    field: 'is_active'
   },
   createdBy: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'created_by',
     references: {
       model: 'users',
       key: 'id'
@@ -152,6 +154,7 @@ Customer.init({
   },
   updatedBy: {
     type: DataTypes.UUID,
+    field: 'updated_by',
     references: {
       model: 'users',
       key: 'id'

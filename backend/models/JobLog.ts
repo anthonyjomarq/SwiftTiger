@@ -25,16 +25,16 @@ export interface JobLogCreationAttributes extends Omit<JobLogAttributes, 'id' | 
 }
 
 export class JobLog extends Model<JobLogAttributes, JobLogCreationAttributes> implements JobLogAttributes {
-  public id!: string;
-  public jobId!: string;
-  public technicianId!: string;
-  public notes!: string;
-  public photos!: PhotoObject[];
-  public workStartTime!: Date | null;
-  public workEndTime!: Date | null;
-  public statusUpdate!: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled' | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare jobId: string;
+  declare technicianId: string;
+  declare notes: string;
+  declare photos: PhotoObject[];
+  declare workStartTime: Date | null;
+  declare workEndTime: Date | null;
+  declare statusUpdate: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled' | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 JobLog.init({
@@ -46,6 +46,7 @@ JobLog.init({
   jobId: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'job_id',
     references: {
       model: 'jobs',
       key: 'id'
@@ -54,6 +55,7 @@ JobLog.init({
   technicianId: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'technician_id',
     references: {
       model: 'users',
       key: 'id'
@@ -72,21 +74,24 @@ JobLog.init({
     comment: 'Array of photo objects with filename, path, etc.'
   },
   workStartTime: {
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    field: 'work_start_time'
   },
   workEndTime: {
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    field: 'work_end_time'
   },
   statusUpdate: {
-    type: DataTypes.ENUM('Pending', 'In Progress', 'Completed', 'Cancelled')
+    type: DataTypes.ENUM('Pending', 'In Progress', 'Completed', 'Cancelled'),
+    field: 'status_update'
   }
 }, {
   sequelize,
   tableName: 'job_logs',
   timestamps: true,
   indexes: [
-    { fields: ['jobId', 'createdAt'] },
-    { fields: ['technicianId'] }
+    { fields: ['job_id', 'created_at'] },
+    { fields: ['technician_id'] }
   ]
 });
 

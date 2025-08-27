@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: swifttiger-api
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: cd backend && npm ci && npm run build
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: DATABASE_URL
+        fromDatabase:
+          name: swifttiger-postgres
+          property: connectionString
+      - key: CORS_ORIGIN
+        value: https://swifttiger-frontend.onrender.com
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: GOOGLE_ROUTES_API_KEY
+        sync: false
+    autoDeploy: true
+    
+  - type: web
+    name: swifttiger-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    buildFilter:
+      paths:
+      - frontend/**
+    envVars:
+      - key: VITE_API_URL
+        value: https://swifttiger-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /manifest.json
+        name: Cache-Control
+        value: public, max-age=86400
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+
+databases:
+  - name: swifttiger-postgres
+    databaseName: swifttiger
+    user: swifttiger
+    plan: starter
+    region: oregon
+    postgresMajorVersion: 15

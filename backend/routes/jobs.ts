@@ -2,13 +2,14 @@ import express, { Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { Op } from 'sequelize';
-import { Job } from '@models/Job.js';
-import { JobLog } from '@models/JobLog.js';
-import { Customer } from '@models/Customer.js';
-import { User } from '@models/User.js';
-import { authenticate, authorize } from '@middleware/auth.js';
-import { auditMiddleware } from '@middleware/audit.js';
-import { validateJobCreate, validateJobUpdate, validateJobLogCreate } from '@middleware/validation.js';
+import { Job } from '../models/Job.js';
+import { JobLog } from '../models/JobLog.js';
+import { Customer } from '../models/Customer.js';
+import { User } from '../models/User.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { auditMiddleware } from '../middleware/audit.js';
+import { validateJobCreate, validateJobUpdate, validateJobLogCreate } from '../middleware/validation.js';
+import { getWebSocketService } from '../services/websocket.js';
 import {
   AuthenticatedRequest,
   CreateJobRequest,
@@ -235,6 +236,14 @@ router.post('/',
           }
         ]
       });
+
+      // Send WebSocket notification for job creation
+      try {
+        const wsService = getWebSocketService();
+        wsService.notifyJobCreated(jobResponse, assignedTo);
+      } catch (error) {
+        console.log('WebSocket notification failed:', error);
+      }
       
       res.status(201).json(jobResponse);
     } catch (error: any) {
@@ -270,6 +279,10 @@ router.put('/:id',
       if (!job) {
         return res.status(404).json({ message: 'Job not found' });
       }
+
+      // Store previous values for WebSocket notifications
+      const previousJob = { ...job.toJSON() };
+      const oldStatus = job.status;
 
       const updateData: any = {
         updatedBy: req.user.id
@@ -309,6 +322,19 @@ router.put('/:id',
           }
         ]
       });
+
+      // Send WebSocket notifications
+      try {
+        const wsService = getWebSocketService();
+        wsService.notifyJobUpdated(updatedJob, previousJob);
+        
+        // If status changed, send specific status change notification
+        if (status && status !== oldStatus) {
+          wsService.notifyJobStatusChanged(updatedJob, oldStatus, status);
+        }
+      } catch (error) {
+        console.log('WebSocket notification failed:', error);
+      }
 
       res.json(updatedJob);
     } catch (error: any) {
@@ -408,6 +434,7 @@ router.post('/:id/logs',
       if (statusUpdate) {
         const job = await Job.findByPk(req.params.id);
         if (job) {
+          const oldStatus = job.status;
           const updateData: any = {
             status: statusUpdate,
             updatedBy: req.user.id
@@ -418,7 +445,23 @@ router.post('/:id/logs',
           }
           
           await job.update(updateData);
+
+          // Send WebSocket notification for status change
+          try {
+            const wsService = getWebSocketService();
+            wsService.notifyJobStatusChanged(job, oldStatus, statusUpdate);
+          } catch (error) {
+            console.log('WebSocket notification failed:', error);
+          }
         }
+      }
+
+      // Send WebSocket notification for job log creation
+      try {
+        const wsService = getWebSocketService();
+        wsService.notifyJobLogCreated(req.params.id, jobLogWithTechnician);
+      } catch (error) {
+        console.log('WebSocket notification failed:', error);
       }
 
       res.status(201).json(jobLogWithTechnician);

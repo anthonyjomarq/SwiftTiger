@@ -60,7 +60,7 @@ const getDatabaseConfig = (): DatabaseConfig => {
       underscored: true,
       paranoid: true, // Soft deletes
     },
-    timezone: "-4:00",
+    ...(dialect !== "sqlite" && { timezone: "-4:00" }),
   };
 
   switch (dialect) {

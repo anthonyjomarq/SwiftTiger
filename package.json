@@ -16,6 +16,7 @@
     "docker:down:prod": "docker-compose -f docker-compose.prod.yml down",
     "setup": "npm run install:all",
     "create-admin": "cd backend && node scripts/createMainAdmin.js",
+    "seed-demo": "cd backend && node --loader ts-node/esm --experimental-specifier-resolution=node scripts/seedDemoData.ts",
     "migrate": "cd backend && npm run migrate",
     "lint": "cd frontend && npm run lint && cd ../backend && npm run lint",
     "test": "cd backend && npm run test",

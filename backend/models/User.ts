@@ -21,17 +21,17 @@ export interface UserCreationAttributes extends Omit<UserAttributes, 'id' | 'cre
 }
 
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
-  public id!: string;
-  public name!: string;
-  public email!: string;
-  public password!: string;
-  public role!: 'admin' | 'technician' | 'manager' | 'dispatcher';
-  public isMainAdmin!: boolean;
-  public isActive!: boolean;
-  public lastLogin!: Date | null;
-  public createdBy!: string | null;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare name: string;
+  declare email: string;
+  declare password: string;
+  declare role: 'admin' | 'technician' | 'manager' | 'dispatcher';
+  declare isMainAdmin: boolean;
+  declare isActive: boolean;
+  declare lastLogin: Date | null;
+  declare createdBy: string | null;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public async comparePassword(candidatePassword: string): Promise<boolean> {
     return await bcrypt.compare(candidatePassword, this.password);
@@ -79,17 +79,21 @@ User.init({
   },
   isMainAdmin: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false
+    defaultValue: false,
+    field: 'is_main_admin'
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true
+    defaultValue: true,
+    field: 'is_active'
   },
   lastLogin: {
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    field: 'last_login'
   },
   createdBy: {
     type: DataTypes.UUID,
+    field: 'created_by',
     references: {
       model: 'users',
       key: 'id'

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
+import { registerServiceWorker, setupInstallPrompt, requestPersistentStorage } from './utils/pwa';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,3 +31,10 @@ ReactDOM.createRoot(rootElement).render(
     </QueryClientProvider>
   </React.StrictMode>
 );
+
+// Initialize PWA features
+if ('serviceWorker' in navigator) {
+  registerServiceWorker();
+  setupInstallPrompt();
+  requestPersistentStorage();
+}

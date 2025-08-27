@@ -5,11 +5,13 @@ import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
+import { createServer } from 'http';
 import { sequelize } from './models/index.js';
 import { validateEnvironment } from './utils/envValidation.js';
 import swaggerSpecs from './docs/swagger.js';
 import logger from './utils/logger.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
+import { initializeWebSocket } from './services/websocket.js';
 
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -112,10 +114,17 @@ const startServer = async (): Promise<void> => {
     logger.info('✅ Database models synchronized with fresh tables');
     
     const PORT = process.env.PORT || 5000;
-    const server = app.listen(PORT, () => {
+    const server = createServer(app);
+    
+    // Initialize WebSocket service
+    const wsService = initializeWebSocket(server);
+    logger.info('🔌 WebSocket service initialized');
+    
+    server.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/api/health`);
       logger.info(`📚 API Documentation: http://localhost:${PORT}/api/docs`);
+      logger.info(`🔗 WebSocket server ready for connections`);
     });
     
     // Graceful shutdown handling
