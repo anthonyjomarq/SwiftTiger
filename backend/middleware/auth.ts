@@ -41,7 +41,6 @@ const authenticate = async (
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
 
-    // Assuming you have a User model with findByPk method
     const User = require("../models/User");
     const user = await User.findByPk(decoded.id);
 

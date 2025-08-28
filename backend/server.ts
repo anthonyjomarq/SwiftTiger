@@ -20,41 +20,35 @@ import jobRoutes from './routes/jobs.js';
 import routeRoutes from './routes/routes.js';
 import auditRoutes from './routes/audit.js';
 import dashboardRoutes from './routes/dashboard.js';
+import uploadRoutes from './routes/upload.js';
 
 import 'dotenv/config';
 
-// Validate environment variables before starting
 validateEnvironment();
 
 const app = express();
 
-// Security middleware
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting - relaxed for development
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 1000, // limit each IP to 1000 requests per minute  
+  windowMs: 1 * 60 * 1000,
+  max: 1000,
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
 
-// CORS configuration
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
 }));
 
-// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
-  // Production logging with Winston
   app.use(morgan('combined', {
     stream: {
       write: (message: string) => logger.info(message.trim())
@@ -62,16 +56,13 @@ if (process.env.NODE_ENV === 'development') {
   }));
 }
 
-// Serve uploaded files
 app.use('/api/uploads', express.static('uploads'));
 
-// API Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'SwiftTiger API Documentation'
 }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
@@ -79,24 +70,21 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Global error handling middleware
 app.use(globalErrorHandler);
 
-// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Database connection and server startup
 const startServer = async (): Promise<void> => {
   try {
-    logger.info('🔌 Attempting to connect to database...');
+    logger.info('Attempting to connect to database...');
     logger.info('Database config:', {
       host: process.env.DB_HOST,
       port: process.env.DB_PORT,
@@ -106,28 +94,25 @@ const startServer = async (): Promise<void> => {
     });
     
     await sequelize.authenticate();
-    logger.info('✅ Connected to PostgreSQL database');
+    logger.info('Connected to PostgreSQL database');
     
-    // Sync database models (alter tables to match models)
-    logger.info('🔄 Synchronizing database models...');
+    logger.info('Synchronizing database models...');
     await sequelize.sync({ alter: true });
-    logger.info('✅ Database models synchronized with fresh tables');
+    logger.info('Database models synchronized with fresh tables');
     
     const PORT = process.env.PORT || 5000;
     const server = createServer(app);
     
-    // Initialize WebSocket service
     const wsService = initializeWebSocket(server);
-    logger.info('🔌 WebSocket service initialized');
+    logger.info('WebSocket service initialized');
     
     server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
-      logger.info(`📊 Health check: http://localhost:${PORT}/api/health`);
-      logger.info(`📚 API Documentation: http://localhost:${PORT}/api/docs`);
-      logger.info(`🔗 WebSocket server ready for connections`);
+      logger.info(`Server running on port ${PORT}`);
+      logger.info(`Health check: http://localhost:${PORT}/api/health`);
+      logger.info(`API Documentation: http://localhost:${PORT}/api/docs`);
+      logger.info(`WebSocket server ready for connections`);
     });
     
-    // Graceful shutdown handling
     process.on('SIGTERM', () => {
       logger.info('SIGTERM received, shutting down gracefully');
       server.close(() => {
@@ -136,7 +121,7 @@ const startServer = async (): Promise<void> => {
       });
     });
   } catch (error: any) {
-    logger.error('❌ Unable to connect to the database:', { error: error.message, stack: error.stack });
+    logger.error('Unable to connect to the database:', { error: error.message, stack: error.stack });
     process.exit(1);
   }
 };

@@ -24,7 +24,6 @@ import {
 
 const router = express.Router();
 
-// Configure multer for photo uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -47,23 +46,19 @@ const upload = multer({
   }
 });
 
-// Get all jobs
 router.get('/', authenticate, async (req: any, res: any) => {
   try {
-    console.log('💼 GET /jobs - Fetching jobs with query params:', req.query);
     const { page = '1', limit = '10', status, assignedTo, customerId, scheduledDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const filter: any = {};
     if (status) {
-      // Handle comma-separated status values
       const statusValues = status.split(',').map((s: string) => s.trim());
       filter.status = statusValues;
     }
     if (assignedTo) filter.assignedTo = assignedTo;
     if (customerId) filter.customerId = customerId;
     if (scheduledDate) {
-      // Filter by scheduled date - handle date range to match all times on the date
       const startDate = new Date(scheduledDate);
       const endDate = new Date(scheduledDate);
       endDate.setDate(endDate.getDate() + 1);
@@ -73,8 +68,6 @@ router.get('/', authenticate, async (req: any, res: any) => {
         [Op.lt]: endDate
       };
     }
-    
-    console.log('🔍 Jobs filter criteria:', filter);
 
     const jobs = await Job.findAll({
       where: filter,
@@ -102,7 +95,6 @@ router.get('/', authenticate, async (req: any, res: any) => {
 
     const total = await Job.count({ where: filter });
 
-    console.log(`✅ Found ${jobs.length} jobs, total: ${total}`);
     res.json({
       jobs,
       pagination: {
@@ -113,7 +105,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
       }
     });
   } catch (error: any) {
-    console.error('❌ Get jobs error:', {
+    console.error('Get jobs error:', {
       message: error.message,
       stack: error.stack,
       query: req.query
@@ -125,7 +117,6 @@ router.get('/', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Get job by ID
 router.get('/:id', authenticate, async (req: any, res: any) => {
   try {
     const job = await Job.findByPk(req.params.id, {
@@ -159,14 +150,12 @@ router.get('/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Create job
 router.post('/', 
   authenticate, 
   validateJobCreate,
   auditMiddleware('CREATE_JOB', 'JOB'),
   async (req: any, res: any) => {
     try {
-      console.log('💼 POST /jobs - Creating job with data:', req.body);
       
       const { 
         jobName, 
@@ -180,7 +169,6 @@ router.post('/',
       } = req.body;
 
       if (!jobName || !description || !customerId || !serviceType) {
-        console.log('❌ Missing required fields for job creation');
         return res.status(400).json({ message: 'Job name, description, customer ID, and service type are required' });
       }
 
@@ -192,17 +180,12 @@ router.post('/',
         return res.status(400).json({ message: 'Customer not found' });
       }
 
-      // Verify assigned technician exists if provided
       if (assignedTo) {
-        console.log('🔍 Verifying technician exists:', assignedTo);
         const technicianExists = await User.findByPk(assignedTo);
         if (!technicianExists) {
-          console.log('❌ Technician not found');
           return res.status(400).json({ message: 'Assigned technician not found' });
         }
       }
-
-      console.log('➕ Creating new job...');
       
       const createdById = req.user.id;
       
@@ -219,9 +202,7 @@ router.post('/',
         createdBy: createdById
       });
 
-      console.log(`✅ Job created with ID: ${job.id}`);
       
-      // Return job with simplified includes to avoid association issues
       const jobResponse = await Job.findByPk(job.id, {
         include: [
           {
@@ -247,13 +228,12 @@ router.post('/',
       
       res.status(201).json(jobResponse);
     } catch (error: any) {
-      console.error('❌ Create job error:', {
+      console.error('Create job error:', {
         message: error.message,
         stack: error.stack,
         body: req.body
       });
       
-      // Handle specific database errors
       if (error.name === 'SequelizeForeignKeyConstraintError') {
         return res.status(400).json({ message: 'Invalid customer or technician ID provided' });
       }
@@ -266,7 +246,6 @@ router.post('/',
   }
 );
 
-// Update job
 router.put('/:id', 
   authenticate, 
   validateJobUpdate,
@@ -407,7 +386,8 @@ router.post('/:id/logs',
         originalName: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        path: file.path
+        path: file.path,
+        timestamp: new Date()
       })) : [];
 
       const jobLog = await JobLog.create({
@@ -578,7 +558,8 @@ router.put('/:jobId/logs/:logId',
           originalName: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
-          path: file.path
+          path: file.path,
+          timestamp: new Date()
         }));
         updatedPhotos = [...updatedPhotos, ...newPhotos];
       }

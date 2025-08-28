@@ -29,7 +29,7 @@ describe('Login Component', () => {
   it('renders login form correctly', () => {
     renderLogin()
     
-    expect(screen.getByText(/sign in to your account/i)).toBeInTheDocument()
+    expect(screen.getByText(/sign in to SwiftTiger/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()

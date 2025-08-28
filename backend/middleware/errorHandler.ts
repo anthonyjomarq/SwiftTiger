@@ -43,7 +43,6 @@ interface ErrorResponse {
 
 // Development error response
 const sendErrorDev = (err: AppError, req: Request, res: Response): void => {
-  // Assuming you have a logger utility
   const logger = require("../utils/logger");
   logger.logError(err, req);
 

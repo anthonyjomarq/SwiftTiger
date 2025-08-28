@@ -17,7 +17,6 @@ import {
 
 const router = express.Router();
 
-// Get all customers
 router.get('/', authenticate, async (req: any, res: any) => {
   try {
     const { page = '1', limit = '10', search = '' } = req.query;
@@ -69,7 +68,6 @@ router.get('/', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Get customer by ID
 router.get('/:id', authenticate, async (req: any, res: any) => {
   try {
     const customer = await Customer.findByPk(req.params.id, {
@@ -98,14 +96,12 @@ router.get('/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
-// Create customer
 router.post('/', 
   authenticate, 
   validateCustomerCreate,
   auditMiddleware('CREATE_CUSTOMER', 'CUSTOMER'),
   async (req: any, res: any) => {
     try {
-      console.log('🏢 POST /customers - Creating customer with data:', req.body);
       
       const { 
         name, 
@@ -122,19 +118,13 @@ router.post('/',
       } = req.body;
 
       if (!name || !email || !phone || !addressStreet || !addressCity || !addressState || !addressZipCode) {
-        console.log('❌ Missing required fields for customer creation');
         return res.status(400).json({ message: 'All required fields must be provided' });
       }
 
-      // Check for existing customer with same email
-      console.log('🔍 Checking for existing customer with email:', email);
       const existingCustomer = await Customer.findOne({ where: { email, isActive: true } });
       if (existingCustomer) {
-        console.log('⚠️ Customer already exists');
         return res.status(400).json({ message: 'Customer with this email already exists' });
       }
-
-      console.log('➕ Creating new customer...');
       
       const createdById = req.user.id;
       
@@ -153,21 +143,17 @@ router.post('/',
         isActive: true,
         createdBy: createdById
       });
-
-      console.log(`✅ Customer created with ID: ${customer.id}`);
       
-      // Return customer without problematic includes
       const customerResponse = await Customer.findByPk(customer.id);
       
       res.status(201).json(customerResponse);
     } catch (error: any) {
-      console.error('❌ Create customer error:', {
+      console.error('Create customer error:', {
         message: error.message,
         stack: error.stack,
         body: req.body
       });
       
-      // Handle specific database errors
       if (error.name === 'SequelizeUniqueConstraintError') {
         return res.status(400).json({ message: 'Customer with this email already exists' });
       }
@@ -180,7 +166,6 @@ router.post('/',
   }
 );
 
-// Update customer
 router.put('/:id', 
   authenticate, 
   validateCustomerUpdate,
@@ -232,7 +217,6 @@ router.put('/:id',
   }
 );
 
-// Delete customer (soft delete)
 router.delete('/:id', 
   authenticate, 
   authorize('admin', 'manager'), 

@@ -138,7 +138,7 @@ function checkEnvironmentVariables(): ValidationResult {
 }
 
 function logConfigurationSummary(): void {
-  console.log("📋 Configuration Summary:");
+  console.log("Configuration Summary:");
   console.log(`   Environment: ${process.env.NODE_ENV}`);
   console.log(`   Port: ${process.env.PORT}`);
   console.log(
@@ -165,7 +165,7 @@ export function validateEnvironment(): void {
   const { missing, warnings, validationErrors } = checkEnvironmentVariables();
 
   if (missing.length > 0) {
-    console.error("❌ Missing required environment variables:");
+    console.error("Missing required environment variables:");
     missing.forEach((varName) => {
       console.error(`   - ${varName}`);
     });
@@ -176,7 +176,7 @@ export function validateEnvironment(): void {
   }
 
   if (validationErrors.length > 0) {
-    console.error("❌ Environment validation errors:");
+    console.error("Environment validation errors:");
     validationErrors.forEach((error) => {
       console.error(`   - ${error}`);
     });
@@ -184,14 +184,14 @@ export function validateEnvironment(): void {
   }
 
   if (warnings.length > 0) {
-    console.warn("⚠️  Optional environment variables not set:");
+    console.warn("Optional environment variables not set:");
     warnings.forEach((varName) => {
       console.warn(`   - ${varName}`);
     });
     console.warn("Some features may not work without these variables.");
   }
 
-  console.log("✅ Environment validation passed");
+  console.log("Environment validation passed");
   logConfigurationSummary();
 }
 

@@ -3,8 +3,19 @@ import { sequelize } from '../config/database.js';
 
 export interface PhotoObject {
   filename: string;
+  originalName: string;
   path: string;
-  [key: string]: any;
+  caption?: string;
+  mimetype: string;
+  size: number;
+  timestamp: Date;
+}
+
+export interface SignatureObject {
+  signature: string; // Base64 image data
+  signerName: string;
+  signerTitle?: string;
+  timestamp: Date;
 }
 
 export interface JobLogAttributes {
@@ -13,8 +24,10 @@ export interface JobLogAttributes {
   technicianId: string;
   notes: string;
   photos: PhotoObject[];
+  signature?: SignatureObject | null;
   workStartTime?: Date | null;
   workEndTime?: Date | null;
+  actualDuration?: number | null; // Duration in minutes
   statusUpdate?: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled' | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -30,8 +43,10 @@ export class JobLog extends Model<JobLogAttributes, JobLogCreationAttributes> im
   declare technicianId: string;
   declare notes: string;
   declare photos: PhotoObject[];
+  declare signature: SignatureObject | null;
   declare workStartTime: Date | null;
   declare workEndTime: Date | null;
+  declare actualDuration: number | null;
   declare statusUpdate: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled' | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -71,7 +86,12 @@ JobLog.init({
   photos: {
     type: DataTypes.JSONB,
     defaultValue: [],
-    comment: 'Array of photo objects with filename, path, etc.'
+    comment: 'Array of photo objects with metadata'
+  },
+  signature: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    comment: 'Digital signature object with base64 data and signer info'
   },
   workStartTime: {
     type: DataTypes.DATE,
@@ -80,6 +100,12 @@ JobLog.init({
   workEndTime: {
     type: DataTypes.DATE,
     field: 'work_end_time'
+  },
+  actualDuration: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'actual_duration',
+    comment: 'Actual work duration in minutes'
   },
   statusUpdate: {
     type: DataTypes.ENUM('Pending', 'In Progress', 'Completed', 'Cancelled'),

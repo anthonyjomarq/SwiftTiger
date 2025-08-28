@@ -164,14 +164,12 @@ function getRandomFutureDate(daysAhead: number): Date {
 
 async function seedDemoData() {
   try {
-    console.log('🌱 Starting demo data seed...');
+    console.log('Starting demo data seed...');
     
-    // Sync database
     await sequelize.sync({ force: true });
-    console.log('✅ Database synced');
+    console.log('Database synced');
 
-    // Create users with hashed passwords
-    console.log('👥 Creating demo users...');
+    console.log('Creating demo users...');
     const users = [];
     for (const userData of demoUsers) {
       const hashedPassword = await bcrypt.hash(userData.password, 10);
@@ -183,8 +181,7 @@ async function seedDemoData() {
       console.log(`   Created user: ${userData.name} (${userData.role})`);
     }
 
-    // Create customers
-    console.log('🏢 Creating demo customers...');
+    console.log('Creating demo customers...');
     const customers = [];
     const adminUser = users.find(u => u.role === 'admin');
     if (!adminUser) {
@@ -199,8 +196,7 @@ async function seedDemoData() {
       console.log(`   Created customer: ${customerData.name}`);
     }
 
-    // Create jobs
-    console.log('💼 Creating demo jobs...');
+    console.log('Creating demo jobs...');
     const technicians = users.filter(u => u.role === 'technician');
     const jobs = [];
 
@@ -259,10 +255,9 @@ async function seedDemoData() {
       }
     }
 
-    console.log(`✅ Created ${jobs.length} jobs`);
+    console.log(`Created ${jobs.length} jobs`);
 
-    // Create job logs for some completed jobs
-    console.log('📝 Creating job logs...');
+    console.log('Creating job logs...');
     const completedJobs = jobs.filter(j => j.status === 'Completed');
     let logCount = 0;
 
@@ -300,19 +295,19 @@ async function seedDemoData() {
       }
     }
 
-    console.log(`✅ Created ${logCount} job log entries`);
+    console.log(`Created ${logCount} job log entries`);
 
-    console.log('\n🎉 Demo data seed completed successfully!');
-    console.log('\n👤 Demo Login Credentials:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔧 Admin:       admin@swifttiger.com       / Admin123!');
-    console.log('👔 Manager:     manager@swifttiger.com     / Manager123!');
-    console.log('📋 Dispatcher:  dispatcher@swifttiger.com / Dispatcher123!');
-    console.log('🔨 Technician:  tech1@swifttiger.com      / Tech123!');
-    console.log('🔨 Technician:  tech2@swifttiger.com      / Tech123!');
-    console.log('🔨 Technician:  tech3@swifttiger.com      / Tech123!');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('\n📊 Data Summary:');
+    console.log('\nDemo data seed completed successfully!');
+    console.log('\nDemo Login Credentials:');
+    console.log('===========================================');
+    console.log('Admin:       admin@swifttiger.com       / Admin123!');
+    console.log('Manager:     manager@swifttiger.com     / Manager123!');
+    console.log('Dispatcher:  dispatcher@swifttiger.com / Dispatcher123!');
+    console.log('Technician:  tech1@swifttiger.com      / Tech123!');
+    console.log('Technician:  tech2@swifttiger.com      / Tech123!');
+    console.log('Technician:  tech3@swifttiger.com      / Tech123!');
+    console.log('===========================================');
+    console.log('\nData Summary:');
     console.log(`   • ${users.length} users created`);
     console.log(`   • ${customers.length} customers created`);
     console.log(`   • ${jobs.length} jobs created`);

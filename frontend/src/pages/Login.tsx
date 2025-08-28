@@ -66,6 +66,7 @@ const Login: React.FC = () => {
                     message: 'Invalid email address',
                   },
                 })}
+                id="email"
                 type="email"
                 autoComplete="email"
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
@@ -87,6 +88,7 @@ const Login: React.FC = () => {
                     message: 'Password must be at least 6 characters',
                   },
                 })}
+                id="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 className="appearance-none rounded-none relative block w-full px-3 py-2 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"

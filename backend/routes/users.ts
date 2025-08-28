@@ -15,33 +15,25 @@ import {
 
 const router = express.Router();
 
-// Get all users
 router.get('/', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
-    console.log('👥 GET /users - Fetching users with query params:', req.query);
     
-    // Build where clause based on query params
     const whereClause: any = { isActive: true };
     
-    // Handle role filtering
     if (req.query.role) {
       const roles = req.query.role.split(',').map((r: string) => r.trim());
       whereClause.role = roles;
     }
     
-    console.log('🔍 Where clause:', whereClause);
-    
     const users = await User.findAll({
       where: whereClause,
       attributes: { exclude: ['password'] },
-      // Temporarily removing self-referential includes to fix 500 errors
       order: [['createdAt', 'DESC']]
     });
     
-    console.log(`✅ Found ${users.length} users`);
     res.json({ users: users as any[] });
   } catch (error: any) {
-    console.error('❌ Get users error:', {
+    console.error('Get users error:', {
       message: error.message,
       stack: error.stack,
       query: req.query
@@ -53,7 +45,6 @@ router.get('/', authenticate, authorize('admin', 'manager'), async (req: any, re
   }
 });
 
-// Get user by ID
 router.get('/:id', authenticate, authorize('admin', 'manager'), async (req: any, res: any) => {
   try {
     const user = await User.findByPk(req.params.id, {
@@ -78,7 +69,6 @@ router.get('/:id', authenticate, authorize('admin', 'manager'), async (req: any,
   }
 });
 
-// Create user
 router.post('/', 
   authenticate, 
   authorize('admin'), 
@@ -86,33 +76,21 @@ router.post('/',
   auditMiddleware('CREATE_USER', 'USER'),
   async (req: any, res: any) => {
     try {
-      console.log('👤 POST /users - Creating user with data:', { 
-        ...req.body, 
-        password: '[REDACTED]' 
-      });
-      
       const { name, email, password, role, isActive = true } = req.body;
 
       if (!name || !email || !password || !role) {
-        console.log('❌ Missing required fields');
         return res.status(400).json({ message: 'All fields are required' });
       }
 
-      // Check if user already exists
-      console.log('🔍 Checking if user exists with email:', email);
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        console.log('⚠️ User already exists');
         return res.status(400).json({ message: 'User with this email already exists' });
       }
 
-      // Only main admin can create other admins
       if (role === 'admin' && !req.user.isMainAdmin) {
-        console.log('❌ Unauthorized admin creation attempt');
         return res.status(403).json({ message: 'Only main admin can create admin users' });
       }
 
-      console.log('➕ Creating new user...');
       const user = await User.create({
         name,
         email,
@@ -122,23 +100,19 @@ router.post('/',
         isMainAdmin: role === 'admin' ? req.user.isMainAdmin : false,
         createdBy: req.user.id
       });
-
-      console.log(`✅ User created with ID: ${user.id}`);
       
-      // Return user without password and without problematic includes
       const userResponse = await User.findByPk(user.id, {
         attributes: { exclude: ['password'] }
       });
       
       res.status(201).json(userResponse as any);
     } catch (error: any) {
-      console.error('❌ Create user error:', {
+      console.error('Create user error:', {
         message: error.message,
         stack: error.stack,
         body: { ...req.body, password: '[REDACTED]' }
       });
       
-      // Handle specific database errors
       if (error.name === 'SequelizeUniqueConstraintError') {
         return res.status(400).json({ message: 'User with this email already exists' });
       }
@@ -151,7 +125,6 @@ router.post('/',
   }
 );
 
-// Update user
 router.put('/:id', 
   authenticate, 
   authorize('admin'), 
@@ -208,7 +181,6 @@ router.put('/:id',
   }
 );
 
-// Delete user (soft delete)
 router.delete('/:id', 
   authenticate, 
   requireMainAdmin, 

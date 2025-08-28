@@ -23,7 +23,6 @@ const createAuditLog = async (
   details: AuditDetails | Record<string, any> = {}
 ): Promise<void> => {
   try {
-    // Assuming you have an AuditLog model
     const AuditLogModel = require("../models/AuditLog");
 
     await AuditLogModel.create({
