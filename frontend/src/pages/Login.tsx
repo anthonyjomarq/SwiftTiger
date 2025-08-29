@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, SubmitHandler } from 'react-hook-form';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
+import { useDemoMode } from '../contexts/DemoModeContext';
 
 interface LoginFormData {
   email: string;
@@ -15,6 +16,7 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const { login } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const navigate = useNavigate();
 
   const {
@@ -35,6 +37,20 @@ const Login: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    const demoUser = {
+      id: 'demo-user',
+      email: 'demo@swifttiger.com',
+      name: 'Demo User',
+      role: 'admin',
+      permissions: ['all']
+    };
+    
+    login(demoUser);
+    toast.success('Welcome to the demo!');
+    navigate('/');
   };
 
   const handleTogglePassword = (): void => {
@@ -120,6 +136,19 @@ const Login: React.FC = () => {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
+
+          {isDemoMode && (
+            <div>
+              <button
+                type="button"
+                onClick={handleDemoLogin}
+                className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mt-3"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Demo Login (No credentials needed)
+              </button>
+            </div>
+          )}
 
           <div className="text-center">
             <div className="text-sm text-gray-600">

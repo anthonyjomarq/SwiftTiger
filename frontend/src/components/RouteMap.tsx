@@ -111,7 +111,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
     `;
 
     // Add click handler for demo markers
-    (window as any).showDemoInfo = (id: string, title: string, customer: string, priority: string, time: string) => {
+    (window as any).showDemoInfo = (_id: string, title: string, customer: string, priority: string, time: string) => {
       const infoPanel = document.getElementById('demo-info');
       const infoContent = document.getElementById('demo-info-content');
       
@@ -163,7 +163,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
 
       // Add markers for each job
       jobs.forEach((job, index) => {
-        if (job.Customer?.addressLatitude && job.Customer?.addressLongitude) {
+        if (job.Customer?.addressLatitude && job.Customer?.addressLongitude && window.google?.maps) {
           const marker = new window.google.maps.Marker({
             position: {
               lat: parseFloat(job.Customer.addressLatitude.toString()),
@@ -223,7 +223,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
     
     try {
       if (!window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
-        console.error('❌ Directions API not available');
+        console.error('Directions API not available');
         return;
       }
 
@@ -241,9 +241,9 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
 
       // Create waypoints from jobs with coordinates
       const waypoints = routeJobs
-        .filter(job => job.Customer?.addressLatitude && job.Customer?.addressLongitude)
+        .filter(job => job.Customer?.addressLatitude && job.Customer?.addressLongitude && window.google?.maps)
         .map(job => ({
-          location: new window.google.maps.LatLng(
+          location: new window.google!.maps!.LatLng(
             parseFloat(job.Customer!.addressLatitude!.toString()),
             parseFloat(job.Customer!.addressLongitude!.toString())
           ),
@@ -263,7 +263,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
           destination: destination,
           waypoints: waypointsMiddle,
           optimizeWaypoints: false, // We've already optimized
-          travelMode: window.google.maps.TravelMode.DRIVING,
+          travelMode: window.google?.maps?.TravelMode?.DRIVING || 'DRIVING',
         }, (result: any, status: string) => {
           console.log('📍 Directions result:', { status, result });
           if (status === 'OK') {

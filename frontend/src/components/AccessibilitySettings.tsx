@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Eye, Type, Zap, Volume2, X } from 'lucide-react';
+import { Settings, Eye, Type, Volume2, X } from 'lucide-react';
 import { useAccessibility } from '../hooks/useAccessibility';
 
 interface AccessibilitySettingsProps {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Camera, Upload, X, Image, Trash2, Eye } from 'lucide-react';
+import { Camera, Upload, X, Image, Trash2 } from 'lucide-react';
 
 interface Photo {
   id: string;
