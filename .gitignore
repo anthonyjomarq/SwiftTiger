@@ -151,7 +151,7 @@ tmp/
 temp/
 
 # Package manager files
-package-lock.json
+# package-lock.json  # Commented out - we need this for CI/CD
 yarn.lock
 pnpm-lock.yaml
 

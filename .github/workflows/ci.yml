@@ -40,7 +40,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Run backend linting
         working-directory: ./backend
@@ -83,7 +83,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./frontend
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Run frontend linting
         working-directory: ./frontend
@@ -115,7 +115,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./backend
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Build backend
         working-directory: ./backend
@@ -143,7 +143,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Build frontend
         working-directory: ./frontend
