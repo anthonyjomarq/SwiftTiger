@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadGoogleMapsScript } from '../utils/googleMaps';
 import { Customer } from '../types';
+import { useDemoMode } from '../contexts/DemoModeContext';
+import { getDemoAddressSuggestion } from '../utils/demoData';
 
 interface CustomerFormData {
   name: string;
@@ -48,6 +50,7 @@ interface GoogleAutocomplete {
 // Google Maps types moved to types/api.ts
 
 const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCancel, loading }) => {
+  const { isDemoMode } = useDemoMode();
   const [addressSearch, setAddressSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<GooglePlaceResult | null>(null);
   const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
@@ -86,8 +89,17 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Initialize Google Places Autocomplete
+  // State for demo mode suggestions
+  const [demoSuggestions, setDemoSuggestions] = useState<any[]>([]);
+  const [showDemoSuggestions, setShowDemoSuggestions] = useState(false);
+
+  // Initialize Google Places Autocomplete or demo mode
   useEffect(() => {
+    if (isDemoMode) {
+      // Demo mode - no Google API needed
+      return;
+    }
+
     const initializeAutocomplete = async (): Promise<void> => {
       try {
         await loadGoogleMapsScript();
@@ -116,7 +128,45 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, []);
+  }, [isDemoMode]);
+
+  // Handle demo address selection
+  const handleDemoAddressSelect = (suggestion: any) => {
+    setSelectedPlace(suggestion);
+    setAddressSearch(suggestion.description);
+    setShowDemoSuggestions(false);
+    
+    // Parse demo address
+    const parts = suggestion.description.split(', ');
+    const street = parts[0] || '';
+    const city = parts[1] || 'San Juan';
+    const state = 'PR';
+    const zipCode = parts[2]?.match(/\d{5}$/)?.[0] || '00901';
+    
+    setFormData(prevData => ({
+      ...prevData,
+      addressStreet: street,
+      addressCity: city,
+      addressState: state,
+      addressZipCode: zipCode,
+      addressCountry: 'US',
+      addressPlaceId: suggestion.place_id,
+      addressLatitude: suggestion.geometry.location.lat,
+      addressLongitude: suggestion.geometry.location.lng,
+    }));
+  };
+
+  // Handle demo address input
+  const handleDemoAddressInput = (value: string) => {
+    setAddressSearch(value);
+    if (value.length >= 2) {
+      const suggestions = getDemoAddressSuggestion(value);
+      setDemoSuggestions(suggestions);
+      setShowDemoSuggestions(suggestions.length > 0);
+    } else {
+      setShowDemoSuggestions(false);
+    }
+  };
 
   const handlePlaceSelect = (): void => {
     if (!autocompleteRef.current) return;
@@ -367,7 +417,12 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
             type="text"
             value={addressSearch}
             onChange={(e) => {
-              setAddressSearch(e.target.value);
+              const value = e.target.value;
+              if (isDemoMode) {
+                handleDemoAddressInput(value);
+              } else {
+                setAddressSearch(value);
+              }
               // Clear address-related errors when user types
               if (errors.address) {
                 setErrors(prevErrors => {
@@ -378,9 +433,34 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
               }
             }}
             className="input pl-10"
-            placeholder="Start typing an address in Puerto Rico..."
+            placeholder={isDemoMode ? "Start typing an address... (Demo Mode)" : "Start typing an address in Puerto Rico..."}
             required
           />
+          
+          {/* Demo mode suggestions dropdown */}
+          {isDemoMode && showDemoSuggestions && demoSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+              {demoSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.place_id}
+                  type="button"
+                  onClick={() => handleDemoAddressSelect(suggestion)}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-gray-50"
+                >
+                  <div className="flex items-center">
+                    <span className="text-gray-400 mr-2">📍</span>
+                    <span className="text-sm text-gray-900">{suggestion.description}</span>
+                  </div>
+                </button>
+              ))}
+              <div className="px-4 py-2 bg-blue-50 border-t border-blue-200">
+                <div className="flex items-center text-xs text-blue-700">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Demo addresses only
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <p className="mt-1 text-xs text-gray-500">
           Select an address from the dropdown suggestions

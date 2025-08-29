@@ -2,8 +2,10 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { DemoModeProvider } from './contexts/DemoModeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import DemoModeToggle from './components/DemoModeToggle';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -16,19 +18,21 @@ import Audit from './pages/Audit';
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+      <DemoModeProvider>
+        <AuthProvider>
+          <DemoModeToggle />
+          <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
         <Route
           path="/customers"
           element={
@@ -91,7 +95,8 @@ const App: React.FC = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AuthProvider>
+        </AuthProvider>
+      </DemoModeProvider>
     </ThemeProvider>
   );
 };

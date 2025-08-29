@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { MapPin, Navigation, Clock } from 'lucide-react';
+import { MapPin, Navigation, Clock, AlertTriangle } from 'lucide-react';
 import { Job, JobPriority, RouteOptimization } from '../types';
+import { useDemoMode } from '../contexts/DemoModeContext';
+import { demoMapMarkers, demoRoutePolyline } from '../utils/demoData';
 
 interface RouteMapProps {
   jobs: Job[];
@@ -33,27 +35,101 @@ declare const window: GoogleMapsWindow;
 const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<any>(null);
+  const { isDemoMode } = useDemoMode();
 
   useEffect(() => {
-    console.log('🗺️ RouteMap useEffect triggered', {
-      jobsLength: jobs?.length || 0,
-      hasGoogleMaps: !!window.google,
-      hasGoogleMapsAPI: !!(window.google && window.google.maps),
-      mapRefExists: !!mapRef.current
-    });
-    
-    // Initialize Google Map when jobs are available
-    if (jobs && jobs.length > 0 && window.google && window.google.maps) {
-      console.log('✅ Initializing Google Map...');
+    if (isDemoMode) {
+      initializeDemoMap();
+    } else if (jobs && jobs.length > 0 && window.google && window.google.maps) {
       initializeMap();
-    } else {
-      console.log('⚠️ Cannot initialize map:', {
-        noJobs: !jobs || jobs.length === 0,
-        noGoogleMaps: !window.google,
-        noGoogleMapsAPI: !(window.google && window.google.maps)
-      });
     }
-  }, [jobs]);
+  }, [jobs, isDemoMode]);
+
+  const initializeDemoMap = (): void => {
+    if (!mapRef.current) return;
+
+    // Create a simple demo map using HTML/CSS
+    mapRef.current.innerHTML = `
+      <div class="relative w-full h-full bg-gradient-to-br from-blue-100 to-green-100 rounded-lg overflow-hidden">
+        <!-- Demo map background -->
+        <div class="absolute inset-0 bg-gray-200" style="background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23e5e5e5" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="white"/><rect width="100" height="100" fill="url(%23grid)"/></svg>'); opacity: 0.3;"></div>
+        
+        <!-- Puerto Rico outline (simplified) -->
+        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 200">
+          <path d="M50,120 Q80,100 120,110 Q160,105 200,115 Q240,110 280,120 Q320,115 350,125 Q370,130 380,140 Q375,150 350,155 Q300,160 250,155 Q200,150 150,155 Q100,160 60,150 Q40,140 50,120 Z" 
+                fill="#10b981" fill-opacity="0.3" stroke="#059669" stroke-width="2"/>
+          <text x="215" y="135" text-anchor="middle" fill="#059669" font-size="12" font-weight="bold">Puerto Rico</text>
+        </svg>
+        
+        <!-- Demo markers -->
+        ${demoMapMarkers.map((marker, index) => {
+          const x = 50 + (marker.position.lng + 66.7) * 300;
+          const y = 50 + (18.5 - marker.position.lat) * 200;
+          const color = marker.priority === 'High' ? '#dc2626' : marker.priority === 'Medium' ? '#d97706' : '#16a34a';
+          
+          return `
+            <div class="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group" 
+                 style="left: ${x}px; top: ${y}px;" 
+                 onclick="showDemoInfo('${marker.id}', '${marker.title}', '${marker.customer}', '${marker.priority}', '${marker.time}')">
+              <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white text-sm font-bold"
+                   style="background-color: ${color}">
+                ${index + 1}
+              </div>
+              <!-- Tooltip -->
+              <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+                <div class="font-semibold">${marker.title}</div>
+                <div>${marker.customer} - ${marker.time}</div>
+                <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+        
+        <!-- Demo route line -->
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 200">
+          <polyline points="${demoRoutePolyline.map(point => {
+            const x = 50 + (point.lng + 66.7) * 300;
+            const y = 50 + (18.5 - point.lat) * 200;
+            return `${x},${y}`;
+          }).join(' ')}" 
+                    fill="none" stroke="#2563eb" stroke-width="3" stroke-dasharray="5,5" opacity="0.8"/>
+        </svg>
+        
+        <!-- Demo mode indicator -->
+        <div class="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-blue-300 rounded-full animate-pulse"></div>
+            Demo Map
+          </div>
+        </div>
+        
+        <!-- Demo info panel -->
+        <div id="demo-info" class="absolute bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 max-w-xs hidden">
+          <div id="demo-info-content"></div>
+        </div>
+      </div>
+    `;
+
+    // Add click handler for demo markers
+    (window as any).showDemoInfo = (id: string, title: string, customer: string, priority: string, time: string) => {
+      const infoPanel = document.getElementById('demo-info');
+      const infoContent = document.getElementById('demo-info-content');
+      
+      if (infoPanel && infoContent) {
+        infoContent.innerHTML = `
+          <h4 class="font-semibold text-gray-900 mb-2">${title}</h4>
+          <div class="space-y-1 text-sm text-gray-600">
+            <div><span class="font-medium">Customer:</span> ${customer}</div>
+            <div><span class="font-medium">Priority:</span> <span class="font-semibold" style="color: ${priority === 'High' ? '#dc2626' : priority === 'Medium' ? '#d97706' : '#16a34a'}">${priority}</span></div>
+            <div><span class="font-medium">Time:</span> ${time}</div>
+          </div>
+          <button onclick="document.getElementById('demo-info').classList.add('hidden')" 
+                  class="mt-3 text-xs text-blue-600 hover:text-blue-800">Close</button>
+        `;
+        infoPanel.classList.remove('hidden');
+      }
+    };
+  };
 
   const initializeMap = (): void => {
     console.log('🚀 initializeMap called', {
@@ -232,8 +308,16 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Route Map</h3>
-        {optimizedRoute && (
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">Route Map</h3>
+          {isDemoMode && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Demo Mode</span>
+            </div>
+          )}
+        </div>
+        {!isDemoMode && optimizedRoute && (
           <div className="flex items-center gap-4 text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <Navigation className="h-4 w-4" />
@@ -242,6 +326,18 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
               <span>{Math.round(optimizedRoute.totalTime / 60)} hours</span>
+            </div>
+          </div>
+        )}
+        {isDemoMode && (
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <Navigation className="h-4 w-4" />
+              <span>42.3 km</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>3.2 hours</span>
             </div>
           </div>
         )}
