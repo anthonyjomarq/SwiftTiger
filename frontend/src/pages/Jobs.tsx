@@ -10,6 +10,7 @@ import Modal from '../components/Modal';
 import JobForm from '../components/JobForm';
 import JobLogs from '../components/JobLogs';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 
 interface JobsData {
   jobs: Job[];
@@ -51,12 +52,14 @@ const Jobs: React.FC = () => {
     ['jobs', { 
       page: currentPage, 
       status: statusFilter, 
-      assignedTo: assignedToFilter 
+      assignedTo: assignedToFilter,
+      search: searchTerm 
     }],
     () => jobService.getJobs({ 
       page: currentPage, 
       status: statusFilter, 
-      assignedTo: assignedToFilter 
+      assignedTo: assignedToFilter,
+      search: searchTerm 
     } as JobQueryParams),
     { keepPreviousData: true }
   );
@@ -291,7 +294,20 @@ const Jobs: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {jobsData?.jobs?.map((job) => (
+              {jobsData?.jobs?.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <EmptyState
+                      icon="jobs"
+                      title="No jobs found"
+                      description="No jobs match your current filters. Try adjusting your search criteria or create a new job to get started."
+                      actionLabel="Create New Job"
+                      onAction={handleCreateJob}
+                      className="py-8"
+                    />
+                  </td>
+                </tr>
+              ) : jobsData?.jobs?.map((job) => (
                 <tr key={job.id} className="hover:bg-gray-50">
                   <td className="table-cell">
                     <div>

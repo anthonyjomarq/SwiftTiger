@@ -23,11 +23,33 @@ export const customerService = {
   async getCustomers(params: CustomerQueryParams = {}): Promise<CustomerListResponse> {
     if (isDemoMode()) {
       const { data } = await demoCustomerService.getAll();
+      
+      // Apply client-side filtering for demo
+      let filteredCustomers = data;
+      
+      // Search filter
+      if (params.search && params.search.trim()) {
+        const searchLower = params.search.toLowerCase();
+        filteredCustomers = filteredCustomers.filter(customer => 
+          customer.name.toLowerCase().includes(searchLower) ||
+          customer.email.toLowerCase().includes(searchLower) ||
+          customer.addressCity.toLowerCase().includes(searchLower) ||
+          customer.businessType?.toLowerCase().includes(searchLower) ||
+          customer.phone?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Pagination
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const startIndex = (page - 1) * limit;
+      const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + limit);
+      
       return {
-        customers: data,
-        total: data.length,
-        page: params.page || 1,
-        limit: params.limit || 10
+        customers: paginatedCustomers,
+        total: filteredCustomers.length,
+        page,
+        limit
       };
     }
     return realCustomerService.getCustomers(params);

@@ -10,6 +10,7 @@ import Modal from '../components/Modal';
 import CustomerForm from '../components/CustomerForm';
 import CustomerJobs from '../components/CustomerJobs';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 
 interface CustomersData {
   customers: Customer[];
@@ -218,7 +219,20 @@ const Customers: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {customersData?.customers?.map((customer) => (
+              {!customersData?.customers?.length ? (
+                <tr>
+                  <td colSpan={5} className="p-0">
+                    <EmptyState
+                      icon="users"
+                      title="No customers found"
+                      description="No customers match your search criteria. Add your first customer to start managing your client base."
+                      actionLabel="Add Customer"
+                      onAction={handleCreateCustomer}
+                      className="py-8"
+                    />
+                  </td>
+                </tr>
+              ) : customersData?.customers?.map((customer) => (
                 <tr key={customer.id} className="hover:bg-gray-50">
                   <td className="table-cell">
                     <div className="flex items-center">

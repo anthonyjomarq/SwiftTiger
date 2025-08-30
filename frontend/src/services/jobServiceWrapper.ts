@@ -23,11 +23,42 @@ export const jobService = {
   async getJobs(params: JobQueryParams = {}): Promise<JobListResponse> {
     if (isDemoMode()) {
       const { data } = await demoJobService.getAll();
+      
+      // Apply client-side filtering for demo
+      let filteredJobs = data;
+      
+      // Search filter
+      if (params.search && params.search.trim()) {
+        const searchLower = params.search.toLowerCase();
+        filteredJobs = filteredJobs.filter(job => 
+          job.jobName.toLowerCase().includes(searchLower) ||
+          job.description?.toLowerCase().includes(searchLower) ||
+          job.Customer?.name.toLowerCase().includes(searchLower) ||
+          job.serviceType.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Status filter
+      if (params.status) {
+        filteredJobs = filteredJobs.filter(job => job.status === params.status);
+      }
+      
+      // Assigned technician filter
+      if (params.assignedTo) {
+        filteredJobs = filteredJobs.filter(job => job.assignedTo === params.assignedTo);
+      }
+      
+      // Pagination
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const startIndex = (page - 1) * limit;
+      const paginatedJobs = filteredJobs.slice(startIndex, startIndex + limit);
+      
       return {
-        jobs: data,
-        total: data.length,
-        page: params.page || 1,
-        limit: params.limit || 10
+        jobs: paginatedJobs,
+        total: filteredJobs.length,
+        page,
+        limit
       };
     }
     return realJobService.getJobs(params);

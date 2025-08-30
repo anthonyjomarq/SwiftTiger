@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Plus, Edit, Trash2, Shield, User } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, User, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { User as UserType, UserRole } from '../types';
 import { userService } from '../services/userServiceWrapper';
@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 
 interface MutationVariables {
   id: string;
@@ -19,6 +20,7 @@ const Users: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [userToDelete, setUserToDelete] = useState<UserType | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   
   const { hasRole, isMainAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -124,6 +126,17 @@ const Users: React.FC = () => {
     setUserToDelete(null);
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Filter users based on search term
+  const filteredUsers = users?.filter(user => 
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.role.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -149,6 +162,20 @@ const Users: React.FC = () => {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Search users by name, email, or role..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="input pl-10"
+          />
+        </div>
+      </div>
+
       {/* Users Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -164,7 +191,20 @@ const Users: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users?.map((user) => (
+              {!filteredUsers?.length ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <EmptyState
+                      icon="users"
+                      title="No users found"
+                      description="There are no users in the system yet. Create your first user account to get started."
+                      actionLabel="Add User"
+                      onAction={handleCreateUser}
+                      className="py-8"
+                    />
+                  </td>
+                </tr>
+              ) : filteredUsers?.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50">
                   <td className="table-cell">
                     <div className="flex items-center">
