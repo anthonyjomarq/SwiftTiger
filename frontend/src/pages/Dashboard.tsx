@@ -3,7 +3,7 @@ import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { Users, Briefcase, Clock, CheckCircle, AlertTriangle, Calendar, LucideIcon } from 'lucide-react';
 import { Job, JobPriority, JobStatus } from '../types';
-import api from '../utils/api';
+import { dashboardService } from '../services/dashboardServiceWrapper';
 import JobStatusChart from '../components/Charts/JobStatusChart';
 import TechnicianWorkloadChart from '../components/Charts/TechnicianWorkloadChart';
 import JobTrendChart from '../components/Charts/JobTrendChart';
@@ -51,13 +51,11 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
   const { data: stats, isLoading } = useQuery<DashboardStats>('dashboard-stats', async () => {
-    const response = await api.get('/dashboard/stats');
-    return response.data;
+    return await dashboardService.getStats();
   });
 
   const { data: recentJobs } = useQuery<Job[]>('recent-jobs', async () => {
-    const response = await api.get('/jobs?limit=5');
-    return response.data.jobs;
+    return await dashboardService.getRecentJobs();
   });
 
   if (isLoading) {

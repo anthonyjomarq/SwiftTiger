@@ -5,7 +5,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { DemoModeProvider } from './contexts/DemoModeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import DemoModeToggle from './components/DemoModeToggle';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -20,7 +19,6 @@ const App: React.FC = () => {
     <ThemeProvider>
       <DemoModeProvider>
         <AuthProvider>
-          <DemoModeToggle />
           <Routes>
           <Route path="/login" element={<Login />} />
           <Route

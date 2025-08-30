@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Plus, Edit, Trash2, Shield, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { User as UserType, UserRole } from '../types';
-import { userService } from '../services/userService';
+import { userService } from '../services/userServiceWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';

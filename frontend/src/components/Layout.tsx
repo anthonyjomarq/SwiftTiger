@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { UserRole } from '../types';
 import ThemeToggle from './ThemeToggle';
+import DemoToggle from './DemoToggle';
+import DemoBanner from './DemoBanner';
 
 interface NavigationItem {
   name: string;
@@ -18,6 +21,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout, hasRole } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,9 +36,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Customers', href: '/customers', icon: '👥', current: location.pathname.startsWith('/customers') },
     { name: 'Jobs', href: '/jobs', icon: '💼', current: location.pathname.startsWith('/jobs') && !location.pathname.startsWith('/job-logs') },
     { name: 'Job Logs', href: '/job-logs', icon: '📝', current: location.pathname.startsWith('/job-logs') },
-    { name: 'Route Optimizer', href: '/routes', icon: '🗺️', current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
+    // Hide Route Optimizer and Audit Logs in demo mode
+    ...(isDemoMode ? [] : [
+      { name: 'Route Optimizer', href: '/routes', icon: '🗺️', current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
+      { name: 'Audit Logs', href: '/audit', icon: '🛡️', current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
+    ]),
     { name: 'User Management', href: '/users', icon: '⚙️', current: location.pathname.startsWith('/users'), roles: ['admin'] },
-    { name: 'Audit Logs', href: '/audit', icon: '🛡️', current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
   ];
 
   const filteredNavigation = navigation.filter(item => 
@@ -135,6 +142,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Right side - User info and actions */}
             <div className="flex items-center gap-x-4">
+              {/* Demo mode toggle */}
+              <DemoToggle />
               {/* Theme toggle */}
               <ThemeToggle />
               {/* User profile section */}
@@ -179,6 +188,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Page content */}
         <main className="py-8">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <DemoBanner />
             {children}
           </div>
         </main>
