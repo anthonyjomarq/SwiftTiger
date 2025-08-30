@@ -1,10 +1,11 @@
 # SwiftTiger - Field Service Management System
 
-> **[VIEW LIVE DEMO](https://anthonyjomarq.github.io/login)** - Click here to try it now!
+VIEW LIVE DEMO: https://anthonyjomarq.github.io/SwiftTiger/
 
 A comprehensive field service management application built with **React + TypeScript** for businesses that need to schedule jobs, dispatch technicians, and track work orders efficiently.
 
-![Dashboard Screenshot]()
+<img width="2506" height="1268" alt="image" src="https://github.com/user-attachments/assets/8c72f761-270d-49e4-93c8-86c69f4dd639" />
+
 
 ## What it does
 
@@ -31,13 +32,11 @@ SwiftTiger helps service companies manage their daily operations:
 ## Screenshots
 
 ### Job Management
-![Jobs](https://github.com/user-attachments/assets/7d912ec0-6277-4510-868e-dbc9974256a6)
+<img width="2506" height="1231" alt="image" src="https://github.com/user-attachments/assets/2ad81420-89c8-485d-b033-833b5799cb4e" />
+
 
 ### Customer Directory
-![Customers](https://github.com/user-attachments/assets/089a9a43-76c7-42cf-ab5f-8aa0a3382f56)
-
-### Dashboard Analytics
-![Dashboard](https://github.com/user-attachments/assets/ad7de798-a7ec-4911-b9a1-74f719cab866)
+<img width="2504" height="1260" alt="image" src="https://github.com/user-attachments/assets/b08dc8b7-aa2f-40cc-a8d8-38d21fb37e74" />
 
 ### Route Optimization
 ![Routes](https://github.com/user-attachments/assets/b6d7ead4-a980-42d3-be66-90090feced1b)
@@ -63,39 +62,6 @@ SwiftTiger helps service companies manage their daily operations:
 - Comprehensive test coverage
 - Dark mode support
 
-## Quick Start
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd SwiftTiger
-```
-
-2. **Install dependencies**
-```bash
-npm run install:all
-```
-
-3. **Set up environment**
-```bash
-cp backend/.env.example backend/.env
-# Edit backend/.env with your database settings
-```
-
-4. **Set up database**
-```bash
-createdb swifttiger
-cd backend && npm run migrate
-npm run seed-demo  # Loads sample data
-```
-
-5. **Start the application**
-```bash
-npm run dev
-```
-
-Visit http://localhost:3000 for the frontend and http://localhost:5000 for the API.
-
 ## Project Structure
 
 ```
@@ -116,12 +82,6 @@ npm run test:coverage # With coverage report
 
 The project includes both frontend and backend tests with good coverage of core functionality.
 
-## Deployment
-
-The application is set up for deployment on platforms like Render.com with:
-- Automated CI/CD pipeline
-- Environment-specific configurations
-- Production optimizations
 
 ## Key Features
 
