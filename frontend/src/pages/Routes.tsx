@@ -48,7 +48,7 @@ const Routes: React.FC = () => {
   useEffect(() => {
     const loadMaps = async (): Promise<void> => {
       try {
-        console.log('🔄 Loading Google Maps script...');
+        console.log('Loading Google Maps script...');
         await loadGoogleMapsScript();
         
         // Verify the Google Maps API is actually loaded
@@ -106,7 +106,7 @@ const Routes: React.FC = () => {
 
     setIsOptimizing(true);
     try {
-      console.log(`🗺️ Optimizing route for ${selectedTechnician.name} with ${filteredJobs.length} jobs`);
+      console.log(`Optimizing route for ${selectedTechnician.name} with ${filteredJobs.length} jobs`);
       const optimized = await routeService.optimizeRoute(filteredJobs);
       setOptimizedRoute(optimized);
       toast.success(`Route optimized for ${selectedTechnician.name}! ${optimized.route.length} jobs, ${optimized.totalDistance}km, ${Math.round(optimized.totalTime/60)} hours`);
@@ -144,7 +144,7 @@ const Routes: React.FC = () => {
   };
 
   const handleGeographicClustering = async (): Promise<void> => {
-    console.log('🔵 Geographic clustering button clicked!', {
+    console.log('Geographic clustering button clicked:', {
       jobsLength: jobs.length,
       jobsData: jobs
     });
@@ -157,7 +157,7 @@ const Routes: React.FC = () => {
 
     setIsClustering(true);
     try {
-      console.log('🎯 Calling routeService.performGeographicClustering...');
+      console.log('Calling routeService.performGeographicClustering...');
       const jobClusters = routeService.performGeographicClustering(jobs, 6);
       console.log('📊 Clustering result:', jobClusters);
       setClusters(jobClusters);
@@ -183,10 +183,10 @@ const Routes: React.FC = () => {
 
     setIsAutoAssigning(true);
     try {
-      console.log('🚀 Starting auto-assignment with clusters:', clusters);
+      console.log('Starting auto-assignment with clusters:', clusters);
       const assignments = await routeService.autoAssignJobsToTechnicians(clusters, technicians, selectedDate, excludedTechnicians);
       setAutoAssignments(assignments);
-      console.log('✅ Auto-assignment completed, refreshing job data...');
+      console.log('Auto-assignment completed, refreshing job data...');
       
       // Force refresh of all job data to show updated assignments
       await refetchJobs();

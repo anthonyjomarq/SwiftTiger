@@ -1,8 +1,10 @@
 # SwiftTiger - Field Service Management System
 
-A comprehensive field service management application for businesses that need to schedule jobs, dispatch technicians, and track work orders efficiently.
+> **[VIEW LIVE DEMO](https://anthonyjomarq.github.io/login)** - Click here to try it now!
 
-![Dashboard Screenshot](https://github.com/user-attachments/assets/1e08c9b1-f163-49cd-b97f-85f813e63ec4)
+A comprehensive field service management application built with **React + TypeScript** for businesses that need to schedule jobs, dispatch technicians, and track work orders efficiently.
+
+![Dashboard Screenshot]()
 
 ## What it does
 
@@ -15,14 +17,16 @@ SwiftTiger helps service companies manage their daily operations:
 
 ## Demo Credentials
 
-Try the live demo with these accounts:
+**Try the live demo with these accounts** (password for all: `demo123`):
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@swifttiger.com` | `Admin123!` |
-| Manager | `manager@swifttiger.com` | `Manager123!` |
-| Dispatcher | `dispatcher@swifttiger.com` | `Dispatcher123!` |
-| Technician | `tech1@swifttiger.com` | `Tech123!` |
+| Role | Email | Description |
+|------|-------|-------------|
+| **Admin** | `admin@demo.com` | Full system access & user management |
+| **Manager** | `manager@demo.com` | Job oversight & team management |
+| **Dispatcher** | `dispatcher@demo.com` | Job assignment & scheduling |
+| **Technician** | `tech@demo.com` | Field work & job updates |
+
+> **Note:** All demo data is stored in browser localStorage and persists between sessions. You can reset data anytime in the demo settings.
 
 ## Screenshots
 

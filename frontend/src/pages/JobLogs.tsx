@@ -299,7 +299,7 @@ const JobLogs: React.FC = () => {
                     {(log.photos as string[]).slice(0, 4).map((photo, index) => (
                       <div key={index} className="relative">
                         <img
-                          src={`/api/uploads/${photo}`}
+                          src={photo.startsWith('http') ? photo : `/api/uploads/${photo}`}
                           alt={`Photo ${index + 1}`}
                           className="w-full h-20 object-cover rounded border hover:opacity-75 cursor-pointer"
                           onClick={() => handlePhotoClick(photo)}

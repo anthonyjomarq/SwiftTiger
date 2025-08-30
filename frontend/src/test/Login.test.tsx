@@ -6,8 +6,10 @@ import Login from '../pages/Login'
 import { AuthProvider } from '../contexts/AuthContext'
 
 // Mock the authService
-vi.mock('../services/authService', () => ({
-  login: vi.fn(),
+vi.mock('../services/authServiceWrapper', () => ({
+  authService: {
+    login: vi.fn(),
+  },
 }))
 
 const renderLogin = () => {

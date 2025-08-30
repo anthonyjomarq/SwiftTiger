@@ -66,13 +66,13 @@ export const routeService = {
 
   // Geographic clustering using k-means algorithm
   performGeographicClustering(jobs: Job[], numberOfClusters: number = 6): JobCluster[] {
-    console.log('🎯 Starting geographic clustering...', {
+    console.log('Starting geographic clustering...', {
       totalJobs: jobs?.length || 0,
       numberOfClusters
     });
     
     if (!jobs || jobs.length === 0) {
-      console.log('❌ No jobs provided for clustering');
+      console.log('No jobs provided for clustering');
       return [];
     }
     
@@ -81,14 +81,14 @@ export const routeService = {
       job.Customer?.addressLatitude && job.Customer?.addressLongitude
     );
     
-    console.log('📍 Jobs with coordinates:', {
+    console.log('Jobs with coordinates:', {
       totalJobs: jobs.length,
       jobsWithCoords: jobsWithCoords.length,
       missingCoords: jobs.length - jobsWithCoords.length
     });
     
     if (jobsWithCoords.length === 0) {
-      console.log('❌ No jobs with valid coordinates found');
+      console.log('No jobs with valid coordinates found');
       return [];
     }
     
@@ -124,7 +124,7 @@ export const routeService = {
       averagePriority: this.calculateAveragePriority(cluster)
     }));
     
-    console.log('✅ Geographic clustering completed:', {
+    console.log('Geographic clustering completed:', {
       clustersCreated: result.length,
       clustersSummary: result.map(cluster => ({
         region: cluster.region,
@@ -269,7 +269,7 @@ export const routeService = {
     date: string, 
     excludedTechnicianIds: string[] = []
   ): Promise<AutoAssignmentResult> {
-    console.log('🎯 Starting auto-assignment process...');
+    console.log('Starting auto-assignment process...');
     
     // Filter out non-technicians and excluded technicians
     const availableTechnicians = technicians.filter(tech => 
@@ -343,13 +343,13 @@ export const routeService = {
     
     // Distribute jobs one by one to achieve better balance
     for (const job of sortedJobs) {
-      console.log(`\n🎯 Assigning job: ${job.jobName} (${(job as any).clusterRegion}, ${job.priority}, ${job.estimatedDuration}min)`);
+      console.log(`Assigning job: ${job.jobName} (${(job as any).clusterRegion}, ${job.priority}, ${job.estimatedDuration}min)`);
       
       // Find best technician for this individual job
       let bestTechnician = this.findBestTechnicianForJob(job as any, technicianWorkload, averageWorkPerTech);
       
       if (bestTechnician) {
-        console.log(`✅ Assigned job to ${bestTechnician.name} (current load: ${Math.round(bestTechnician.totalDuration/60)}h)`);
+        console.log(`Assigned job to ${bestTechnician.name} (current load: ${Math.round(bestTechnician.totalDuration/60)}h)`);
         
         // Assign job to technician
         bestTechnician.assignedJobs.push(job);
@@ -363,7 +363,7 @@ export const routeService = {
           await api.put(`/jobs/${job.id}`, {
             assignedTo: bestTechnician.id
           });
-          console.log(`✅ Job ${job.id} successfully assigned to ${bestTechnician.name} in database`);
+          console.log(`Job ${job.id} successfully assigned to ${bestTechnician.name} in database`);
         } catch (error: any) {
           console.error(`❌ Failed to assign job ${job.id} to ${bestTechnician.name}:`, error);
           throw error;
@@ -395,7 +395,7 @@ export const routeService = {
     });
     
     const balanceScore = this.calculateWorkloadBalance(technicianWorkload);
-    console.log(`⚖️ Workload balance score: ${balanceScore.toFixed(1)}%`);
+    console.log(`Workload balance score: ${balanceScore.toFixed(1)}%`);
     
     return {
       assignments: finalAssignments,
@@ -560,7 +560,7 @@ export const routeService = {
     // Good balance: CV < 0.2 (80-100%), Fair: 0.2-0.4 (60-80%), Poor: >0.4 (<60%)
     const balanceScore = Math.max(0, 100 - (coefficientOfVariation * 250));
     
-    console.log('⚖️ Balance calculation:', {
+    console.log('Balance calculation:', {
       activeTechnicians: activeTechnicians.length,
       averageHours: Math.round(average * 10) / 10,
       stdDeviation: Math.round(standardDeviation * 10) / 10,

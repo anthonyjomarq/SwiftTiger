@@ -199,7 +199,7 @@ export const sampleDataService = {
   },
 
   async createSampleTechnicians(): Promise<User[]> {
-    console.log('🔧 Starting technician creation...');
+    console.log('Creating technicians...');
     const technicians: User[] = [];
     
     for (const techData of SAMPLE_TECHNICIANS) {
@@ -244,7 +244,7 @@ export const sampleDataService = {
   },
 
   async createSampleCustomers(): Promise<Customer[]> {
-    console.log('🏢 Starting customer creation...');
+    console.log('Creating customers...');
     const customers: Customer[] = [];
     
     for (const customerData of SAMPLE_CUSTOMERS) {
@@ -297,7 +297,7 @@ export const sampleDataService = {
   },
 
   async createSampleJobs(customers: Customer[], technicians: User[], targetDate: string): Promise<Job[]> {
-    console.log('💼 Starting job creation...');
+    console.log('Creating jobs...');
     console.log(`Target customers: ${customers.length}, technicians: ${technicians.length}, date: ${targetDate}`);
     const jobs: Job[] = [];
     

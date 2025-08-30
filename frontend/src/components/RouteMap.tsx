@@ -151,7 +151,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
     try {
       // Center map on Puerto Rico
       const puertoRico = { lat: 18.2208, lng: -66.5901 };
-      console.log('📍 Creating map centered on Puerto Rico:', puertoRico);
+      console.log('Creating map centered on Puerto Rico:', puertoRico);
       
       const map = new window.google.maps.Map(mapRef.current, {
         zoom: 10,
@@ -213,14 +213,14 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
         drawOptimizedRoute(map, optimizedRoute.route);
       }
       
-      console.log('🎯 Map initialization completed successfully');
+      console.log('Map initialization completed successfully');
     } catch (error) {
       console.error('[RouteMap] Error initializing Google Map:', error);
     }
   };
 
   const drawOptimizedRoute = (map: any, routeJobs: Job[]): void => {
-    console.log('🛣️ Drawing optimized route with', routeJobs.length, 'jobs');
+    console.log('Drawing optimized route with', routeJobs.length, 'jobs');
     
     try {
       if (!window.google?.maps?.DirectionsService || !window.google?.maps?.DirectionsRenderer) {
@@ -251,7 +251,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
           stopover: true
         }));
 
-      console.log('📍 Created waypoints:', waypoints.length);
+      console.log('Created waypoints:', waypoints.length);
 
       if (waypoints.length >= 2) {
         const origin = waypoints[0].location;
@@ -266,7 +266,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
           optimizeWaypoints: false, // We've already optimized
           travelMode: window.google?.maps?.TravelMode?.DRIVING || 'DRIVING',
         }, (result: any, status: string) => {
-          console.log('📍 Directions result:', { status, result });
+          console.log('Directions result:', { status, result });
           if (status === 'OK') {
             directionsRenderer.setDirections(result);
             console.log('✅ Route drawn successfully');

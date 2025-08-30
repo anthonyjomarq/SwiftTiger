@@ -22,7 +22,7 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     hasWindowGoogle: !!window.google
   };
   
-  console.log('🔍 Checking Google Maps loading status:', status);
+  console.log('Checking Google Maps loading status:', status);
   
   if (isGoogleMapsLoaded) {
     console.log('✅ Google Maps already loaded');
@@ -36,7 +36,7 @@ export const loadGoogleMapsScript = (): Promise<void> => {
 
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
-    console.log('🔑 Google Maps API Key status:', apiKey ? 'Found' : 'Missing');
+    console.log('Google Maps API Key status:', apiKey ? 'Found' : 'Missing');
     
     if (!apiKey) {
       reject(new Error('Google Maps API key not found. Please set VITE_GOOGLE_MAPS_API_KEY in your .env file'));
@@ -57,7 +57,7 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     script.async = true;
     script.defer = true;
     
-    console.log('📍 Google Maps script URL:', script.src);
+    console.log('Google Maps script URL:', script.src);
     
     script.onload = (): void => {
       console.log('📥 Google Maps script loaded, checking APIs...');
@@ -72,7 +72,7 @@ export const loadGoogleMapsScript = (): Promise<void> => {
           hasPlaces: !!(window.google && window.google.maps && window.google.maps.places)
         };
         
-        console.log(`🔍 Attempt ${attempts + 1}/${maxAttempts}:`, status);
+        console.log(`Attempt ${attempts + 1}/${maxAttempts}:`, status);
         
         if (status.hasGoogle && status.hasMaps && status.hasPlaces) {
           console.log('✅ Google Maps and Places API fully loaded');
@@ -95,7 +95,7 @@ export const loadGoogleMapsScript = (): Promise<void> => {
       reject(new Error('Failed to load Google Maps script'));
     };
 
-    console.log('📍 Appending Google Maps script to document head...');
+    console.log('Appending Google Maps script to document head...');
     document.head.appendChild(script);
   });
 

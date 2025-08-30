@@ -12,8 +12,10 @@ const STORAGE_KEYS = {
 
 // Initialize demo data
 const initializeDemoData = () => {
-  if (localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
-    return; // Already initialized
+  // Check if we need to reinitialize due to updates
+  const currentVersion = localStorage.getItem('demo-data-version');
+  if (localStorage.getItem(STORAGE_KEYS.INITIALIZED) && currentVersion === '2.2') {
+    return; // Already initialized with correct version
   }
 
   // Demo customers - Diverse business types with realistic scenarios
@@ -169,7 +171,7 @@ const initializeDemoData = () => {
     {
       id: 'demo-admin',
       name: 'Maria Rodriguez',
-      email: 'maria.rodriguez@swifttiger.com',
+      email: 'admin@demo.com',
       role: 'admin',
       isMainAdmin: true,
       isActive: true,
@@ -180,7 +182,7 @@ const initializeDemoData = () => {
     {
       id: 'demo-manager',
       name: 'Carlos Santos',
-      email: 'carlos.santos@swifttiger.com',
+      email: 'manager@demo.com',
       role: 'manager',
       isMainAdmin: false,
       isActive: true,
@@ -191,7 +193,7 @@ const initializeDemoData = () => {
     {
       id: 'demo-dispatcher',
       name: 'Ana Morales',
-      email: 'ana.morales@swifttiger.com',
+      email: 'dispatcher@demo.com',
       role: 'dispatcher',
       isMainAdmin: false,
       isActive: true,
@@ -202,7 +204,7 @@ const initializeDemoData = () => {
     {
       id: 'demo-tech1',
       name: 'Luis Ramirez',
-      email: 'luis.ramirez@swifttiger.com',
+      email: 'tech@demo.com',
       role: 'technician',
       isMainAdmin: false,
       isActive: true,
@@ -521,7 +523,7 @@ const initializeDemoData = () => {
       jobId: '1',
       notes: 'Diagnostic complete. Main air handler motor bearing failure detected. Temporary cooling system deployed to maintain OR temperatures. Ordering replacement parts.',
       statusUpdate: 'In Progress',
-      photos: ['hvac_diagnostic_1.jpg', 'temp_cooling_setup.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 2700000), // 45 min ago
       updatedAt: new Date(Date.now() - 2700000)
     },
@@ -530,7 +532,7 @@ const initializeDemoData = () => {
       jobId: '1',
       notes: 'Replacement motor installed. Testing system performance. OR temperatures stabilized at 68°F. Monitoring for 30 minutes before final sign-off.',
       statusUpdate: 'In Progress',
-      photos: ['new_motor_installed.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 1800000), // 30 min ago
       updatedAt: new Date(Date.now() - 1800000)
     },
@@ -549,7 +551,7 @@ const initializeDemoData = () => {
       id: '5',
       jobId: '3',
       notes: 'Completed hands-on training with 8 kitchen staff members. Covered proper loading techniques, chemical dispensing, and safety protocols. All staff demonstrated proficiency.',
-      photos: ['training_session_1.jpg', 'staff_demonstration.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 259200000 + 32400000), // 1 hour later
       updatedAt: new Date(Date.now() - 259200000 + 32400000)
     },
@@ -559,7 +561,7 @@ const initializeDemoData = () => {
       notes: 'Training completed successfully. Left training materials and emergency contact information. Manager signed off on completion. Equipment running smoothly.',
       statusUpdate: 'Completed',
       workEndTime: new Date(Date.now() - 259200000 + 35700000).toISOString(),
-      photos: ['completion_certificate.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 259200000 + 35700000),
       updatedAt: new Date(Date.now() - 259200000 + 35700000)
     },
@@ -571,7 +573,7 @@ const initializeDemoData = () => {
       notes: 'Starting quarterly maintenance at Sunrise Beach Hotel pool area. Checking chemical levels and filtration system performance.',
       statusUpdate: 'In Progress',
       workStartTime: new Date(Date.now() - 1800000).toISOString(),
-      photos: ['pool_initial_check.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 1800000),
       updatedAt: new Date(Date.now() - 1800000)
     },
@@ -579,7 +581,7 @@ const initializeDemoData = () => {
       id: '8',
       jobId: '5',
       notes: 'Filter cartridges replaced. Chemical levels adjusted - pH balanced to 7.4. Pool vacuum system cleaned. Testing circulation pump efficiency.',
-      photos: ['new_filters.jpg', 'chemical_testing.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 900000), // 15 min ago
       updatedAt: new Date(Date.now() - 900000)
     },
@@ -590,7 +592,7 @@ const initializeDemoData = () => {
       jobId: '7',
       notes: 'Day 1: Arrived at Paradise Elementary School. Beginning projector removal in classrooms 101-106. Coordinating with teachers to minimize class disruption.',
       workStartTime: new Date(Date.now() - 432000000 + 28800000).toISOString(),
-      photos: ['old_projectors.jpg', 'classroom_setup.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 432000000 + 28800000),
       updatedAt: new Date(Date.now() - 432000000 + 28800000)
     },
@@ -598,7 +600,7 @@ const initializeDemoData = () => {
       id: '10',
       jobId: '7',
       notes: 'Smart boards installed in 6 classrooms. Network configuration completed. Teachers Ms. Rodriguez and Mr. García received initial training on basic functions.',
-      photos: ['smartboard_install_1.jpg', 'teacher_training.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 432000000 + 36000000), // 2 hours later
       updatedAt: new Date(Date.now() - 432000000 + 36000000)
     },
@@ -608,7 +610,7 @@ const initializeDemoData = () => {
       notes: 'Day 2: Completed installation in remaining 6 classrooms. All systems tested and calibrated. Comprehensive training session with 12 teachers completed. Principal Mrs. López signed final approval.',
       statusUpdate: 'Completed',
       workEndTime: new Date(Date.now() - 432000000 + 46500000).toISOString(),
-      photos: ['final_classroom.jpg', 'teacher_group_training.jpg', 'completion_form.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 432000000 + 46500000),
       updatedAt: new Date(Date.now() - 432000000 + 46500000)
     },
@@ -618,7 +620,7 @@ const initializeDemoData = () => {
       id: '12',
       jobId: '10',
       notes: 'Arrived at Plaza del Caribe Mall for outdoor digital signage installation. Weather conditions deteriorating - high winds and heavy rain approaching.',
-      photos: ['weather_conditions.jpg', 'safety_concern.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 86400000 + 28800000), // Yesterday 8 AM
       updatedAt: new Date(Date.now() - 86400000 + 28800000)
     },
@@ -627,7 +629,7 @@ const initializeDemoData = () => {
       jobId: '10',
       notes: 'Installation cancelled due to severe weather alert. Equipment secured and stored safely. Rescheduling pending weather clearance. Customer notified.',
       statusUpdate: 'Cancelled',
-      photos: ['equipment_secured.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 86400000 + 32400000), // Yesterday 9 AM
       updatedAt: new Date(Date.now() - 86400000 + 32400000)
     },
@@ -637,7 +639,7 @@ const initializeDemoData = () => {
       id: '14',
       jobId: '2',
       notes: 'Site survey completed at TechFlow Solutions. Networking infrastructure requirements documented. Conference room AV specifications reviewed with IT manager.',
-      photos: ['site_survey.jpg', 'network_layout.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 129600000), // 1.5 days ago
       updatedAt: new Date(Date.now() - 129600000)
     },
@@ -645,7 +647,7 @@ const initializeDemoData = () => {
       id: '15',
       jobId: '4',
       notes: 'Coordination meeting with mall management completed. Escalator shutdown scheduled for low-traffic hours (6 AM - 12 PM). Safety barriers ordered.',
-      photos: ['mall_meeting.jpg', 'escalator_assessment.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop', 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 43200000), // 12 hours ago
       updatedAt: new Date(Date.now() - 43200000)
     },
@@ -653,7 +655,7 @@ const initializeDemoData = () => {
       id: '16',
       jobId: '6',
       notes: 'Equipment delivery confirmed for Industrial Manufacturing Corp. Production line shutdown scheduled for next Tuesday. Safety training materials prepared.',
-      photos: ['equipment_manifest.jpg'],
+      photos: ['https://images.unsplash.com/photo-1615963244664-5b845b2025ee?w=400&h=300&fit=crop'],
       createdAt: new Date(Date.now() - 259200000), // 3 days ago
       updatedAt: new Date(Date.now() - 259200000)
     }
@@ -665,6 +667,7 @@ const initializeDemoData = () => {
   localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(demoJobs));
   localStorage.setItem(STORAGE_KEYS.JOB_LOGS, JSON.stringify(demoJobLogs));
   localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+  localStorage.setItem('demo-data-version', '2.2');
 };
 
 // Utility functions
@@ -950,4 +953,30 @@ export const demoBackendService = {
 
   // Address methods
   searchAddress: demoAddressService.search
+};
+
+// Demo authentication service
+export const demoAuthService = {
+  async login(email: string, password: string): Promise<{ token: string; user: User }> {
+    initializeDemoData();
+    
+    // Check demo credentials
+    if (password !== 'demo123') {
+      throw new Error('Invalid credentials');
+    }
+    
+    const users = getStoredData<User>(STORAGE_KEYS.USERS);
+    const user = users.find(u => u.email === email);
+    
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+    
+    // Create mock token and save auth data
+    const token = 'demo-token-' + Date.now();
+    localStorage.setItem('swifttiger-token', token);
+    localStorage.setItem('swifttiger-user', JSON.stringify(user));
+    
+    return { token, user };
+  }
 };

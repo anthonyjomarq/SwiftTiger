@@ -173,10 +173,10 @@ router.post('/',
       }
 
       // Verify customer exists
-      console.log('🔍 Verifying customer exists:', customerId);
+      console.log('Verifying customer exists:', customerId);
       const customerExists = await Customer.findByPk(customerId);
       if (!customerExists) {
-        console.log('❌ Customer not found');
+        console.log('Customer not found');
         return res.status(400).json({ message: 'Customer not found' });
       }
 

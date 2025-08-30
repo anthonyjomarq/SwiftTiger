@@ -46,14 +46,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
 
     // Connection event handlers
     newSocket.on('connect', () => {
-      console.log('✅ WebSocket connected');
+      console.log('WebSocket connected');
       setIsConnected(true);
       reconnectAttemptRef.current = 0;
       toast.success('Real-time updates connected');
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('❌ WebSocket disconnected:', reason);
+      console.log('WebSocket disconnected:', reason);
       setIsConnected(false);
       
       // Only show toast if it's not a manual disconnect
@@ -81,7 +81,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
 
     // Job-related notifications
     newSocket.on('job-notification', (notification: WebSocketNotification) => {
-      console.log('📢 Job notification received:', notification);
+      console.log('Job notification received:', notification);
       addNotification(notification);
       
       // Show toast notifications based on type
@@ -101,12 +101,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     });
 
     newSocket.on('job-status-changed', (notification: WebSocketNotification) => {
-      console.log('📊 Job status changed:', notification);
+      console.log('Job status changed:', notification);
       addNotification(notification);
     });
 
     newSocket.on('job-log-created', (notification: WebSocketNotification) => {
-      console.log('📝 Job log created:', notification);
+      console.log('Job log created:', notification);
       addNotification(notification);
       toast.info('New job log entry added');
     });
@@ -134,7 +134,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
 
     // Dashboard updates
     newSocket.on('dashboard-update', (notification: WebSocketNotification) => {
-      console.log('📊 Dashboard update:', notification);
+      console.log('Dashboard update:', notification);
       addNotification(notification);
     });
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { Eye, EyeOff, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authService } from '../services/authService';
+import { authService } from '../services/authServiceWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import { useDemoMode } from '../contexts/DemoModeContext';
 
@@ -33,7 +33,7 @@ const Login: React.FC = () => {
       toast.success('Login successful!');
       navigate('/');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Login failed');
+      toast.error(error.response?.data?.message || error.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -150,12 +150,6 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          <div className="text-center">
-            <div className="text-sm text-gray-600">
-              <p>Default login credentials:</p>
-              <p className="font-mono">admin@swifttiger.com / Admin123!</p>
-            </div>
-          </div>
         </form>
       </div>
     </div>
