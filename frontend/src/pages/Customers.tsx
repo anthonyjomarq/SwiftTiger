@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import CustomerForm from '../components/CustomerForm';
 import CustomerJobs from '../components/CustomerJobs';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface CustomersData {
   customers: Customer[];
@@ -165,7 +166,7 @@ const Customers: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

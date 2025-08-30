@@ -7,6 +7,7 @@ import { dashboardService } from '../services/dashboardServiceWrapper';
 import JobStatusChart from '../components/Charts/JobStatusChart';
 import TechnicianWorkloadChart from '../components/Charts/TechnicianWorkloadChart';
 import JobTrendChart from '../components/Charts/JobTrendChart';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -61,7 +62,7 @@ const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

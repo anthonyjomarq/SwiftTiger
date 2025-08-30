@@ -3,6 +3,7 @@ import { MapPin, Navigation, Clock, AlertTriangle } from 'lucide-react';
 import { Job, JobPriority, RouteOptimization } from '../types';
 import { useDemoMode } from '../contexts/DemoModeContext';
 import { demoMapMarkers, demoRoutePolyline } from '../utils/demoData';
+import LoadingSpinner from './LoadingSpinner';
 
 interface RouteMapProps {
   jobs: Job[];
@@ -132,14 +133,14 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
   };
 
   const initializeMap = (): void => {
-    console.log('🚀 initializeMap called', {
+    console.log('[RouteMap] initializeMap called', {
       hasMapRef: !!mapRef.current,
       hasGoogleMaps: !!window.google,
       hasGoogleMapsAPI: !!(window.google && window.google.maps)
     });
     
     if (!mapRef.current || !window.google || !window.google.maps) {
-      console.error('❌ Cannot initialize map - missing dependencies:', {
+      console.error('[RouteMap] Cannot initialize map - missing dependencies:', {
         mapRef: !!mapRef.current,
         googleMaps: !!window.google,
         googleMapsAPI: !!(window.google && window.google.maps)
@@ -158,7 +159,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
         mapTypeId: 'roadmap',
       });
 
-      console.log('✅ Google Map created successfully:', map);
+      console.log('[RouteMap] Google Map created successfully:', map);
       googleMapRef.current = map;
 
       // Add markers for each job
@@ -214,7 +215,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
       
       console.log('🎯 Map initialization completed successfully');
     } catch (error) {
-      console.error('❌ Error initializing Google Map:', error);
+      console.error('[RouteMap] Error initializing Google Map:', error);
     }
   };
 
@@ -345,7 +346,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ jobs, optimizedRoute, isLoading }) 
       
       {isLoading ? (
         <div className="flex items-center justify-center py-24 bg-gray-50 rounded-lg">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <LoadingSpinner />
           <span className="ml-3 text-gray-600">Optimizing route...</span>
         </div>
       ) : (

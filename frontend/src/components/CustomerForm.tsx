@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { MapPin } from 'lucide-react';
 import { loadGoogleMapsScript } from '../utils/googleMaps';
 import { Customer } from '../types';
 import { useDemoMode } from '../contexts/DemoModeContext';
@@ -159,6 +160,13 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
   // Handle demo address input
   const handleDemoAddressInput = (value: string) => {
     setAddressSearch(value);
+    
+    // Update form data with manual address entry
+    setFormData(prevData => ({
+      ...prevData,
+      addressStreet: value,
+    }));
+    
     if (value.length >= 2) {
       const suggestions = getDemoAddressSuggestion(value);
       setDemoSuggestions(suggestions);
@@ -299,8 +307,13 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
       newErrors.phone = 'Phone number is required';
     }
 
-    if (!selectedPlace) {
+    // In demo mode, allow addresses without Google Places selection
+    if (!selectedPlace && !isDemoMode && !customer) {
       newErrors.address = 'Please select the address from the dropdown to ensure proper formatting';
+    } else if (!selectedPlace && !isDemoMode && customer && !customer.addressStreet) {
+      newErrors.address = 'Please select the address from the dropdown to ensure proper formatting';
+    } else if (!formData.addressStreet.trim()) {
+      newErrors.address = 'Address is required';
     }
 
     setErrors(newErrors);
@@ -410,7 +423,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="h-5 w-5 text-gray-400">📍</span>
+            <MapPin className="h-5 w-5 text-gray-400" />
           </div>
           <input
             ref={inputRef}
@@ -448,7 +461,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ customer, onSubmit, onCance
                   className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:outline-none focus:bg-gray-50"
                 >
                   <div className="flex items-center">
-                    <span className="text-gray-400 mr-2">📍</span>
+                    <MapPin className="h-4 w-4 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-900">{suggestion.description}</span>
                   </div>
                 </button>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Briefcase, FileText, BarChart, MapPin, Bell, Megaphone } from 'lucide-react';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -9,21 +10,21 @@ const NotificationCenter: React.FC = () => {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'job_created':
-        return '💼';
+        return Briefcase;
       case 'job_updated':
-        return '📝';
+        return FileText;
       case 'job_status_changed':
-        return '📊';
+        return BarChart;
       case 'job_log_created':
-        return '📝';
+        return FileText;
       case 'technician_location':
-        return '📍';
+        return MapPin;
       case 'system_message':
-        return '🔔';
+        return Bell;
       case 'dashboard_update':
-        return '📊';
+        return BarChart;
       default:
-        return '📢';
+        return Megaphone;
     }
   };
 
@@ -149,9 +150,9 @@ const NotificationCenter: React.FC = () => {
                   className="p-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex items-start space-x-3">
-                    <span className="text-2xl flex-shrink-0 mt-1">
-                      {getNotificationIcon(notification.type)}
-                    </span>
+                    <div className="flex-shrink-0 mt-1">
+                      {React.createElement(getNotificationIcon(notification.type), { className: "h-5 w-5 text-gray-400" })}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {getNotificationTitle(notification)}

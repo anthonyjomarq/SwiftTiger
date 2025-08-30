@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle, User } from 'lucide-react';
 import { jobService } from '../services/jobService';
 import { useAuth } from '../contexts/AuthContext';
 import { Job, JobStatus, JobPriority } from '../types';
@@ -170,13 +171,13 @@ const CustomerJobs: React.FC<CustomerJobsProps> = ({ customerId, customerName, o
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className={`${getPriorityColor(job.priority)}`}>⚠️</span>
+                  <AlertTriangle className={`h-4 w-4 ${getPriorityColor(job.priority)}`} />
                   <span className="text-gray-600">Priority:</span>
                   <span className={`font-medium ${getPriorityColor(job.priority)}`}>{job.priority}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400">👤</span>
+                  <User className="h-4 w-4 text-gray-400" />
                   <span className="text-gray-600">Assigned:</span>
                   <span className="font-medium">{job.AssignedTechnician?.name || 'Unassigned'}</span>
                 </div>

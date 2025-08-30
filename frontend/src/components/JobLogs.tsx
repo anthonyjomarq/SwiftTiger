@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { jobLogService } from '../services/jobLogService';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { Plus, User, Edit, Trash2, Camera, X, Save, MessageSquare } from 'lucide-react';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { jobLogServiceWrapper } from '../services/jobLogServiceWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import { JobStatus, User as UserType } from '../types';
 
@@ -13,12 +17,12 @@ interface JobLogPhoto {
   originalName: string;
 }
 
-interface JobLog {
+interface JobLogLocal {
   id: string;
   jobId: string;
   notes: string;
   statusUpdate?: JobStatus;
-  photos?: JobLogPhoto[];
+  photos?: (JobLogPhoto | string)[];
   createdAt: string;
   updatedAt: string;
   Technician?: UserType;
@@ -42,9 +46,9 @@ const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: logs, isLoading } = useQuery<JobLog[]>(
+  const { data: logs, isLoading } = useQuery<JobLogLocal[]>(
     ['job-logs', jobId],
-    () => jobLogService.getJobLogs(jobId),
+    () => jobLogServiceWrapper.getJobLogs(jobId) as Promise<JobLogLocal[]>,
     { enabled: !!jobId }
   );
 
@@ -54,6 +58,8 @@ const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
     formState: { errors },
     reset,
     watch,
+    setValue,
+    getValues
   } = useForm<JobLogFormData>({
     defaultValues: {
       notes: '',
@@ -61,8 +67,13 @@ const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
     },
   });
 
+  const formData = watch();
+  const handleInputChange = (field: keyof JobLogFormData, value: string) => {
+    setValue(field, value as any);
+  };
+
   const createLogMutation = useMutation(
-    (data: FormData) => jobLogService.createJobLog(jobId, data),
+    (data: FormData) => jobLogServiceWrapper.createJobLog(jobId, data),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);
@@ -79,7 +90,7 @@ const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
   );
 
   const updateLogMutation = useMutation(
-    ({ logId, data }: { logId: string; data: FormData }) => jobLogService.updateJobLog(jobId, logId, data),
+    ({ logId, data }: { logId: string; data: FormData }) => jobLogServiceWrapper.updateJobLog(jobId, logId, data),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);
@@ -95,7 +106,7 @@ const JobLogs: React.FC<JobLogsProps> = ({ jobId, jobStatus }) => {
   );
 
   const deleteLogMutation = useMutation(
-    (logId: string) => jobLogService.deleteJobLog(jobId, logId),
+    (logId: string) => jobLogServiceWrapper.deleteJobLog(jobId, logId),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['job-logs', jobId]);

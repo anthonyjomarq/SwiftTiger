@@ -2,8 +2,9 @@ import React, { useState, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
 import { Search, Filter, User, MessageSquare, Calendar, MapPin, Briefcase } from 'lucide-react';
 import { Job, JobLog, JobStatus, User as UserType } from '../types';
-import { jobService } from '../services/jobService';
-import { jobLogService } from '../services/jobLogService';
+import { jobService } from '../services/jobServiceWrapper';
+import { jobLogServiceWrapper } from '../services/jobLogServiceWrapper';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface JobsData {
   jobs: Job[];
@@ -49,7 +50,7 @@ const JobLogs: React.FC = () => {
       
       const logsPromises = jobsData.map(async (job): Promise<EnhancedJobLog[]> => {
         try {
-          const logs = await jobLogService.getJobLogs(job.id);
+          const logs = await jobLogServiceWrapper.getJobLogs(job.id);
           return logs.map(log => ({
             ...log,
             job: {
@@ -145,7 +146,7 @@ const JobLogs: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

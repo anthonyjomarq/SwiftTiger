@@ -72,33 +72,73 @@ const initializeDemoData = () => {
   const demoUsers: User[] = [
     {
       id: 'demo-admin',
-      name: 'Demo Admin',
-      email: 'admin@swifttiger.com',
+      name: 'Maria Rodriguez',
+      email: 'maria.rodriguez@swifttiger.com',
       role: 'admin',
       permissions: ['all'],
-      createdAt: new Date('2024-01-01').toISOString(),
-      updatedAt: new Date('2024-01-01').toISOString(),
+      createdAt: new Date('2023-12-01').toISOString(),
+      updatedAt: new Date('2024-01-20').toISOString(),
       lastLogin: new Date().toISOString()
     },
     {
       id: 'demo-manager',
-      name: 'Demo Manager',
-      email: 'manager@swifttiger.com',
+      name: 'Carlos Santos',
+      email: 'carlos.santos@swifttiger.com',
       role: 'manager',
       permissions: ['read', 'write'],
-      createdAt: new Date('2024-01-02').toISOString(),
-      updatedAt: new Date('2024-01-02').toISOString(),
-      lastLogin: new Date(Date.now() - 86400000).toISOString()
+      createdAt: new Date('2023-12-15').toISOString(),
+      updatedAt: new Date('2024-01-18').toISOString(),
+      lastLogin: new Date(Date.now() - 3600000).toISOString() // 1 hour ago
     },
     {
-      id: 'demo-tech',
-      name: 'Demo Technician',
-      email: 'tech@swifttiger.com',
+      id: 'demo-dispatcher',
+      name: 'Ana Morales',
+      email: 'ana.morales@swifttiger.com',
+      role: 'dispatcher',
+      permissions: ['read', 'write'],
+      createdAt: new Date('2024-01-05').toISOString(),
+      updatedAt: new Date('2024-01-19').toISOString(),
+      lastLogin: new Date(Date.now() - 7200000).toISOString() // 2 hours ago
+    },
+    {
+      id: 'demo-tech1',
+      name: 'Luis Ramirez',
+      email: 'luis.ramirez@swifttiger.com',
       role: 'technician',
       permissions: ['read'],
-      createdAt: new Date('2024-01-03').toISOString(),
-      updatedAt: new Date('2024-01-03').toISOString(),
-      lastLogin: new Date(Date.now() - 172800000).toISOString()
+      createdAt: new Date('2024-01-10').toISOString(),
+      updatedAt: new Date('2024-01-19').toISOString(),
+      lastLogin: new Date(Date.now() - 14400000).toISOString() // 4 hours ago
+    },
+    {
+      id: 'demo-tech2',
+      name: 'Jose Martinez',
+      email: 'jose.martinez@swifttiger.com',
+      role: 'technician',
+      permissions: ['read'],
+      createdAt: new Date('2024-01-12').toISOString(),
+      updatedAt: new Date('2024-01-20').toISOString(),
+      lastLogin: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+    },
+    {
+      id: 'demo-tech3',
+      name: 'Pedro Gonzalez',
+      email: 'pedro.gonzalez@swifttiger.com',
+      role: 'technician',
+      permissions: ['read'],
+      createdAt: new Date('2024-01-15').toISOString(),
+      updatedAt: new Date('2024-01-17').toISOString(),
+      lastLogin: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+    },
+    {
+      id: 'demo-tech4',
+      name: 'Roberto Silva',
+      email: 'roberto.silva@swifttiger.com',
+      role: 'technician',
+      permissions: ['read'],
+      createdAt: new Date('2024-01-08').toISOString(),
+      updatedAt: new Date('2024-01-16').toISOString(),
+      lastLogin: new Date(Date.now() - 259200000).toISOString() // 3 days ago
     }
   ];
 
@@ -114,11 +154,11 @@ const initializeDemoData = () => {
       scheduledDate: new Date(Date.now() + 86400000).toISOString(),
       estimatedDuration: 120,
       customerId: '1',
-      assignedUserId: 'demo-tech',
+      assignedTechnicianId: 'demo-tech1',
       createdAt: new Date('2024-01-15').toISOString(),
       updatedAt: new Date('2024-01-15').toISOString(),
       Customer: demoCustomers[0],
-      assignedUser: demoUsers[2]
+      assignedUser: demoUsers[3]
     },
     {
       id: '2',
@@ -130,11 +170,11 @@ const initializeDemoData = () => {
       scheduledDate: new Date().toISOString(),
       estimatedDuration: 180,
       customerId: '2',
-      assignedUserId: 'demo-tech',
+      assignedTechnicianId: 'demo-tech2',
       createdAt: new Date('2024-01-16').toISOString(),
       updatedAt: new Date().toISOString(),
       Customer: demoCustomers[1],
-      assignedUser: demoUsers[2]
+      assignedUser: demoUsers[4]
     },
     {
       id: '3',
@@ -146,11 +186,54 @@ const initializeDemoData = () => {
       scheduledDate: new Date(Date.now() - 86400000).toISOString(),
       estimatedDuration: 90,
       customerId: '3',
-      assignedUserId: 'demo-tech',
+      assignedTechnicianId: 'demo-tech3',
       createdAt: new Date('2024-01-17').toISOString(),
       updatedAt: new Date(Date.now() - 3600000).toISOString(),
       Customer: demoCustomers[2],
-      assignedUser: demoUsers[2]
+      assignedUser: demoUsers[5]
+    }
+  ];
+
+  // Demo job logs
+  const demoJobLogs: JobLog[] = [
+    {
+      id: '1',
+      jobId: '1',
+      notes: 'Started inspection of HVAC system. Found minor dust buildup in filters.',
+      statusUpdate: 'In Progress',
+      photos: [],
+      createdAt: new Date('2024-01-18T09:30:00').toISOString(),
+      updatedAt: new Date('2024-01-18T09:30:00').toISOString(),
+      technicianId: 'demo-tech1'
+    },
+    {
+      id: '2',
+      jobId: '1',
+      notes: 'Replaced filters and cleaned air ducts. System running efficiently.',
+      statusUpdate: 'Completed',
+      photos: [],
+      createdAt: new Date('2024-01-18T11:15:00').toISOString(),
+      updatedAt: new Date('2024-01-18T11:15:00').toISOString(),
+      technicianId: 'demo-tech1'
+    },
+    {
+      id: '3',
+      jobId: '2',
+      notes: 'Arrived on site. Assessing electrical panel and circuits.',
+      statusUpdate: 'In Progress',
+      photos: [],
+      createdAt: new Date('2024-01-19T10:00:00').toISOString(),
+      updatedAt: new Date('2024-01-19T10:00:00').toISOString(),
+      technicianId: 'demo-tech2'
+    },
+    {
+      id: '4',
+      jobId: '3',
+      notes: 'Customer requested quote. Will prepare detailed estimate.',
+      photos: [],
+      createdAt: new Date('2024-01-20T14:30:00').toISOString(),
+      updatedAt: new Date('2024-01-20T14:30:00').toISOString(),
+      technicianId: 'demo-tech3'
     }
   ];
 
@@ -158,7 +241,7 @@ const initializeDemoData = () => {
   localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(demoCustomers));
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(demoUsers));
   localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(demoJobs));
-  localStorage.setItem(STORAGE_KEYS.JOB_LOGS, JSON.stringify([]));
+  localStorage.setItem(STORAGE_KEYS.JOB_LOGS, JSON.stringify(demoJobLogs));
   localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
 };
 
@@ -354,6 +437,57 @@ export const demoUserService = {
   }
 };
 
+// Job Logs services
+export const demoJobLogService = {
+  async getJobLogs(jobId: string): Promise<JobLog[]> {
+    initializeDemoData();
+    const jobLogs = getStoredData<JobLog>(STORAGE_KEYS.JOB_LOGS);
+    return jobLogs.filter(log => log.jobId === jobId);
+  },
+
+  async createJobLog(jobId: string, logData: any): Promise<JobLog> {
+    const jobLogs = getStoredData<JobLog>(STORAGE_KEYS.JOB_LOGS);
+    const newJobLog: JobLog = {
+      id: generateId(),
+      jobId,
+      notes: logData.notes || '',
+      statusUpdate: logData.statusUpdate || undefined,
+      photos: logData.photos || [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      technicianId: logData.technicianId
+    };
+    
+    jobLogs.push(newJobLog);
+    saveStoredData(STORAGE_KEYS.JOB_LOGS, jobLogs);
+    return newJobLog;
+  },
+
+  async updateJobLog(jobId: string, logId: string, logData: any): Promise<JobLog> {
+    const jobLogs = getStoredData<JobLog>(STORAGE_KEYS.JOB_LOGS);
+    const logIndex = jobLogs.findIndex(log => log.id === logId && log.jobId === jobId);
+    if (logIndex === -1) throw new Error('Job log not found');
+    
+    jobLogs[logIndex] = {
+      ...jobLogs[logIndex],
+      notes: logData.notes !== undefined ? logData.notes : jobLogs[logIndex].notes,
+      statusUpdate: logData.statusUpdate !== undefined ? logData.statusUpdate : jobLogs[logIndex].statusUpdate,
+      photos: logData.photos !== undefined ? logData.photos : jobLogs[logIndex].photos,
+      updatedAt: new Date().toISOString()
+    };
+    
+    saveStoredData(STORAGE_KEYS.JOB_LOGS, jobLogs);
+    return jobLogs[logIndex];
+  },
+
+  async deleteJobLog(jobId: string, logId: string): Promise<{ success: boolean }> {
+    const jobLogs = getStoredData<JobLog>(STORAGE_KEYS.JOB_LOGS);
+    const filteredLogs = jobLogs.filter(log => !(log.id === logId && log.jobId === jobId));
+    saveStoredData(STORAGE_KEYS.JOB_LOGS, filteredLogs);
+    return { success: true };
+  }
+};
+
 // Address autocomplete for demo
 export const demoAddressService = {
   search(query: string) {
@@ -362,4 +496,36 @@ export const demoAddressService = {
       addr.description.toLowerCase().includes(query.toLowerCase())
     );
   }
+};
+
+// Main demo backend service export
+export const demoBackendService = {
+  // Customer methods
+  getCustomers: demoCustomerService.getAll,
+  getCustomer: demoCustomerService.getById,
+  createCustomer: demoCustomerService.create,
+  updateCustomer: demoCustomerService.update,
+  deleteCustomer: demoCustomerService.delete,
+
+  // Job methods
+  getJobs: demoJobService.getAll,
+  getJob: demoJobService.getById,
+  createJob: demoJobService.create,
+  updateJob: demoJobService.update,
+  deleteJob: demoJobService.delete,
+
+  // User methods
+  getUsers: demoUserService.getAll,
+  createUser: demoUserService.create,
+  updateUser: demoUserService.update,
+  deleteUser: demoUserService.delete,
+
+  // Job Log methods
+  getJobLogs: demoJobLogService.getJobLogs,
+  createJobLog: demoJobLogService.createJobLog,
+  updateJobLog: demoJobLogService.updateJobLog,
+  deleteJobLog: demoJobLogService.deleteJobLog,
+
+  // Address methods
+  searchAddress: demoAddressService.search
 };

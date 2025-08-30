@@ -8,6 +8,7 @@ import { sampleDataService } from '../services/sampleDataService';
 import { loadGoogleMapsScript } from '../utils/googleMaps';
 import RouteMap from '../components/RouteMap';
 import TechnicianWorkload from '../components/TechnicianWorkload';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 interface SavedRoute extends RouteOptimization {
   id: string;
@@ -52,14 +53,14 @@ const Routes: React.FC = () => {
         
         // Verify the Google Maps API is actually loaded
         if (window.google && window.google.maps) {
-          console.log('✅ Google Maps loaded successfully');
+          console.log('[Routes] Google Maps loaded successfully');
           setGoogleMapsLoaded(true);
         } else {
-          console.error('❌ Google Maps script loaded but API not available');
+          console.error('[Routes] Google Maps script loaded but API not available');
           toast.error('Google Maps API not available. Map features will be limited.');
         }
       } catch (error) {
-        console.error('❌ Failed to load Google Maps:', error);
+        console.error('[Routes] Failed to load Google Maps:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         toast.error(`Failed to load Google Maps: ${errorMessage}. Map features will be limited.`);
       }
@@ -408,7 +409,7 @@ const Routes: React.FC = () => {
           
           {jobsLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              <LoadingSpinner size="small" />
               <span className="ml-3 text-gray-600">Loading jobs...</span>
             </div>
           ) : filteredJobs.length === 0 ? (
@@ -558,7 +559,9 @@ const Routes: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Route Map</h3>
           <div className="text-center py-24 bg-gray-50 rounded-lg">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <div className="mb-4">
+              <LoadingSpinner />
+            </div>
             <p className="text-gray-600 text-lg">Loading Google Maps...</p>
             <p className="text-sm text-gray-500 mt-2">
               Map will appear once Google Maps API is ready
@@ -639,7 +642,7 @@ const Routes: React.FC = () => {
               
               {techniciansLoading ? (
                 <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600 mx-auto"></div>
+                  <LoadingSpinner size="small" />
                   <span className="text-sm text-gray-500 mt-2">Loading technicians...</span>
                 </div>
               ) : technicians && technicians.length > 0 ? (

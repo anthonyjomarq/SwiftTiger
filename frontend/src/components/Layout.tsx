@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Users, Briefcase, FileText, MapIcon, Shield, Settings, Menu, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useDemoMode } from '../contexts/DemoModeContext';
 import { UserRole } from '../types';
@@ -10,7 +11,7 @@ import DemoBanner from './DemoBanner';
 interface NavigationItem {
   name: string;
   href: string;
-  icon: string;
+  icon: React.ComponentType<any>;
   current: boolean;
   roles?: UserRole[];
 }
@@ -32,16 +33,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const navigation: NavigationItem[] = [
-    { name: 'Dashboard', href: '/', icon: '🏠', current: location.pathname === '/' },
-    { name: 'Customers', href: '/customers', icon: '👥', current: location.pathname.startsWith('/customers') },
-    { name: 'Jobs', href: '/jobs', icon: '💼', current: location.pathname.startsWith('/jobs') && !location.pathname.startsWith('/job-logs') },
-    { name: 'Job Logs', href: '/job-logs', icon: '📝', current: location.pathname.startsWith('/job-logs') },
+    { name: 'Dashboard', href: '/', icon: Home, current: location.pathname === '/' },
+    { name: 'Customers', href: '/customers', icon: Users, current: location.pathname.startsWith('/customers') },
+    { name: 'Jobs', href: '/jobs', icon: Briefcase, current: location.pathname.startsWith('/jobs') && !location.pathname.startsWith('/job-logs') },
+    { name: 'Job Logs', href: '/job-logs', icon: FileText, current: location.pathname.startsWith('/job-logs') },
     // Hide Route Optimizer and Audit Logs in demo mode
     ...(isDemoMode ? [] : [
-      { name: 'Route Optimizer', href: '/routes', icon: '🗺️', current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
-      { name: 'Audit Logs', href: '/audit', icon: '🛡️', current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
+      { name: 'Route Optimizer', href: '/routes', icon: MapIcon, current: location.pathname.startsWith('/routes'), roles: ['admin', 'manager', 'dispatcher'] },
+      { name: 'Audit Logs', href: '/audit', icon: Shield, current: location.pathname.startsWith('/audit'), roles: ['admin', 'manager'] },
     ]),
-    { name: 'User Management', href: '/users', icon: '⚙️', current: location.pathname.startsWith('/users'), roles: ['admin'] },
+    { name: 'User Management', href: '/users', icon: Settings, current: location.pathname.startsWith('/users'), roles: ['admin'] },
   ];
 
   const filteredNavigation = navigation.filter(item => 
@@ -106,7 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             : 'text-gray-700 hover:text-primary-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-primary-300 dark:hover:bg-gray-700'
                         } group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors`}
                       >
-                        <span className="text-lg shrink-0">{item.icon}</span>
+                        <item.icon className="h-5 w-5 shrink-0" />
                         {item.name}
                       </Link>
                     </li>
@@ -129,7 +130,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 className="-m-2.5 p-2.5 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white lg:hidden text-xl font-bold flex items-center justify-center w-6 h-6"
                 onClick={() => setSidebarOpen(true)}
               >
-                ☰
+<Menu className="h-6 w-6" />
               </button>
               
               {/* Page title or breadcrumb area */}
@@ -177,7 +178,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   onClick={handleLogout}
                   className="flex items-center gap-x-2 rounded-md bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
-                  <span className="text-sm">🚪</span>
+                  <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </div>
