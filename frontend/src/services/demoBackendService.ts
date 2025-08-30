@@ -31,8 +31,8 @@ const initializeDemoData = () => {
       addressPlaceId: 'demo_1',
       addressLatitude: 18.4655,
       addressLongitude: -66.1057,
-      createdAt: new Date('2024-01-15').toISOString(),
-      updatedAt: new Date('2024-01-15').toISOString()
+      createdAt: new Date('2024-01-15'),
+      updatedAt: new Date('2024-01-15')
     },
     {
       id: '2',
@@ -47,8 +47,8 @@ const initializeDemoData = () => {
       addressPlaceId: 'demo_2',
       addressLatitude: 18.4580,
       addressLongitude: -66.1050,
-      createdAt: new Date('2024-01-16').toISOString(),
-      updatedAt: new Date('2024-01-16').toISOString()
+      createdAt: new Date('2024-01-16'),
+      updatedAt: new Date('2024-01-16')
     },
     {
       id: '3',
@@ -63,8 +63,8 @@ const initializeDemoData = () => {
       addressPlaceId: 'demo_3',
       addressLatitude: 18.3951,
       addressLongitude: -66.0764,
-      createdAt: new Date('2024-01-17').toISOString(),
-      updatedAt: new Date('2024-01-17').toISOString()
+      createdAt: new Date('2024-01-17'),
+      updatedAt: new Date('2024-01-17')
     }
   ];
 
@@ -75,70 +75,143 @@ const initializeDemoData = () => {
       name: 'Maria Rodriguez',
       email: 'maria.rodriguez@swifttiger.com',
       role: 'admin',
-      permissions: ['all'],
-      createdAt: new Date('2023-12-01').toISOString(),
-      updatedAt: new Date('2024-01-20').toISOString(),
-      lastLogin: new Date().toISOString()
+      isMainAdmin: true,
+      isActive: true,
+      createdAt: new Date('2023-12-01'),
+      updatedAt: new Date('2024-01-20'),
+      lastLogin: new Date()
     },
     {
       id: 'demo-manager',
       name: 'Carlos Santos',
       email: 'carlos.santos@swifttiger.com',
       role: 'manager',
-      permissions: ['read', 'write'],
-      createdAt: new Date('2023-12-15').toISOString(),
-      updatedAt: new Date('2024-01-18').toISOString(),
-      lastLogin: new Date(Date.now() - 3600000).toISOString() // 1 hour ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2023-12-15'),
+      updatedAt: new Date('2024-01-18'),
+      lastLogin: new Date(Date.now() - 3600000) // 1 hour ago
     },
     {
       id: 'demo-dispatcher',
       name: 'Ana Morales',
       email: 'ana.morales@swifttiger.com',
       role: 'dispatcher',
-      permissions: ['read', 'write'],
-      createdAt: new Date('2024-01-05').toISOString(),
-      updatedAt: new Date('2024-01-19').toISOString(),
-      lastLogin: new Date(Date.now() - 7200000).toISOString() // 2 hours ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-05'),
+      updatedAt: new Date('2024-01-19'),
+      lastLogin: new Date(Date.now() - 7200000) // 2 hours ago
     },
     {
       id: 'demo-tech1',
       name: 'Luis Ramirez',
       email: 'luis.ramirez@swifttiger.com',
       role: 'technician',
-      permissions: ['read'],
-      createdAt: new Date('2024-01-10').toISOString(),
-      updatedAt: new Date('2024-01-19').toISOString(),
-      lastLogin: new Date(Date.now() - 14400000).toISOString() // 4 hours ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-10'),
+      updatedAt: new Date('2024-01-19'),
+      lastLogin: new Date(Date.now() - 14400000) // 4 hours ago
     },
     {
       id: 'demo-tech2',
       name: 'Jose Martinez',
       email: 'jose.martinez@swifttiger.com',
       role: 'technician',
-      permissions: ['read'],
-      createdAt: new Date('2024-01-12').toISOString(),
-      updatedAt: new Date('2024-01-20').toISOString(),
-      lastLogin: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-12'),
+      updatedAt: new Date('2024-01-20'),
+      lastLogin: new Date(Date.now() - 86400000) // 1 day ago
     },
     {
       id: 'demo-tech3',
       name: 'Pedro Gonzalez',
       email: 'pedro.gonzalez@swifttiger.com',
       role: 'technician',
-      permissions: ['read'],
-      createdAt: new Date('2024-01-15').toISOString(),
-      updatedAt: new Date('2024-01-17').toISOString(),
-      lastLogin: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-15'),
+      updatedAt: new Date('2024-01-17'),
+      lastLogin: new Date(Date.now() - 172800000) // 2 days ago
     },
     {
       id: 'demo-tech4',
       name: 'Roberto Silva',
       email: 'roberto.silva@swifttiger.com',
       role: 'technician',
-      permissions: ['read'],
-      createdAt: new Date('2024-01-08').toISOString(),
-      updatedAt: new Date('2024-01-16').toISOString(),
-      lastLogin: new Date(Date.now() - 259200000).toISOString() // 3 days ago
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-08'),
+      updatedAt: new Date('2024-01-16'),
+      lastLogin: new Date(Date.now() - 259200000) // 3 days ago
+    },
+    {
+      id: 'demo-tech5',
+      name: 'Elena Vasquez',
+      email: 'elena.vasquez@swifttiger.com',
+      role: 'technician',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-22'),
+      updatedAt: new Date('2024-01-25'),
+      lastLogin: new Date(Date.now() - 1800000) // 30 minutes ago
+    },
+    {
+      id: 'demo-tech6',
+      name: 'Miguel Torres',
+      email: 'miguel.torres@swifttiger.com',
+      role: 'technician',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-18'),
+      updatedAt: new Date('2024-01-24'),
+      lastLogin: new Date(Date.now() - 10800000) // 3 hours ago
+    },
+    {
+      id: 'demo-dispatcher2',
+      name: 'Sofia Gutierrez',
+      email: 'sofia.gutierrez@swifttiger.com',
+      role: 'dispatcher',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-20'),
+      updatedAt: new Date('2024-01-26'),
+      lastLogin: new Date(Date.now() - 5400000) // 1.5 hours ago
+    },
+    {
+      id: 'demo-manager2',
+      name: 'Diego Fernandez',
+      email: 'diego.fernandez@swifttiger.com',
+      role: 'manager',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-14'),
+      updatedAt: new Date('2024-01-23'),
+      lastLogin: new Date(Date.now() - 21600000) // 6 hours ago
+    },
+    {
+      id: 'demo-tech7',
+      name: 'Carmen Lopez',
+      email: 'carmen.lopez@swifttiger.com',
+      role: 'technician',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-11'),
+      updatedAt: new Date('2024-01-21'),
+      lastLogin: new Date(Date.now() - 43200000) // 12 hours ago
+    },
+    {
+      id: 'demo-tech8',
+      name: 'Fernando Ruiz',
+      email: 'fernando.ruiz@swifttiger.com',
+      role: 'technician',
+      isMainAdmin: false,
+      isActive: true,
+      createdAt: new Date('2024-01-13'),
+      updatedAt: new Date('2024-01-22'),
+      lastLogin: new Date(Date.now() - 28800000) // 8 hours ago
     }
   ];
 
@@ -148,49 +221,49 @@ const initializeDemoData = () => {
       id: '1',
       jobName: 'AC Repair - Downtown Office',
       description: 'HVAC system maintenance and repair',
-      serviceType: 'HVAC',
+      serviceType: 'Maintenance',
       priority: 'High',
-      status: 'Scheduled',
+      status: 'Pending',
       scheduledDate: new Date(Date.now() + 86400000).toISOString(),
       estimatedDuration: 120,
       customerId: '1',
-      assignedTechnicianId: 'demo-tech1',
-      createdAt: new Date('2024-01-15').toISOString(),
-      updatedAt: new Date('2024-01-15').toISOString(),
+      assignedTo: 'demo-tech1',
+      createdAt: new Date('2024-01-15'),
+      updatedAt: new Date('2024-01-15'),
       Customer: demoCustomers[0],
-      assignedUser: demoUsers[3]
+      AssignedTechnician: demoUsers[3]
     },
     {
       id: '2',
       jobName: 'Electrical Installation',
       description: 'Install new electrical panel',
-      serviceType: 'Electrical',
+      serviceType: 'New Account',
       priority: 'Medium',
       status: 'In Progress',
       scheduledDate: new Date().toISOString(),
       estimatedDuration: 180,
       customerId: '2',
-      assignedTechnicianId: 'demo-tech2',
-      createdAt: new Date('2024-01-16').toISOString(),
-      updatedAt: new Date().toISOString(),
+      assignedTo: 'demo-tech2',
+      createdAt: new Date('2024-01-16'),
+      updatedAt: new Date(),
       Customer: demoCustomers[1],
-      assignedUser: demoUsers[4]
+      AssignedTechnician: demoUsers[4]
     },
     {
       id: '3',
       jobName: 'Plumbing Maintenance',
       description: 'Kitchen sink repair and maintenance',
-      serviceType: 'Plumbing',
+      serviceType: 'Maintenance',
       priority: 'Low',
       status: 'Completed',
       scheduledDate: new Date(Date.now() - 86400000).toISOString(),
       estimatedDuration: 90,
       customerId: '3',
-      assignedTechnicianId: 'demo-tech3',
-      createdAt: new Date('2024-01-17').toISOString(),
-      updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      assignedTo: 'demo-tech3',
+      createdAt: new Date('2024-01-17'),
+      updatedAt: new Date(Date.now() - 3600000),
       Customer: demoCustomers[2],
-      assignedUser: demoUsers[5]
+      AssignedTechnician: demoUsers[5]
     }
   ];
 
@@ -202,8 +275,8 @@ const initializeDemoData = () => {
       notes: 'Started inspection of HVAC system. Found minor dust buildup in filters.',
       statusUpdate: 'In Progress',
       photos: [],
-      createdAt: new Date('2024-01-18T09:30:00').toISOString(),
-      updatedAt: new Date('2024-01-18T09:30:00').toISOString(),
+      createdAt: new Date('2024-01-18T09:30:00'),
+      updatedAt: new Date('2024-01-18T09:30:00'),
       technicianId: 'demo-tech1'
     },
     {
@@ -212,8 +285,8 @@ const initializeDemoData = () => {
       notes: 'Replaced filters and cleaned air ducts. System running efficiently.',
       statusUpdate: 'Completed',
       photos: [],
-      createdAt: new Date('2024-01-18T11:15:00').toISOString(),
-      updatedAt: new Date('2024-01-18T11:15:00').toISOString(),
+      createdAt: new Date('2024-01-18T11:15:00'),
+      updatedAt: new Date('2024-01-18T11:15:00'),
       technicianId: 'demo-tech1'
     },
     {
@@ -222,8 +295,8 @@ const initializeDemoData = () => {
       notes: 'Arrived on site. Assessing electrical panel and circuits.',
       statusUpdate: 'In Progress',
       photos: [],
-      createdAt: new Date('2024-01-19T10:00:00').toISOString(),
-      updatedAt: new Date('2024-01-19T10:00:00').toISOString(),
+      createdAt: new Date('2024-01-19T10:00:00'),
+      updatedAt: new Date('2024-01-19T10:00:00'),
       technicianId: 'demo-tech2'
     },
     {
@@ -231,8 +304,8 @@ const initializeDemoData = () => {
       jobId: '3',
       notes: 'Customer requested quote. Will prepare detailed estimate.',
       photos: [],
-      createdAt: new Date('2024-01-20T14:30:00').toISOString(),
-      updatedAt: new Date('2024-01-20T14:30:00').toISOString(),
+      createdAt: new Date('2024-01-20T14:30:00'),
+      updatedAt: new Date('2024-01-20T14:30:00'),
       technicianId: 'demo-tech3'
     }
   ];

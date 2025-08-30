@@ -32,8 +32,8 @@ ReactDOM.createRoot(rootElement).render(
   </React.StrictMode>
 );
 
-// Initialize PWA features
-if ('serviceWorker' in navigator) {
+// Initialize PWA features (disabled for demo)
+if (process.env.NODE_ENV === 'production' && import.meta.env.VITE_ENABLE_PWA === 'true' && 'serviceWorker' in navigator) {
   registerServiceWorker();
   setupInstallPrompt();
   requestPersistentStorage();

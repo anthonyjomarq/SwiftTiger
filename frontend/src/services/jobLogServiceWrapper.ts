@@ -5,9 +5,10 @@ import { JobLog, JobLogFormData } from '../types';
 // Check if we're in demo mode by checking localStorage
 const isDemoMode = (): boolean => {
   try {
-    return localStorage.getItem('swifttiger-demo-mode') === 'true';
+    const saved = localStorage.getItem('swifttiger-demo-mode');
+    return saved !== null ? JSON.parse(saved) : true; // Default to demo mode
   } catch {
-    return true; // Default to demo mode if localStorage is not available
+    return true; // Default to demo mode if localStorage fails
   }
 };
 

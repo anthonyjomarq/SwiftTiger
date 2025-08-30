@@ -151,7 +151,10 @@ const NotificationCenter: React.FC = () => {
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-1">
-                      {React.createElement(getNotificationIcon(notification.type), { className: "h-5 w-5 text-gray-400" })}
+                      {(() => {
+                        const IconComponent = getNotificationIcon(notification.type);
+                        return <IconComponent className="h-5 w-5 text-gray-400" />;
+                      })()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">

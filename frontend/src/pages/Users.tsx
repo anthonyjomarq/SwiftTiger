@@ -9,10 +9,6 @@ import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-interface UsersData {
-  users: UserType[];
-}
-
 interface MutationVariables {
   id: string;
   data: Partial<UserType>;
@@ -27,8 +23,7 @@ const Users: React.FC = () => {
   const { hasRole, isMainAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: usersData, isLoading } = useQuery<UsersData>('users', userService.getUsers);
-  const users = usersData?.users || [];
+  const { data: users, isLoading } = useQuery<UserType[]>('users', userService.getUsers);
 
   const createMutation = useMutation<UserType, Error, Partial<UserType>>(
     userService.createUser,

@@ -5,7 +5,9 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "allowJs": true
+    "allowJs": true,
+    "outDir": "dist"
   },
-  "include": ["vite.config.js", "vitest.config.ts", "postcss.config.js", "tailwind.config.js"]
+  "include": ["vitest.config.ts"],
+  "exclude": ["vite.config.js", "postcss.config.js", "tailwind.config.js"]
 }

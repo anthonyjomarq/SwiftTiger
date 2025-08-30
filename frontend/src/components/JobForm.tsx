@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { customerService } from '../services/customerService';
-import { userService } from '../services/userService';
+import { useForm } from 'react-hook-form';
+import { useQuery } from 'react-query';
+import { customerService } from '../services/customerServiceWrapper';
+import { userService } from '../services/userServiceWrapper';
 import { Job, ServiceType, JobPriority, Customer, User } from '../types';
 
 interface JobFormData {
@@ -21,11 +23,11 @@ interface JobFormProps {
   loading: boolean;
 }
 
-interface CustomersData {
+interface CustomerListResponse {
   customers: Customer[];
   total: number;
   page: number;
-  totalPages: number;
+  limit: number;
 }
 
 const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) => {
@@ -59,7 +61,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) =
     },
   });
 
-  const { data: customers } = useQuery<CustomersData>('customers-list', () =>
+  const { data: customers } = useQuery<CustomerListResponse>('customers-list', () =>
     customerService.getCustomers({ limit: 1000 })
   );
 
@@ -70,7 +72,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) =
   );
 
   const selectedCustomer = customers?.customers?.find(
-    c => c.id === watch('customer')
+    (c: Customer) => c.id === watch('customer')
   );
   
   const watchedServiceType = watch('serviceType');
@@ -145,7 +147,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) =
             className="input"
           >
             <option key="select-customer" value="">Select a customer</option>
-            {customers?.customers?.map((customer) => (
+            {customers?.customers?.map((customer: Customer) => (
               <option key={customer.id} value={customer.id}>
                 {customer.name}
               </option>
@@ -271,19 +273,21 @@ const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) =
           
           {customDuration ? (
             <input
+              {...register('estimatedDuration', { 
+                required: 'Duration is required',
+                min: { value: 15, message: 'Duration must be at least 15 minutes' }
+              })}
               type="number"
               min="15"
               step="15"
-              value={formData.estimatedDuration}
-              onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || 0)}
               className="input"
               placeholder="Enter minutes"
             />
           ) : (
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-              {formData.serviceType ? (
+              {watchedServiceType ? (
                 <div>
-                  <strong>{formData.serviceType}:</strong> {getServiceTypeDescription(formData.serviceType)}
+                  <strong>{watchedServiceType}:</strong> {getServiceTypeDescription(watchedServiceType)}
                 </div>
               ) : (
                 'Select a service type to see estimated duration'
@@ -292,7 +296,7 @@ const JobForm: React.FC<JobFormProps> = ({ job, onSubmit, onCancel, loading }) =
           )}
         </div>
         {errors.estimatedDuration && (
-          <p className="mt-1 text-sm text-red-600">{errors.estimatedDuration}</p>
+          <p className="mt-1 text-sm text-red-600">{errors.estimatedDuration?.message}</p>
         )}
       </div>
 

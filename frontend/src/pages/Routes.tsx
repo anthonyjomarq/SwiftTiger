@@ -2,7 +2,7 @@ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
 import { Calendar, MapPin, Users, Clock, Navigation, RefreshCw, Filter, Target, Database, Save, FolderOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Job, TechnicianWorkload, JobCluster, RouteOptimization, AutoAssignmentResult } from '../types';
+import { Job, TechnicianWorkload as TechnicianWorkloadType, JobCluster, RouteOptimization, AutoAssignmentResult } from '../types';
 import { routeService } from '../services/routeService';
 import { sampleDataService } from '../services/sampleDataService';
 import { loadGoogleMapsScript } from '../utils/googleMaps';
@@ -30,7 +30,7 @@ interface SampleDataResult {
 
 const Routes: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [selectedTechnician, setSelectedTechnician] = useState<TechnicianWorkload | null>(null);
+  const [selectedTechnician, setSelectedTechnician] = useState<TechnicianWorkloadType | null>(null);
   const [optimizedRoute, setOptimizedRoute] = useState<RouteOptimization | null>(null);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState<boolean>(false);
@@ -82,7 +82,7 @@ const Routes: React.FC = () => {
   );
 
   // Fetch technician workload
-  const { data: technicians, isLoading: techniciansLoading } = useQuery<TechnicianWorkload[]>(
+  const { data: technicians, isLoading: techniciansLoading } = useQuery<TechnicianWorkloadType[]>(
     ['technician-workload', selectedDate],
     () => routeService.getTechniciansWorkload(selectedDate),
     {
@@ -124,7 +124,7 @@ const Routes: React.FC = () => {
     setSelectedTechnician(null);
   };
 
-  const handleTechnicianSelect = (technician: TechnicianWorkload): void => {
+  const handleTechnicianSelect = (technician: TechnicianWorkloadType): void => {
     setSelectedTechnician(technician);
     setOptimizedRoute(null);
   };

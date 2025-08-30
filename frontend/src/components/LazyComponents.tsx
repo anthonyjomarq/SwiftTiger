@@ -1,12 +1,11 @@
 import React, { Suspense } from 'react';
-import { Helix } from 'ldrs/react';
-import 'ldrs/helix';
+import LoadingSpinner from './LoadingSpinner';
 
 // Loading component for lazy-loaded routes
 const PageLoader: React.FC = () => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
     <div className="text-center">
-      <Helix size="45" speed="2.5" color="#3b82f6" />
+      <LoadingSpinner size="medium" />
       <p className="text-gray-600 dark:text-gray-400 mt-4">Loading...</p>
     </div>
   </div>
@@ -15,7 +14,7 @@ const PageLoader: React.FC = () => (
 // Component loader for smaller components
 const ComponentLoader: React.FC<{ className?: string }> = ({ className = "h-32" }) => (
   <div className={`flex items-center justify-center ${className}`}>
-    <Helix size="32" speed="2.5" color="#3b82f6" />
+    <LoadingSpinner size="small" />
   </div>
 );
 

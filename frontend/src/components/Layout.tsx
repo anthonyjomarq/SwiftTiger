@@ -79,7 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 } group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors`}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span className="mr-3 text-lg">{item.icon}</span>
+                {React.createElement(item.icon, { className: "mr-3 h-5 w-5" })}
                 {item.name}
               </Link>
             ))}
@@ -107,7 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             : 'text-gray-700 hover:text-primary-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-primary-300 dark:hover:bg-gray-700'
                         } group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors`}
                       >
-                        <item.icon className="h-5 w-5 shrink-0" />
+                        {React.createElement(item.icon, { className: "h-5 w-5 shrink-0" })}
                         {item.name}
                       </Link>
                     </li>
