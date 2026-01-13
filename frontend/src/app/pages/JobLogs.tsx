@@ -1,6 +1,6 @@
 import React, { useState, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
-import { Search, Filter, User, MessageSquare, Calendar, MapPin, Briefcase } from 'lucide-react';
+import { Search, Filter, User, MessageSquare, Calendar, MapPin, Briefcase, X } from 'lucide-react';
 import { Job, JobLog, JobStatus, User as UserType } from '@/shared/types/business';
 import { jobService } from '@/shared/services/wrappers/jobServiceWrapper';
 import { jobLogServiceWrapper } from '@/shared/services/wrappers/jobLogServiceWrapper';
@@ -32,6 +32,7 @@ export function JobLogs() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [technicianFilter, setTechnicianFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Fetch all jobs to get job logs
   const { data: jobsData, isLoading: jobsLoading } = useQuery<Job[]>(
@@ -140,7 +141,15 @@ export function JobLogs() {
   };
 
   const handlePhotoClick = (filename: string): void => {
-    window.open(`/api/uploads/${filename}`, '_blank');
+    // If it's already a full URL, use it directly; otherwise add /api/uploads/
+    const url = filename.startsWith('http://') || filename.startsWith('https://')
+      ? filename
+      : `/api/uploads/${filename}`;
+    setLightboxImage(url);
+  };
+
+  const closeLightbox = (): void => {
+    setLightboxImage(null);
   };
 
   if (isLoading) {
@@ -318,6 +327,27 @@ export function JobLogs() {
           ))
         )}
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4"
+          onClick={closeLightbox}
+        >
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+          >
+            <X className="h-8 w-8" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Full size"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -232,26 +232,23 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
   };
 
   const getImageUrl = (filename: string): string => {
-    console.log('[JobLogs] getImageUrl called with:', filename);
-    console.log('[JobLogs] Type:', typeof filename);
-    console.log('[JobLogs] isDemoMode:', isDemoMode);
-    console.log('[JobLogs] hostname:', window.location.hostname);
+    // Handle empty or undefined
+    if (!filename || filename.length === 0) {
+      return `https://placehold.co/800x600/3b82f6/white?text=No+Image`;
+    }
 
     // If it's already a full URL (starts with http), return it as-is
-    if (filename && (filename.startsWith('http://') || filename.startsWith('https://'))) {
-      console.log('[JobLogs] Returning full URL as-is');
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
       return filename;
     }
 
     // On GitHub Pages or in demo mode, use placeholder for relative paths
     const isGitHubPages = window.location.hostname.includes('github.io');
     if (isDemoMode || isGitHubPages) {
-      console.log('[JobLogs] Using placeholder image');
       return `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
     }
 
     // For production with backend, use /api/uploads/
-    console.log('[JobLogs] Using /api/uploads/ path');
     return `/api/uploads/${filename}`;
   };
 
