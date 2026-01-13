@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Plus, User, Edit, Trash2, Camera, X, Save, MessageSquare } from 'lucide-react';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { jobLogServiceWrapper } from '@/shared/services/wrappers/jobLogServiceWrapper';
 import { useAuth } from '@/shared/contexts/AuthContext';
@@ -43,12 +43,20 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
   const [isAddingLog, setIsAddingLog] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: logs, isLoading } = useQuery<JobLogLocal[]>(
     ['job-logs', jobId],
-    () => jobLogServiceWrapper.getJobLogs(jobId) as Promise<JobLogLocal[]>,
+    async () => {
+      const result = await jobLogServiceWrapper.getJobLogs(jobId);
+      return result.map((log: any) => ({
+        ...log,
+        createdAt: typeof log.createdAt === 'string' ? log.createdAt : log.createdAt.toISOString(),
+        updatedAt: typeof log.updatedAt === 'string' ? log.updatedAt : log.updatedAt.toISOString()
+      }));
+    },
     { enabled: !!jobId }
   );
 
@@ -58,8 +66,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     formState: { errors },
     reset,
     watch,
-    setValue,
-    getValues
+    setValue
   } = useForm<JobLogFormData>({
     defaultValues: {
       notes: '',
@@ -135,7 +142,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     createLogMutation.mutate(formData);
   };
 
-  const handleEditLog = (log: JobLog): void => {
+  const handleEditLog = (log: JobLogLocal): void => {
     setEditingLogId(log.id);
     reset({
       notes: log.notes,
@@ -174,7 +181,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     reset({ notes: '', statusUpdate: '' });
   };
 
-  const canEditLog = (log: JobLog): boolean => {
+  const canEditLog = (log: JobLogLocal): boolean => {
     return log.Technician?.id === user?.id || ['admin', 'manager'].includes(user?.role || '');
   };
 
@@ -222,8 +229,12 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     }
   };
 
-  const openImageInNewTab = (filename: string): void => {
-    window.open(`/api/uploads/${filename}`, '_blank');
+  const openImageInLightbox = (filename: string): void => {
+    setLightboxImage(`/api/uploads/${filename}`);
+  };
+
+  const closeLightbox = (): void => {
+    setLightboxImage(null);
   };
 
   if (isLoading) {
@@ -372,6 +383,28 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4"
+          onClick={closeLightbox}
+        >
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-8 w-8" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Full size"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 
@@ -539,16 +572,23 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-2">Photos:</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {log.photos.map((photo, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={`/api/uploads/${photo.filename}`}
-                              alt={photo.originalName}
-                              className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer"
-                              onClick={() => openImageInNewTab(photo.filename)}
-                            />
-                          </div>
-                        ))}
+                        {log.photos.map((photo, index) => {
+                          const photoFilename = typeof photo === 'string' ? photo : photo.filename;
+                          const photoName = typeof photo === 'string' ? `Photo ${index + 1}` : photo.originalName;
+                          return (
+                            <div key={index} className="relative group">
+                              <img
+                                src={`/api/uploads/${photoFilename}`}
+                                alt={photoName}
+                                className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer transition-opacity"
+                                onClick={() => openImageInLightbox(photoFilename)}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded transition-all flex items-center justify-center">
+                                <Camera className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
