@@ -232,18 +232,26 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
   };
 
   const getImageUrl = (filename: string): string => {
+    console.log('[JobLogs] getImageUrl called with:', filename);
+    console.log('[JobLogs] Type:', typeof filename);
+    console.log('[JobLogs] isDemoMode:', isDemoMode);
+    console.log('[JobLogs] hostname:', window.location.hostname);
+
     // If it's already a full URL (starts with http), return it as-is
-    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    if (filename && (filename.startsWith('http://') || filename.startsWith('https://'))) {
+      console.log('[JobLogs] Returning full URL as-is');
       return filename;
     }
 
     // On GitHub Pages or in demo mode, use placeholder for relative paths
     const isGitHubPages = window.location.hostname.includes('github.io');
     if (isDemoMode || isGitHubPages) {
+      console.log('[JobLogs] Using placeholder image');
       return `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
     }
 
     // For production with backend, use /api/uploads/
+    console.log('[JobLogs] Using /api/uploads/ path');
     return `/api/uploads/${filename}`;
   };
 
@@ -591,8 +599,22 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
                       <p className="text-sm font-medium text-gray-700 mb-2">Photos:</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {log.photos.map((photo, index) => {
-                          const photoFilename = typeof photo === 'string' ? photo : photo.filename;
-                          const photoName = typeof photo === 'string' ? `Photo ${index + 1}` : photo.originalName;
+                          // Handle both string URLs and objects with filename property
+                          let photoFilename: string;
+                          let photoName: string;
+
+                          if (typeof photo === 'string') {
+                            photoFilename = photo;
+                            photoName = `Photo ${index + 1}`;
+                          } else if (photo && typeof photo === 'object' && 'filename' in photo) {
+                            photoFilename = (photo as JobLogPhoto).filename;
+                            photoName = (photo as JobLogPhoto).originalName || `Photo ${index + 1}`;
+                          } else {
+                            console.error('Unexpected photo format:', photo);
+                            photoFilename = '';
+                            photoName = `Photo ${index + 1}`;
+                          }
+
                           return (
                             <div key={index} className="relative group">
                               <img
