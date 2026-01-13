@@ -3,9 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
-import App from './App';
+import { App } from './App';
 import './index.css';
-import { registerServiceWorker, setupInstallPrompt, requestPersistentStorage } from './utils/pwa';
+import { registerServiceWorker, setupInstallPrompt, requestPersistentStorage } from '@/shared/utils/pwa';
 
 const queryClient = new QueryClient({
   defaultOptions: {

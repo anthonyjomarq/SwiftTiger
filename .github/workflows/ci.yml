@@ -148,8 +148,6 @@ jobs:
       - name: Build frontend
         working-directory: ./frontend
         run: npm run build
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:5000' }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -217,59 +215,61 @@ jobs:
         with:
           category: "/language:javascript"
 
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.ref == 'refs/heads/develop'
-    environment: staging
+  # Staging deployment disabled - using GitHub Pages for demo only
+  # deploy-staging:
+  #   name: Deploy to Staging
+  #   runs-on: ubuntu-latest
+  #   needs: [build-backend, build-frontend]
+  #   if: github.ref == 'refs/heads/develop'
+  #   environment: staging
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Download backend build
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: backend-build
+  #         path: backend/dist
+  #
+  #     - name: Download frontend build
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: frontend-build
+  #         path: frontend/dist
+  #
+  #     - name: Deploy to Render (Staging)
+  #       run: |
+  #         echo "Deploying to staging environment..."
+  #         # Add Render deployment webhook here
+  #         curl -X POST ${{ secrets.RENDER_STAGING_WEBHOOK }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download backend build
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-build
-          path: backend/dist
-
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend/dist
-
-      - name: Deploy to Render (Staging)
-        run: |
-          echo "Deploying to staging environment..."
-          # Add Render deployment webhook here
-          curl -X POST ${{ secrets.RENDER_STAGING_WEBHOOK }}
-
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend, security-scan]
-    if: github.ref == 'refs/heads/main'
-    environment: production
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download backend build
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-build
-          path: backend/dist
-
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend/dist
-
-      - name: Deploy to Render (Production)
-        run: |
-          echo "Deploying to production environment..."
-          curl -X POST ${{ secrets.RENDER_PRODUCTION_WEBHOOK }}
+  # Production deployment disabled - using GitHub Pages for demo only
+  # deploy-production:
+  #   name: Deploy to Production
+  #   runs-on: ubuntu-latest
+  #   needs: [build-backend, build-frontend, security-scan]
+  #   if: github.ref == 'refs/heads/main'
+  #   environment: production
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Download backend build
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: backend-build
+  #         path: backend/dist
+  #
+  #     - name: Download frontend build
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: frontend-build
+  #         path: frontend/dist
+  #
+  #     - name: Deploy to Render (Production)
+  #       run: |
+  #         echo "Deploying to production environment..."
+  #         curl -X POST ${{ secrets.RENDER_PRODUCTION_WEBHOOK }}
