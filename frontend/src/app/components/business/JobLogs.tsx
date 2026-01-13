@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { jobLogServiceWrapper } from '@/shared/services/wrappers/jobLogServiceWrapper';
 import { useAuth } from '@/shared/contexts/AuthContext';
+import { useDemoMode } from '@/demo/contexts/DemoModeContext';
 import { JobStatus, User as UserType } from '@/shared/types/business';
 
 interface JobLogFormData {
@@ -45,6 +46,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const { user } = useAuth();
+  const { isDemoMode } = useDemoMode();
   const queryClient = useQueryClient();
 
   const { data: logs, isLoading } = useQuery<JobLogLocal[]>(
@@ -229,8 +231,15 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     }
   };
 
+  const getImageUrl = (filename: string): string => {
+    if (isDemoMode) {
+      return `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
+    }
+    return `/api/uploads/${filename}`;
+  };
+
   const openImageInLightbox = (filename: string): void => {
-    setLightboxImage(`/api/uploads/${filename}`);
+    setLightboxImage(getImageUrl(filename));
   };
 
   const closeLightbox = (): void => {
@@ -578,10 +587,13 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
                           return (
                             <div key={index} className="relative group">
                               <img
-                                src={`/api/uploads/${photoFilename}`}
+                                src={getImageUrl(photoFilename)}
                                 alt={photoName}
                                 className="w-full h-24 object-cover rounded border hover:opacity-75 cursor-pointer transition-opacity"
                                 onClick={() => openImageInLightbox(photoFilename)}
+                                onError={(e) => {
+                                  e.currentTarget.src = `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
+                                }}
                               />
                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded transition-all flex items-center justify-center">
                                 <Camera className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
