@@ -232,9 +232,18 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
   };
 
   const getImageUrl = (filename: string): string => {
-    if (isDemoMode) {
+    // If it's already a full URL (starts with http), return it as-is
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+      return filename;
+    }
+
+    // On GitHub Pages or in demo mode, use placeholder for relative paths
+    const isGitHubPages = window.location.hostname.includes('github.io');
+    if (isDemoMode || isGitHubPages) {
       return `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
     }
+
+    // For production with backend, use /api/uploads/
     return `/api/uploads/${filename}`;
   };
 
