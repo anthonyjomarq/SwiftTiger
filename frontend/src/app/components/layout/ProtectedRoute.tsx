@@ -1,6 +1,6 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/shared/contexts/AuthContext';
+import { useDemoMode } from '@/demo/contexts/DemoModeContext';
 import { UserRole } from '@/shared/types/business';
 import { LoadingSpinner } from '@/shared/components/ui/LoadingSpinner';
 
@@ -10,18 +10,28 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles = [] }: ProtectedRouteProps) {
-  const { isAuthenticated, hasRole, loading } = useAuth();
+  const { isAuthenticated, hasRole, loading, login } = useAuth();
+  const { enableDemoMode } = useDemoMode();
 
-  if (loading) {
+  // Auto-login as demo user for portfolio demo (no login page needed)
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      enableDemoMode();
+      login({
+        id: 'demo-admin',
+        email: 'admin@swifttiger.com',
+        name: 'Demo Admin',
+        role: 'admin' as const,
+      });
+    }
+  }, [loading, isAuthenticated, enableDemoMode, login]);
+
+  if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
   }
 
   if (requiredRoles.length > 0 && !hasRole(requiredRoles)) {

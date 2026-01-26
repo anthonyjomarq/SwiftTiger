@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 interface DemoModeContextType {
   isDemoMode: boolean;
   toggleDemoMode: () => void;
+  enableDemoMode: () => void;
   showGoogleApiWarning: boolean;
   setShowGoogleApiWarning: (show: boolean) => void;
 }
@@ -32,19 +33,25 @@ export const DemoModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const newMode = !isDemoMode;
     setIsDemoMode(newMode);
     localStorage.setItem('swifttiger-demo-mode', JSON.stringify(newMode));
-    
+
     if (!newMode && !import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
       setShowGoogleApiWarning(true);
     }
   };
 
+  const enableDemoMode = () => {
+    setIsDemoMode(true);
+    localStorage.setItem('swifttiger-demo-mode', JSON.stringify(true));
+  };
+
   return (
-    <DemoModeContext.Provider 
-      value={{ 
-        isDemoMode, 
-        toggleDemoMode, 
-        showGoogleApiWarning, 
-        setShowGoogleApiWarning 
+    <DemoModeContext.Provider
+      value={{
+        isDemoMode,
+        toggleDemoMode,
+        enableDemoMode,
+        showGoogleApiWarning,
+        setShowGoogleApiWarning
       }}
     >
       {children}
