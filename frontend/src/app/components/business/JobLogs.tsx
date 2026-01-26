@@ -243,7 +243,8 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
     }
 
     // On GitHub Pages or in demo mode, use placeholder for relative paths
-    const isGitHubPages = window.location.hostname.includes('github.io');
+    const hostname = window.location.hostname;
+    const isGitHubPages = hostname.endsWith('.github.io') || hostname === 'github.io';
     if (isDemoMode || isGitHubPages) {
       return `https://placehold.co/800x600/3b82f6/white?text=Job+Photo`;
     }
@@ -258,6 +259,14 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
 
   const closeLightbox = (): void => {
     setLightboxImage(null);
+  };
+
+  // Safe object URL creation - validates file is an image before creating blob URL
+  const createSafeObjectURL = (file: File): string => {
+    if (!file || !(file instanceof File) || !file.type.startsWith('image/')) {
+      return `https://placehold.co/800x600/3b82f6/white?text=Invalid+File`;
+    }
+    return URL.createObjectURL(file);
   };
 
   if (isLoading) {
@@ -368,7 +377,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
                   {selectedPhotos.map((photo, index) => (
                     <div key={index} className="relative">
                       <img
-                        src={URL.createObjectURL(photo)}
+                        src={createSafeObjectURL(photo)}
                         alt={`Preview ${index + 1}`}
                         className="w-full h-20 object-cover rounded border"
                       />
@@ -548,7 +557,7 @@ export function JobLogs({ jobId, jobStatus }: JobLogsProps) {
                         {selectedPhotos.map((photo, index) => (
                           <div key={index} className="relative">
                             <img
-                              src={URL.createObjectURL(photo)}
+                              src={createSafeObjectURL(photo)}
                               alt={`Preview ${index + 1}`}
                               className="w-full h-20 object-cover rounded border"
                             />

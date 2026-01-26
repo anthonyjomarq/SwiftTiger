@@ -188,14 +188,17 @@ const SERVICE_TYPES: ServiceType[] = ['New Account', 'Replacement', 'Training', 
 const PRIORITIES: JobPriority[] = ['Low', 'Medium', 'High'];
 
 export const sampleDataService = {
-  generateRandomCoordinate(region: PuertoRicoRegion): Coordinate {
+  // Use deterministic coordinate generation for demo data (based on index)
+  generateCoordinateForIndex(region: PuertoRicoRegion, index: number): Coordinate {
     const regionData = PUERTO_RICO_REGIONS[region];
     if (!regionData) return { lat: 18.2208, lng: -66.5901 }; // Default to PR center
-    
-    const randomLat = regionData.center.lat + (Math.random() - 0.5) * regionData.radius;
-    const randomLng = regionData.center.lng + (Math.random() - 0.5) * regionData.radius;
-    
-    return { lat: randomLat, lng: randomLng };
+
+    // Use index to create deterministic offset (no Math.random for security compliance)
+    const offsetFactor = ((index % 10) - 5) / 10; // Creates values from -0.5 to 0.4
+    const lat = regionData.center.lat + offsetFactor * regionData.radius;
+    const lng = regionData.center.lng + offsetFactor * regionData.radius;
+
+    return { lat, lng };
   },
 
   async createSampleTechnicians(): Promise<User[]> {
@@ -246,20 +249,26 @@ export const sampleDataService = {
   async createSampleCustomers(): Promise<Customer[]> {
     console.log('Creating customers...');
     const customers: Customer[] = [];
-    
-    for (const customerData of SAMPLE_CUSTOMERS) {
-      const coordinates = this.generateRandomCoordinate(customerData.region);
-      
+
+    for (let i = 0; i < SAMPLE_CUSTOMERS.length; i++) {
+      const customerData = SAMPLE_CUSTOMERS[i];
+      const coordinates = this.generateCoordinateForIndex(customerData.region, i);
+
+      // Use deterministic values based on index (no Math.random for security compliance)
+      const phonePrefix = 100 + (i * 37) % 900;
+      const phoneSuffix = 1000 + (i * 73) % 9000;
+      const zipSuffix = 100 + (i * 23) % 900;
+
       try {
         console.log(`Creating customer: ${customerData.name} in ${customerData.region}`);
         const payload: CustomerCreatePayload = {
           name: customerData.name,
           email: `${customerData.name.toLowerCase().replace(/\s+/g, '.')}@business.pr`,
-          phone: `(787) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+          phone: `(787) ${phonePrefix}-${phoneSuffix}`,
           addressStreet: customerData.address,
           addressCity: customerData.region,
           addressState: 'PR',
-          addressZipCode: `00${Math.floor(Math.random() * 900) + 100}`,
+          addressZipCode: `00${zipSuffix}`,
           addressCountry: 'US',
           addressLatitude: coordinates.lat,
           addressLongitude: coordinates.lng,
